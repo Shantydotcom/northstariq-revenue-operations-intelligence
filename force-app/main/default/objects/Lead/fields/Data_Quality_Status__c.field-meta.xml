@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Data_Quality_Status__c</fullName>
+    <description>BR-02. Routing-critical completeness: Country and Employee Count. Formula - no automation required.</description>
+    <externalId>false</externalId>
+    <formula><![CDATA[IF(OR(ISBLANK(TEXT(CountryCode)), ISBLANK(NumberOfEmployees)), "Incomplete", "Complete")]]></formula>
+    <formulaTreatBlanksAs>BlankAsBlank</formulaTreatBlanksAs>
+    <inlineHelpText>Complete when both routing-critical attributes are present.</inlineHelpText>
+    <label>Data Quality Status</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

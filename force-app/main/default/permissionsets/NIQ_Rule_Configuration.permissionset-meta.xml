@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<PermissionSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>BR-18/BR-21. Separately assignable authority to change governed rule configuration. A threshold change affects every record, so it is never bundled with routine record access.</description>
+    <hasActivationRequired>false</hasActivationRequired>
+    <label>NIQ Rule Configuration</label>
+    <customMetadataTypeAccesses>
+        <enabled>true</enabled>
+        <name>Segment_Band__mdt</name>
+    </customMetadataTypeAccesses>
+    <customMetadataTypeAccesses>
+        <enabled>true</enabled>
+        <name>Routing_Rule__mdt</name>
+    </customMetadataTypeAccesses>
+</PermissionSet>

@@ -60,12 +60,17 @@ prompts/**
 # repository an honest record of what was actually designed and built.
 # -----------------------------------------------------------------------------
 **/settings/**
-**/standardValueSets/**
 **/appMenus/**
 **/*.profile-meta.xml
 
-# Managed-package components (not authored here)
-**/*__*.object-meta.xml
+# Standard value sets are excluded by default for the reason above, EXCEPT the
+# ones this project deliberately governs. AccountType gains a business value
+# (Churned, BR-03/ASM-03); LeadStatus and LeadSource are version-controlled so
+# that drift in the governed taxonomy (BR-15, PD-12) is a reviewable diff.
+**/standardValueSets/**
+!**/standardValueSets/AccountType.standardValueSet-meta.xml
+!**/standardValueSets/LeadStatus.standardValueSet-meta.xml
+!**/standardValueSets/LeadSource.standardValueSet-meta.xml
 **/installedPackages/**
 
 # -----------------------------------------------------------------------------

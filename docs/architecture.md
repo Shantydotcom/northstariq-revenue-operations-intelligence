@@ -3,22 +3,24 @@
 | | |
 |---|---|
 | **Purpose** | How the requirements are intended to be met in Salesforce |
-| **Status** | 🟡 **CANDIDATE ARCHITECTURE** — not validated against the org |
+| **Status** | 🟢 Org inspected 2026-08-22 · **Increment 1 approved** · automation still CANDIDATE |
 | **Related** | [`requirements.md`](requirements.md) · [`data-model.md`](data-model.md) · [`security-model.md`](security-model.md) |
 
 ---
 
 ## ⚠️ Status of This Document
 
-**No Salesforce org has been inspected yet.** Everything below is a candidate design derived from
-requirements, not a build commitment.
+**The org was inspected on 2026-08-22.** Findings are recorded in
+[`implementation-log.md`](implementation-log.md).
 
-Before any metadata is created, the org will be inventoried and each candidate re-evaluated against
-what standard Salesforce and the existing configuration already provide. **Components will be
-removed from this design as a result of that inspection, and that is the intended outcome.**
+What changed as a result: standard Duplicate and Matching Rules replace custom duplicate logic ·
+State/Country picklists are enabled, removing most country normalization · Enterprise Territory
+Management is unavailable, so the configuration-driven model is required rather than merely
+preferred · standard field history replaces custom history fields · `Account.Type` replaces
+`Customer_Status__c` · the scheduled SLA sweep is removed in favour of a formula.
 
-A candidate that survives org inspection becomes build-committed and is recorded in
-[`implementation-log.md`](implementation-log.md). Nothing here may be described as implemented.
+**Increment 1 (Foundation) is approved.** Automation below remains CANDIDATE until its own
+increment. **Nothing here is implemented.**
 
 ---
 
@@ -56,18 +58,27 @@ Preferred envelope. **Not hard limits** — exceeding one requires a documented 
 
 | Component | Preferred | Candidate count |
 |---|---|---:|
-| Custom fields | ~15–25 | 22 |
-| Flows | ~3–5 | 4 |
-| Custom Metadata Types | ~1–3 | 2 (+1 conditional) |
-| Permission sets | ~3–5 | 4 |
-| Queues | ~1–3 | 2 |
-| Reports | ~5–8 | 7 |
-| Dashboards | 1 | 1 |
-| Apex classes | **0** | **0** |
+| Custom fields | ~15–25 | **19** — approved, Increment 1 |
+| Flows | ~3–5 | **3** — candidate |
+| Custom Metadata Types | ~1–3 | **2** — approved, Increment 1 |
+| Permission sets | ~3–5 | **3** — approved, Increment 1 (`NIQ_Analytics_Read` deferred) |
+| Queues | ~1–3 | 2 — candidate |
+| Reports | ~5–8 | 7 — candidate, built incrementally |
+| Dashboards | 1 | 1 — candidate |
+| Validation rules | — | 2 — candidate |
+| Apex classes | **0** | **1** — approved: business-hours seam only |
 
-**On Apex.** Zero is the target, not an aspiration. No requirement in this project has been
-identified that Flow and configuration cannot meet. If one emerges, the justification is recorded
-before the class is written.
+**On Apex — one exception, justified and recorded.** Zero was the target. Org inspection falsified
+`ASM-13`: **Salesforce Flow has no business-hours element and formula syntax has no business-hours
+function.** `BusinessHours.add()` is Apex-only, and `BR-10` requires elapsed time measured on
+business hours excluding holidays.
+
+**Approved: one narrowly scoped invocable Apex utility wrapping `BusinessHours.add()`, and nothing
+else.** Routing, segmentation, matching, data quality, and lifecycle logic must not move into Apex.
+It requires a test class with boundary cases including a holiday scenario.
+
+The alternative was a weekend-only formula that silently ignores holidays — which would have forced
+us to skip the single highest-value SLA test.
 
 ---
 
@@ -129,7 +140,7 @@ that administrator is already the constraint.
 | 1 | `Lead_Inbound_Before_Save` | Record-triggered, before save | `BR-01`, `BR-02`, `BR-05`, `BR-06` | No DML, no queries — field assignment only. Configuration read via formula or value set where possible. |
 | 2 | `Lead_Inbound_After_Save` | Record-triggered, after save | `BR-03`, `BR-07`, `BR-08`, `BR-10`, `BR-13` | Match, precedence, eligibility, reason capture, SLA target, exception routing |
 | 3 | `Lead_First_Touch_Capture` | Record-triggered | `BR-11` | **May fold into #2 after org inspection** if the defining events can be captured there |
-| 4 | `SLA_Breach_Sweep` | Scheduled | `BR-12` | Business-hours-aware breach derivation |
+| ~~4~~ | ~~`SLA_Breach_Sweep`~~ | ~~Scheduled~~ | `BR-12` | **REMOVED.** `SLA_Status__c` as a formula evaluates at query time — reports and list views show breaches with no scheduled Flow. |
 
 ### Design rules binding every Flow
 
@@ -162,9 +173,9 @@ Rules the business is expected to change must not live inside a Flow (`BR-21`).
 | `Segment_Band__mdt` | Segment name · employee min/max · ARR override threshold · SLA response target · version | `BR-05`, `BR-10`, `BR-21` | A threshold change is a business decision that must not require a deployment |
 | `Routing_Rule__mdt` | Precedence order · segment · territory · eligibility criteria · rule version | `BR-07`, `BR-08`, `BR-21` | The precedence order is exactly the thing `PROB-005` says was never agreed — it must be visible and changeable |
 
-**Conditional third:** `Territory_Map__mdt` (country/state → territory) — **only if** a global value
-set plus formula cannot express the mapping. Org inspection decides. Preferring the value set keeps
-the count at two.
+**`Territory_Map__mdt` is not created.** `CountryCode` and `StateCode` are enabled as restricted
+standard picklists, so the country/state → territory mapping fits inside `Routing_Rule__mdt`. Two
+types, as intended.
 
 **SLA response targets live in `Segment_Band__mdt`, not a separate type.** The target is an attribute
 of the segment. A separate `SLA_Target__mdt` would be a second table keyed on the same value.

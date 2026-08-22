@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Last_Assigned_DateTime__c</fullName>
+    <description>BR-09/PD-07. Round-robin rotation state. Readable, not inferred - this is what makes distribution verifiable.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>When this user last received a routed record.</inlineHelpText>
+    <label>Last Assigned</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

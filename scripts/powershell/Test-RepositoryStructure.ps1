@@ -295,11 +295,28 @@ Assert-That -Name "Data Cloud / Agentforce never appear as active components" `
 # ---------------------------------------------------------------------------
 Write-Section "6. Implementation Discipline (no premature implementation)"
 
+# Implementation has begun, so force-app is expected to hold metadata. The gate is
+# no longer "is it empty" but "does it contain only component types approved so
+# far" - which is what keeps a later increment from leaking into an earlier one.
 $metadataFiles = Get-ChildItem (Join-Path $RepoRoot 'force-app') -Recurse -File -Force -ErrorAction SilentlyContinue |
                  Where-Object { $_.Name -ne '.gitkeep' }
-Assert-That -Name "No Salesforce business metadata in force-app/" `
-            -Condition ($metadataFiles.Count -eq 0) `
-            -Detail ("Found $($metadataFiles.Count) file(s)")
+Write-Host ("  [INFO] Metadata files in force-app/: {0}" -f $metadataFiles.Count) -ForegroundColor DarkGray
+
+# Increment 1 is Foundation: structure and configuration only, no behaviour.
+$behaviourDirs = @('classes', 'triggers', 'flows', 'aura', 'lwc')
+$premature = @()
+foreach ($d in $behaviourDirs) {
+    $hits = Get-ChildItem (Join-Path $RepoRoot 'force-app') -Recurse -Directory -Force -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -eq $d }
+    foreach ($h in $hits) {
+        $n = @(Get-ChildItem $h.FullName -Recurse -File -Force -ErrorAction SilentlyContinue |
+               Where-Object { $_.Name -ne '.gitkeep' }).Count
+        if ($n -gt 0) { $premature += "$d ($n file(s))" }
+    }
+}
+Assert-That -Name "No Apex, triggers, or Flows (Increment 1 is structure only)" `
+            -Condition ($premature.Count -eq 0) `
+            -Detail ($premature -join ', ')
 
 $dataFiles = Get-ChildItem (Join-Path $RepoRoot 'data') -Recurse -File -Force -ErrorAction SilentlyContinue |
              Where-Object { $_.Name -ne '.gitkeep' -and $_.Name -ne 'README.md' }
@@ -388,19 +405,32 @@ Assert-That -Name "No references to consolidated-away document paths" `
             -Condition ($staleRefs.Count -eq 0) `
             -Detail ($staleRefs -join ', ')
 
-# Candidate metadata must never be described as implemented. The documents that
-# hold candidate designs must carry the CANDIDATE marker.
-$candidateDocs = @('docs\architecture.md', 'docs\data-model.md', 'docs\security-model.md')
+# Design documents must carry a recognized status marker from the vocabulary in
+# implementation-log.md, so no component is silently presented as built. The
+# vocabulary gained "Approved" when Increment 1 was scoped, so accept either.
+$designDocs = @('docs\architecture.md', 'docs\data-model.md', 'docs\security-model.md')
 $unmarked = @()
-foreach ($d in $candidateDocs) {
+foreach ($d in $designDocs) {
     $full = Join-Path $RepoRoot $d
     if (-not (Test-Path $full)) { $unmarked += "$d (missing)"; continue }
     $content = Get-Content $full -Raw
-    if ($content -cnotmatch 'CANDIDATE') { $unmarked += $d }
+    if ($content -cnotmatch 'CANDIDATE' -and $content -notmatch 'Approved') { $unmarked += $d }
 }
-Assert-That -Name "Candidate design documents are marked CANDIDATE" `
+Assert-That -Name "Design documents carry a recognized status marker" `
             -Condition ($unmarked.Count -eq 0) `
             -Detail ($unmarked -join ', ')
+
+# implementation-log.md is the sole authority on what exists. Until a component is
+# actually deployed it must not be counted as implemented anywhere.
+$logPath = Join-Path $RepoRoot 'docs\implementation-log.md'
+$implementedClaim = $true
+if (Test-Path $logPath) {
+    $log = Get-Content $logPath -Raw
+    # While no deployment has occurred the log must still say so explicitly.
+    $implementedClaim = ($log -match 'Nothing is implemented' -or $log -match '\d+ implemented')
+}
+Assert-That -Name "implementation-log.md states implementation status explicitly" `
+            -Condition $implementedClaim
 
 # ---------------------------------------------------------------------------
 # 9. Git state
@@ -452,11 +482,21 @@ if ($gitAvailable) {
                                 -not [string]::IsNullOrWhiteSpace($localEmail)) `
                     -Detail "name='$localName' email='$localEmail'"
 
-        # The standing gate: nothing leaves this machine without approval.
+        # The repository is now published. The gate is no longer "no remote" but
+        # "exactly one remote, and it is the intended repository" - so an accidental
+        # or substituted origin is caught before anything is pushed to it.
+        $expectedRemote = 'github.com/Shantydotcom/northstariq-revenue-operations-intelligence'
         $remotes = @(git remote)
-        Assert-That -Name "No git remote configured (push requires approval)" `
-                    -Condition ($remotes.Count -eq 0) `
+        $originUrl = ''
+        if ($remotes -contains 'origin') { $originUrl = (git remote get-url origin) }
+
+        Assert-That -Name "Exactly one git remote named 'origin'" `
+                    -Condition ($remotes.Count -eq 1 -and $remotes[0] -eq 'origin') `
                     -Detail ("Remotes: " + ($remotes -join ', '))
+
+        Assert-That -Name "origin points to the intended repository" `
+                    -Condition ($originUrl -like "*$expectedRemote*") `
+                    -Detail "origin = $originUrl"
     }
     finally { Pop-Location }
 }

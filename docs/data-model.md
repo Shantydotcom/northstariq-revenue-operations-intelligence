@@ -3,28 +3,30 @@
 | | |
 |---|---|
 | **Purpose** | Which objects and fields the architecture needs, and which of those are custom |
-| **Status** | 🟡 **CANDIDATE** — no field is build-committed |
+| **Status** | 🟢 **APPROVED for Increment 1** — org inspected 2026-08-22; nothing built yet |
 | **Related** | [`architecture.md`](architecture.md) · [`requirements.md`](requirements.md) · [`security-model.md`](security-model.md) |
 
 ---
 
 ## ⚠️ Status of Every Field in This Document
 
-**No Salesforce org has been inspected. Nothing here is committed to being built.**
+**The org has been inspected (2026-08-22). 19 fields are approved for Increment 1. None is built yet.**
 
 | Status | Meaning |
 |---|---|
 | **Standard — reuse** | An existing Salesforce field meets the need. **No custom field will be created.** |
-| **Candidate** | Proposed custom field, pending org inspection |
+| **Candidate** | Proposed, not yet approved for a specific increment |
+| **Approved — Inc N** | Approved for build in the named increment. **Still not built.** |
 | **Implemented** | Created in the org and source-controlled — *none yet* |
 | **Validated** | Implemented and proven by test — *none yet* |
-| **Deferred** | Valid but out of this release |
+| **Deferred** | Valid but out of this release, or moved to a later increment |
 
-**Every field below is Standard–reuse, Candidate, or Deferred.** The column is filled in as the
-build proceeds, and [`implementation-log.md`](implementation-log.md) records each transition.
+**No field below is Implemented or Validated.** The column advances as the build proceeds, and
+[`implementation-log.md`](implementation-log.md) records each transition.
 
-**The candidate count is expected to fall after org inspection.** A candidate that duplicates
-standard capability or existing org configuration is removed, not built.
+**Org inspection reduced 22 candidates to 20, then 19 for Increment 1**: `Customer_Status__c` was
+replaced by standard `Account.Type`, `Lifecycle_Stage_Entered__c` was deferred to standard field
+history, and `SLA_Status__c` was deferred to the SLA increment where its inputs become meaningful.
 
 ---
 
@@ -69,47 +71,61 @@ The discovery finding that governs this entire document:
 
 **22 candidates.** Preferred envelope is 15–25.
 
-### Lead — 12 candidates
+### Lead — 13 approved for Increment 1
 
 | API name | Type | Purpose | Serves | Status |
 |---|---|---|---|---|
-| `Normalized_Domain__c` | Text(255) | Registrable domain extracted from website or email — the primary match signal | `BR-01`, `BR-03` | Candidate |
-| `Data_Quality_Status__c` | Picklist | Complete · Incomplete · Unnormalizable | `BR-02` | Candidate |
-| `Data_Quality_Detail__c` | Text(255) | **Which** attributes are missing or unnormalizable | `BR-02` | Candidate |
-| `Match_Status__c` | Picklist | Matched · Review · No Match | `BR-03` | Candidate |
-| `Matched_Account__c` | Lookup(Account) | The Account matched | `BR-03` | Candidate |
-| `Match_Basis__c` | Text(255) | Which signal produced the outcome | `BR-03` | Candidate |
-| `Segment__c` | Picklist | Derived segment | `BR-05` | Candidate |
-| `Segment_Basis__c` | Text(255) | Which rule and version derived it; whether overridden | `BR-05` | Candidate |
-| `Territory__c` | Picklist | Derived territory | `BR-06` | Candidate |
-| `Routing_Reason__c` | Text(255) | **Why this owner** — precedence level, eligibility, rule version | `BR-08` | Candidate |
-| `SLA_Target_DateTime__c` | Date/Time | Response deadline, visible to the owner | `BR-10`, `BR-12` | Candidate |
-| `First_Touch_DateTime__c` | Date/Time | When first touch occurred | `BR-11` | Candidate |
+| `Normalized_Domain__c` | Text(255) | Registrable domain extracted from website or email — the primary match signal | `BR-01`, `BR-03` | **Approved — Inc 1** |
+| `Data_Quality_Status__c` | Picklist | Complete · Incomplete · Unnormalizable | `BR-02` | **Approved — Inc 1** |
+| `Data_Quality_Detail__c` | Text(255) | **Which** attributes are missing or unnormalizable | `BR-02` | **Approved — Inc 1** |
+| `Match_Status__c` | Picklist | Matched · Review · No Match | `BR-03` | **Approved — Inc 1** |
+| `Matched_Account__c` | Lookup(Account) | The Account matched | `BR-03` | **Approved — Inc 1** |
+| `Match_Basis__c` | Text(255) | Which signal produced the outcome | `BR-03` | **Approved — Inc 1** |
+| `Segment__c` | Picklist | Derived segment | `BR-05` | **Approved — Inc 1** |
+| `Segment_Basis__c` | Text(255) | Which rule and version derived it; whether overridden | `BR-05` | **Approved — Inc 1** |
+| `Territory__c` | Picklist | Derived territory | `BR-06` | **Approved — Inc 1** |
+| `Routing_Reason__c` | Text(255) | **Why this owner** — precedence level, eligibility, rule version | `BR-08` | **Approved — Inc 1** |
+| `SLA_Target_DateTime__c` | Date/Time | Response deadline, visible to the owner | `BR-10`, `BR-12` | **Approved — Inc 1** |
+| `First_Touch_DateTime__c` | Date/Time | When first touch occurred | `BR-11` | **Approved — Inc 1** |
 
-### Account — 4 candidates
-
-| API name | Type | Purpose | Serves | Status |
-|---|---|---|---|---|
-| `Strategic_Account__c` | Checkbox | Explicit designation, set by Revenue Operations | `BR-07`, `PD-02` | Candidate |
-| `Customer_Status__c` | Picklist | Prospect · Customer · Churned | `BR-03`, `BR-07` | Candidate |
-| `Segment__c` | Picklist | Derived segment | `BR-05` | Candidate |
-| `Territory__c` | Picklist | Derived territory | `BR-06` | Candidate |
-
-### User — 3 candidates
+### Account — 3 approved (1 replaced by standard)
 
 | API name | Type | Purpose | Serves | Status |
 |---|---|---|---|---|
-| `Territory__c` | Picklist | Coverage — a routing input | `BR-06`, `BR-07` | Candidate |
-| `Routing_Eligible__c` | Checkbox | Eligibility for assignment (`OD-02` interim) | `BR-08` | Candidate |
-| `Last_Assigned_DateTime__c` | Date/Time | Rotation state — **readable, not inferred** | `BR-09`, `PD-07` | Candidate |
+| `Strategic_Account__c` | Checkbox | Explicit designation, set by Revenue Operations | `BR-07`, `PD-02` | **Approved — Inc 1** |
+| ~~`Customer_Status__c`~~ | — | **REPLACED by standard `Account.Type`** (add `Churned` value) | `BR-03`, `BR-07` | **Removed** |
+| `Segment__c` | Picklist | Derived segment | `BR-05` | **Approved — Inc 1** |
+| `Territory__c` | Picklist | Derived territory | `BR-06` | **Approved — Inc 1** |
 
-### Conditional — 3 candidates, likely to be cut
+### User — 3 approved for Increment 1
 
-| API name | Type | Purpose | Serves | Why conditional |
+| API name | Type | Purpose | Serves | Status |
 |---|---|---|---|---|
-| `Lead.SLA_Status__c` | **Formula** | Met · Breached · Pending · Unmeasurable | `BR-11`, `BR-12` | Formula — zero storage. Keep unless a report can derive it directly. |
-| `Lead.Exception_Type__c` | Picklist | Exception classification | `BR-13` | **May fold into `Data_Quality_Status__c`.** Decide at org inspection. |
-| `Lead.Lifecycle_Stage_Entered__c` | Date/Time | Stage entry timestamp | `BR-16` | `BR-16` is P2. Include **only if** standard field history proves insufficient (`PD-09`). |
+| `Territory__c` | Picklist | Coverage — a routing input | `BR-06`, `BR-07` | **Approved — Inc 1** |
+| `Routing_Eligible__c` | Checkbox | Eligibility for assignment (`OD-02` interim) | `BR-08` | **Approved — Inc 1** |
+| `Last_Assigned_DateTime__c` | Date/Time | Rotation state — **readable, not inferred** | `BR-09`, `PD-07` | **Approved — Inc 1** |
+
+### Resolved at org inspection
+
+| API name | Type | Purpose | Serves | Disposition |
+|---|---|---|---|---|
+| `Lead.Exception_Type__c` | Picklist | Exception classification | `BR-13` | **Approved — Inc 1.** Kept separate from `Data_Quality_Status__c`: exception class and data-quality state are different concepts, and the one-queue design depends on this field. |
+| `Lead.SLA_Status__c` | **Formula(Text)** | Met · Breached · Pending · Unmeasurable | `BR-11`, `BR-12` | **Deferred to the SLA increment.** Its inputs (`SLA_Target_DateTime__c`, `First_Touch_DateTime__c`) carry no values until then. Formulas are non-destructive to add later. |
+| `Lead.Lifecycle_Stage_Entered__c` | Date/Time | Stage entry timestamp | `BR-16` | **Deferred — replaced by standard field history.** `LeadHistory` confirmed available; `PD-09` is satisfied by enabling tracking on `Status`, at zero field cost. |
+
+### Formula fields
+
+Four fields were candidates for formulas. Org inspection resolved three:
+
+| Field | Verdict |
+|---|---|
+| `Data_Quality_Status__c` | ✅ **Formula(Text)** — groupable for `M-01`; removes this work from automation entirely |
+| `Data_Quality_Detail__c` | ✅ **Formula(Text)** — names the missing attributes |
+| `SLA_Status__c` | ✅ Formula, but **deferred** to the SLA increment |
+| `Normalized_Domain__c` | ❌ **Text(255), Flow-populated.** Website parsing is unreliable in formula syntax, `BR-01` requires preserving the original and flagging unnormalizable values, and **a formula field cannot later be converted to a text field without deleting it.** |
+
+> **A formula field cannot be a picklist.** `Data_Quality_Status__c` is therefore Formula(Text), not
+> a governed value set. Text still groups correctly in reports.
 
 ---
 

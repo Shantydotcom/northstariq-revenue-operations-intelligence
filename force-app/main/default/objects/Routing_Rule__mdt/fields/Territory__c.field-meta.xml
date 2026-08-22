@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Territory__c</fullName>
+    <description>Territory this rule applies to. Blank means all territories.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Territory this rule applies to. Blank means all territories.</inlineHelpText>
+    <label>Territory</label>
+    <required>false</required>
+    <length>40</length>
+    <unique>false</unique>
+    <type>Text</type>
+</CustomField>

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GlobalValueSet xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>NorthstarIQ Segment</description>
+    <masterLabel>NorthstarIQ Segment</masterLabel>
+    <sorted>false</sorted>
+    <customValue>
+        <fullName>SMB</fullName>
+        <default>false</default>
+        <label>SMB</label>
+    </customValue>
+    <customValue>
+        <fullName>Mid-Market</fullName>
+        <default>false</default>
+        <label>Mid-Market</label>
+    </customValue>
+    <customValue>
+        <fullName>Enterprise</fullName>
+        <default>false</default>
+        <label>Enterprise</label>
+    </customValue>
+    <customValue>
+        <fullName>Strategic</fullName>
+        <default>false</default>
+        <label>Strategic</label>
+    </customValue>
+</GlobalValueSet>

@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Purpose** | Who can do what, why, and how that is proven |
-| **Status** | 🟡 **CANDIDATE** — no org inspected, no permission set built, nothing tested |
+| **Status** | 🟢 Org inspected 2026-08-22 · **3 permission sets + OWD approved for Increment 1** · nothing built, nothing tested |
 | **Related** | [`requirements.md`](requirements.md) · [`data-model.md`](data-model.md) · [`testing-strategy.md`](testing-strategy.md) |
 
 ---
@@ -66,12 +66,15 @@ complete.
 **Restrictive first, widened deliberately** (`PD-10`). A model built permissive and narrowed later
 cannot answer why anyone has the access they have.
 
-| Object | Candidate OWD | Rationale |
+| Object | Approved OWD (Inc 1) | Current org value | Rationale |
 |---|---|---|
-| Lead | **Private** | Ownership is the entire point of the routing architecture. Public read would make misassignment invisible as a problem. |
-| Account | **Private** | Protects named and strategic relationships (`BR-07`) |
-| Contact | **Controlled by Parent** | Follows Account; a separate posture would create a path around Account visibility |
-| Opportunity | **Private** | Standard for a segmented sales organization |
+| Lead | **Private** | `ReadWriteTransfer` | Ownership is the entire point of the routing architecture. Public read would make misassignment invisible as a problem. |
+| Account | **Private** | `ReadWrite` | Protects named and strategic relationships (`BR-07`) |
+| Contact | **Controlled by Parent** | `ReadWrite` | Follows Account; a separate posture would create a path around Account visibility |
+| Opportunity | **Private** | `ReadWrite` | Standard for a segmented sales organization |
+
+**The org ships fully permissive.** All four are real changes, deployed as `<sharingModel>` in the
+object metadata — source-controlled, not a Setup-UI-only click.
 
 ### The one genuine tension
 
@@ -111,15 +114,15 @@ are senior; they receive report visibility because they are accountable for outc
 
 ## 4. Permission Sets — Candidate
 
-**Four, reduced from thirteen.** Capability-based rather than persona-based, so capabilities compose
-without duplication.
+**Three approved for Increment 1**, reduced from thirteen. Capability-based rather than
+persona-based, so capabilities compose without duplication.
 
 | Permission set | Grants | Personas |
 |---|---|---|
 | `NIQ_Revenue_Seller` | Read/write on owned Leads, Accounts, Contacts, Opportunities; activity logging; lead conversion | `PER-03`, `PER-04` |
 | `NIQ_Revenue_Operations` | Cross-team record write; reassignment; exception and duplicate review resolution; queue work | `PER-01` |
 | `NIQ_Rule_Configuration` | **Write to governed rule configuration** (Custom Metadata) | `PER-01` — **separately assigned** |
-| `NIQ_Analytics_Read` | Broad read across revenue objects; **no operational write** | `PER-06` and the analytics principal |
+| ~~`NIQ_Analytics_Read`~~ | Broad read; no operational write | **DEFERRED to the analytics stage.** Not created now — future integration security must not be built before the integration exists. A `Salesforce Integration` licence (1 free, 0 used) is reserved for it. |
 
 ### Why `NIQ_Rule_Configuration` stands alone
 

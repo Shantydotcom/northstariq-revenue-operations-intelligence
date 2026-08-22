@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ARR_Override_Min__c</fullName>
+    <description>ARR threshold that overrides the employee band for existing customers. Null until agreed.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>ARR threshold that overrides the employee band for existing customers. Null until agreed.</inlineHelpText>
+    <label>ARR Override Min</label>
+    <required>false</required>
+    <precision>12</precision>
+    <scale>2</scale>
+    <type>Number</type>
+</CustomField>

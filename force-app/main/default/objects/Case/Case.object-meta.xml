@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <!--
+        Case is NOT part of the NorthstarIQ scope. This file exists only because
+        Salesforce forbids a child object of Account from carrying a more
+        permissive sharing model than Account itself.
+
+        Setting Account to Private (BR-18, PD-10) therefore forces Case down from
+        ReadWriteTransfer. The dry-run surfaced this as:
+
+            "ReadWriteTransfer is not a valid sharing model for Case
+             when Account sharing model is Private"
+
+        Private is chosen as the most restrictive valid option, consistent with
+        the least-privilege posture, and because no NorthstarIQ persona uses Case.
+    -->
+    <externalSharingModel>Private</externalSharingModel>
+    <sharingModel>Private</sharingModel>
+</CustomObject>

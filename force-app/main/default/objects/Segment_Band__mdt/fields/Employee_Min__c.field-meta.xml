@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Employee_Min__c</fullName>
+    <description>Inclusive lower bound of the employee band.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Inclusive lower bound of the employee band.</inlineHelpText>
+    <label>Employee Min</label>
+    <required>false</required>
+    <precision>9</precision>
+    <scale>0</scale>
+    <type>Number</type>
+</CustomField>
