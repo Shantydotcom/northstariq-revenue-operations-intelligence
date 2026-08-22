@@ -112,16 +112,13 @@ Write-Section "1. Directory Structure"
 
 $requiredDirs = @(
     'config', 'manifest', 'force-app\main\default',
-    'data\source', 'data\broken', 'data\clean', 'data\expected', 'data\reference', 'data\analytics',
-    'powerbi\model', 'powerbi\dax', 'powerbi\powerquery', 'powerbi\documentation',
+    'data\sample', 'data\expected',
+    'powerbi',
     'scripts\python', 'scripts\powershell', 'scripts\soql',
-    'tests\fixtures', 'tests\data-quality', 'tests\matching', 'tests\scoring', 'tests\lifecycle',
-    'tests\routing', 'tests\sla', 'tests\security', 'tests\analytics', 'tests\salesforce',
-    'docs\architecture', 'docs\discovery', 'docs\requirements', 'docs\data-dictionary',
-    'docs\governance', 'docs\security', 'docs\analytics', 'docs\testing', 'docs\runbooks',
-    'docs\portfolio', 'docs\ADR',
-    'prompts\claude-code', 'prompts\data-generation', 'prompts\salesforce', 'prompts\powerbi',
-    '.github\workflows', '.github\ISSUE_TEMPLATE'
+    'tests\scenarios', 'tests\results',
+    'docs',
+    'prompts\claude-code',
+    '.github\workflows'
 )
 
 $missingDirs = @()
@@ -151,10 +148,9 @@ $requiredFiles = @(
     'README.md', 'CLAUDE.md', '.gitignore', '.forceignore', 'sfdx-project.json',
     'manifest\package.xml', 'config\project-scratch-def.json',
     '.github\pull_request_template.md',
-    'docs\README.md',
-    'docs\governance\naming-conventions.md',
-    'docs\governance\implementation-status-conventions.md',
-    'docs\architecture\architecture-documentation-framework.md',
+    'docs\business-case.md', 'docs\requirements.md', 'docs\architecture.md',
+    'docs\data-model.md', 'docs\metric-dictionary.md', 'docs\security-model.md',
+    'docs\testing-strategy.md', 'docs\assumptions.md', 'docs\implementation-log.md',
     'prompts\claude-code\phase-0-master-prompt.md'
 )
 
@@ -297,7 +293,7 @@ Assert-That -Name "Data Cloud / Agentforce never appear as active components" `
 # ---------------------------------------------------------------------------
 # 6. Phase-appropriate emptiness
 # ---------------------------------------------------------------------------
-Write-Section "6. Phase Discipline (no premature implementation)"
+Write-Section "6. Implementation Discipline (no premature implementation)"
 
 $metadataFiles = Get-ChildItem (Join-Path $RepoRoot 'force-app') -Recurse -File -Force -ErrorAction SilentlyContinue |
                  Where-Object { $_.Name -ne '.gitkeep' }
@@ -342,7 +338,74 @@ Assert-That -Name ".forceignore excludes non-metadata directories" `
 # ---------------------------------------------------------------------------
 # 8. Git state
 # ---------------------------------------------------------------------------
-Write-Section "8. Git State"
+Write-Section "8. Documentation Integrity"
+
+# Every relative Markdown link must resolve. After a consolidation this is the
+# check that catches references left pointing at deleted documents.
+$mdFiles = Get-ChildItem $RepoRoot -Recurse -File -Filter '*.md' -Force -ErrorAction SilentlyContinue |
+           Where-Object { $_.FullName -notmatch '\\\.git\\' }
+
+$brokenLinks = @()
+foreach ($file in $mdFiles) {
+    $content = $null
+    try { $content = Get-Content $file.FullName -Raw -ErrorAction Stop } catch { continue }
+    if ($null -eq $content) { continue }
+
+    foreach ($m in [regex]::Matches($content, '\]\(([^)\s]+)\)')) {
+        $target = $m.Groups[1].Value
+
+        # Skip absolute URLs, anchors, and mailto.
+        if ($target -match '^(https?:|mailto:|#)') { continue }
+
+        # Strip any anchor fragment before resolving the path.
+        $path = ($target -split '#')[0]
+        if ([string]::IsNullOrWhiteSpace($path)) { continue }
+
+        $resolved = Join-Path $file.DirectoryName ($path -replace '/', '\')
+        if (-not (Test-Path $resolved)) {
+            $rel = $file.FullName.Substring($RepoRoot.Length).TrimStart('\')
+            $brokenLinks += ("{0} -> {1}" -f $rel, $target)
+        }
+    }
+}
+Assert-That -Name "All relative Markdown links resolve" `
+            -Condition ($brokenLinks.Count -eq 0) `
+            -Detail ($brokenLinks -join '; ')
+
+# No reference may depend on a document removed during consolidation.
+$deletedDocPattern = 'docs[/\\](discovery|governance|data-dictionary|ADR|runbooks|portfolio)[/\\]'
+$staleRefs = @()
+foreach ($file in $mdFiles) {
+    $content = $null
+    try { $content = Get-Content $file.FullName -Raw -ErrorAction Stop } catch { continue }
+    if ($null -eq $content) { continue }
+    if ($content -imatch $deletedDocPattern) {
+        $rel = $file.FullName.Substring($RepoRoot.Length).TrimStart('\')
+        $staleRefs += $rel
+    }
+}
+Assert-That -Name "No references to consolidated-away document paths" `
+            -Condition ($staleRefs.Count -eq 0) `
+            -Detail ($staleRefs -join ', ')
+
+# Candidate metadata must never be described as implemented. The documents that
+# hold candidate designs must carry the CANDIDATE marker.
+$candidateDocs = @('docs\architecture.md', 'docs\data-model.md', 'docs\security-model.md')
+$unmarked = @()
+foreach ($d in $candidateDocs) {
+    $full = Join-Path $RepoRoot $d
+    if (-not (Test-Path $full)) { $unmarked += "$d (missing)"; continue }
+    $content = Get-Content $full -Raw
+    if ($content -cnotmatch 'CANDIDATE') { $unmarked += $d }
+}
+Assert-That -Name "Candidate design documents are marked CANDIDATE" `
+            -Condition ($unmarked.Count -eq 0) `
+            -Detail ($unmarked -join ', ')
+
+# ---------------------------------------------------------------------------
+# 9. Git state
+# ---------------------------------------------------------------------------
+Write-Section "9. Git State"
 
 $gitAvailable = $null -ne (Get-Command git -ErrorAction SilentlyContinue)
 Assert-That -Name "git is available" -Condition $gitAvailable

@@ -1,7 +1,7 @@
 # Power BI — Revenue Intelligence Command Center
 
-**Status: empty by design.** Power BI architecture is documented in **Phase 0D** and built in
-**Phase 11**. Nothing has been built.
+**Status: empty by design.** Nothing has been built. Power BI is the final implementation stage,
+after the Salesforce architecture is built and validated.
 
 ---
 
@@ -20,7 +20,12 @@ Where system ownership is unclear, it is recorded as an **Open Decision**, not a
 
 ---
 
-## Directory Layout
+## Layout
+
+**This directory holds only this README.** Structure is created when real artifacts require it —
+not in advance.
+
+Planned, once artifacts exist:
 
 | Directory | Holds |
 |---|---|
@@ -57,14 +62,14 @@ evidence.
 | Seller Performance | How do sellers perform given the records they receive? |
 | Operational Exceptions | Where is the system failing, and who owns the remediation? |
 
-These are **candidates**. Final page architecture is designed in Phase 0D against governed KPI
+These are **candidates**. Final page architecture is designed against the governed metric
 definitions — not chosen first and back-filled with metrics.
 
 ---
 
 ## Candidate Model Shape
 
-> **The semantic model is not finalized.** These are candidates for Phase 0D design.
+> **The semantic model is not finalized.** These are candidates, pending org inspection.
 
 **Dimensions:** Date · Account · Seller · Territory · Segment · Lead Source · Lifecycle Stage ·
 ICP Grade · Geography
@@ -72,7 +77,7 @@ ICP Grade · Geography
 **Facts:** Leads · lifecycle events · routing events · ownership events · SLA events · matching
 events · qualification events · Opportunities · Opportunity outcomes
 
-The event-oriented facts depend on `DEC-018` (event/history persistence strategy), which is
+The event-oriented facts depend on `PD-09` (history persistence strategy), which is
 unresolved. Whether operational history is queryable at all determines whether several of these
 facts can exist.
 
@@ -81,15 +86,15 @@ facts can exist.
 ## Governing Rules
 
 - **Dashboard-first design is a defect.** Analytics follows from governed KPI definitions and
-  analytics-ready data design. A visual that cannot name the `KPI-###` it renders does not ship.
+  analytics-ready data design. A visual that cannot name the `M-##` it renders does not ship.
 - Every KPI requires a governed definition: ID · Name · Business Question · Definition ·
   Numerator · Denominator · Grain · Filters · Exclusions · Source · Owner · Refresh Expectation ·
   Target · Baseline · Implementation Status.
 - Distinguish **Synthetic Baseline** vs **Proposed Target** vs **Actual Measured Result**.
-  There are no Actual Measured Results during Phase 0.
+  There are no measured results until tests have actually been executed.
 - Power BI figures must **reconcile to Salesforce**. Reconciliation is a test
   (`tests/analytics/`), not an assumption.
 - Larger synthetic historical datasets for time-series analysis live in `data/analytics/` and are
   **not** loaded into Salesforce Developer Edition.
-- Refresh architecture and data access (`DEC-020`) is an unresolved decision. Do not assume a
+- Refresh architecture and data access (`OD-05`) is an unresolved decision. Do not assume a
   connector, gateway, or refresh cadence.

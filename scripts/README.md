@@ -2,7 +2,7 @@
 
 Supporting automation for data generation, validation, and repository quality checks.
 
-**Status:** Phase 0A contains repository validation only. Data and org scripts arrive in Phase 2+.
+**Status:** repository validation only. Data-generation and org scripts arrive with implementation.
 
 ---
 
@@ -37,15 +37,15 @@ wrapping it.
 |---|---|
 | `Test-RepositoryStructure.ps1` | Validates the repository skeleton, Salesforce DX foundation, and scans for secrets, auth artifacts, and scope leakage. Run before every commit. |
 
-### `python/` — empty (Phase 2)
+### `python/` — empty
 
 Planned: deterministic synthetic fixture generation for the failure scenarios described in
-[`data/README.md`](../data/README.md).
+[`docs/testing-strategy.md`](../docs/testing-strategy.md).
 
 Generation must be **deterministic** — fixed seeds, fixed ordering, reproducible output. A
 generator whose output varies between runs cannot support trustworthy test evidence.
 
-### `soql/` — empty (Phase 1+)
+### `soql/` — empty
 
 Planned: validation queries used as implementation evidence — unassigned Leads by territory,
 routing outcomes by seller, SLA breach detection, duplicate detection, field completeness,

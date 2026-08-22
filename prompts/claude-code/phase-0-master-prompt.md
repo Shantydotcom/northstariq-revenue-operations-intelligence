@@ -5,7 +5,7 @@
 | **Phase** | 0 — Discovery, Requirements, Architecture & Engineering Foundation |
 | **Tool** | Claude Code (VS Code, Windows) |
 | **Date** | 2026-08-22 |
-| **Status** | Active |
+| **Status** | **Historical — superseded** |
 
 This is the repository-appropriate record of the master prompt that directed Phase 0 of this
 project. It is preserved as evidence of **governed AI-assisted engineering** — the scope,
@@ -15,8 +15,13 @@ constraints, guardrails, and approval gates were defined *before* any generation
 conversation history, or system instructions are included. This is the engineering direction, not
 a session transcript.
 
-The operative, continuously-enforced version of these rules lives in [`CLAUDE.md`](../../CLAUDE.md)
-at the repository root, which every session reads.
+> ⚠️ **This prompt is a historical record, not active direction.** The project was subsequently
+> consolidated: the phase-gate model described below was retired, documentation was reduced from 29
+> files to 9, and 62 requirements were consolidated into 23. The operative, continuously-enforced
+> rules live in [`CLAUDE.md`](../../CLAUDE.md) at the repository root, which every session reads.
+>
+> It is retained because the direction it gave — scope, constraints, guardrails, and approval gates
+> defined *before* any generation — is itself the evidence this directory exists to hold.
 
 ---
 

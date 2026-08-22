@@ -27,18 +27,15 @@ This is also the honest disclosure: AI assistance was used, here is exactly how 
 
 | Directory | Holds |
 |---|---|
-| `claude-code/` | Phase-level master prompts directing the overall engineering effort |
-| `data-generation/` | Prompts for deterministic synthetic fixture generation (Phase 2) |
-| `salesforce/` | Prompts for metadata, Flow, and configuration generation (Phase 1+) |
-| `powerbi/` | Prompts for semantic model, DAX, and Power Query generation (Phase 11) |
+| `claude-code/` | Master prompts directing the overall engineering effort |
 
 ---
 
 ## Current Contents
 
-| File | Phase |
+| File | Status |
 |---|---|
-| [`claude-code/phase-0-master-prompt.md`](claude-code/phase-0-master-prompt.md) | 0 — Discovery, Requirements, Architecture & Engineering Foundation |
+| [`claude-code/phase-0-master-prompt.md`](claude-code/phase-0-master-prompt.md) | **Historical** — directed the original discovery and requirements work. Superseded by [`CLAUDE.md`](../CLAUDE.md); retained as evidence of how the work was governed. |
 
 ---
 
@@ -64,7 +61,7 @@ The preserved prompts should demonstrate that the assistant was constrained rath
 |---|---|
 | Explicit scope exclusion | Data Cloud and Agentforce receive no directories, ADRs, or requirements |
 | Decision withholding | 22 open decisions the assistant may analyze but must not resolve |
-| Approval gates | Phase 0A → 0B → 0C → 0D each stop for human review |
+| Approval gates | Commit, push, org authentication, deployment, and data load each stop for human review |
 | Deployment controls | No org authentication, deployment, commit, or push without explicit approval |
 | Honesty requirements | Never claim planned capabilities are implemented; never fabricate test results |
 | Volume constraints | Dataset ceilings; "scenario coverage, not record volume" |
