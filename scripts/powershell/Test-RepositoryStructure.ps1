@@ -365,7 +365,9 @@ if ($gitAvailable) {
                     -Condition ($badTracked.Count -eq 0) `
                     -Detail ($badTracked -join ', ')
 
-        # Confirm the Phase 0A gate: nothing committed, no remote configured.
+        # Report commit count. Local commits are permitted from the Phase 0A+0B
+        # checkpoint onward (human-approved); the standing gate is that work stays
+        # LOCAL until a push is separately approved.
         #
         # Use `--all` rather than `HEAD`: on a repository with no commits, HEAD is an
         # unknown revision and git writes to stderr. Windows PowerShell 5.1 wraps native
@@ -376,14 +378,22 @@ if ($gitAvailable) {
         if (-not [string]::IsNullOrWhiteSpace($revList)) {
             $commitCount = [int]$revList
         }
-        Assert-That -Name "No commits yet (Phase 0A gate: commit requires approval)" `
-                    -Condition ($commitCount -eq 0) `
-                    -Detail "Commit count: $commitCount" -WarnOnly
+        Write-Host ("  [INFO] Local commits: {0}" -f $commitCount) -ForegroundColor DarkGray
 
+        # Identity must be set locally, so commits attribute correctly and no
+        # global identity leaks into this repository's history.
+        $localName  = (git config --local user.name)
+        $localEmail = (git config --local user.email)
+        Assert-That -Name "Git identity configured at repository scope" `
+                    -Condition (-not [string]::IsNullOrWhiteSpace($localName) -and `
+                                -not [string]::IsNullOrWhiteSpace($localEmail)) `
+                    -Detail "name='$localName' email='$localEmail'"
+
+        # The standing gate: nothing leaves this machine without approval.
         $remotes = @(git remote)
-        Assert-That -Name "No git remote configured (Phase 0A gate: push requires approval)" `
+        Assert-That -Name "No git remote configured (push requires approval)" `
                     -Condition ($remotes.Count -eq 0) `
-                    -Detail ("Remotes: " + ($remotes -join ', ')) -WarnOnly
+                    -Detail ("Remotes: " + ($remotes -join ', '))
     }
     finally { Pop-Location }
 }

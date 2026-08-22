@@ -5,7 +5,7 @@
 This is the map of the project's documentation. Each area below states what it holds, which phase
 produces it, and its current status.
 
-**Current phase: 0B — Enterprise Discovery (complete, awaiting gate approval).** Phase 0C and 0D
+**Current phase: 0C — Requirements & Governance (complete, awaiting gate approval).** Phase 0D
 areas below are intentionally empty. Empty is the honest state; pre-writing them would mean
 asserting conclusions before the analysis that produces them.
 
@@ -66,21 +66,21 @@ human decision.**
 
 ---
 
-## Phase 0C — Requirements & Governance ⬜ *(next)*
+## Phase 0C — Requirements & Governance ✅
 
 **Directories:** [`requirements/`](requirements/) · [`governance/`](governance/) · [`security/`](security/) · [`data-dictionary/`](data-dictionary/)
 
 ### Requirements
 
-| Planned document | Purpose |
-|---|---|
-| `business-requirements.md` | `BR-###` register — the backbone of the project |
-| `traceability-matrix.md` | Problem → Requirement → Decision → Component → Test → Evidence |
-| `personas.md` | `PER-##` — the twelve personas and their outcomes |
-| `open-decisions.md` | `DEC-###` register — unresolved business design decisions |
-| `territory-model.md` | Territory definitions and precedence |
-| `segmentation-model.md` | Segment thresholds and override handling |
-| `lifecycle-model.md` | Lifecycle stage taxonomy and transitions |
+| Document | Purpose | Register |
+|---|---|---|
+| [`requirements/business-requirements.md`](requirements/business-requirements.md) | The backbone — 62 requirements across 12 domains | `BR-001`–`BR-062` |
+| [`requirements/open-decisions.md`](requirements/open-decisions.md) | Unresolved business design decisions, analysed but **not decided** | `DEC-001`–`DEC-022` |
+| [`requirements/personas.md`](requirements/personas.md) | Roles, needs, pain points, access considerations | `PER-01`–`PER-17` |
+| [`requirements/traceability-matrix.md`](requirements/traceability-matrix.md) | Problem → Requirement → Decision → Persona → Component → Test | — |
+| [`requirements/segmentation-model.md`](requirements/segmentation-model.md) | Candidate model; thresholds remain open | `DEC-001`, `DEC-002`, `DEC-005` |
+| [`requirements/territory-model.md`](requirements/territory-model.md) | Candidate models; the Enterprise/Mid-Market asymmetry | `DEC-022`, `DEC-003` |
+| [`requirements/lifecycle-model.md`](requirements/lifecycle-model.md) | Candidate taxonomy; **contains the one irreversible decision** | `DEC-017`, `DEC-018` |
 
 Every requirement carries: ID · Domain · Business Problem · Requirement · Rationale · Priority ·
 Owner/Persona · Acceptance Criteria · Dependencies · Related Decision · Future Implementation
@@ -92,37 +92,39 @@ a Lead was assigned to a specific seller without inspecting Flow debug logs" —
 
 ### Governance
 
-| Planned document | Purpose |
-|---|---|
-| `data-governance.md` | Source of truth, ownership, lineage, validation, PII, retention |
-| `kpi-governance.md` | `KPI-###` definitions with numerator, denominator, grain, exclusions |
-| `decision-governance.md` | How decisions move from Unknown to Validated |
-| `change-management.md` | Requirement → design → review → build → test → deploy → verify |
+| Document | Purpose | Register |
+|---|---|---|
+| [`governance/data-governance.md`](governance/data-governance.md) | Source of truth, ownership, stewardship, validation, duplicates, PII, lineage, retention | — |
+| [`governance/kpi-governance.md`](governance/kpi-governance.md) | Governed KPI definitions with a **measurement-reliability classification** | `KPI-001`–`KPI-015` |
+| [`governance/decision-governance.md`](governance/decision-governance.md) | How decisions move from Unknown to Validated, and the human decision boundary | — |
+| [`governance/change-management.md`](governance/change-management.md) | Requirement → design → review → build → test → deploy → verify → monitor | — |
 
 ### Security
 
-| Planned document | Purpose |
+| Document | Purpose |
 |---|---|
-| `security-principles.md` | Least privilege, permission-set-first design, integration user principles |
-| `access-model.md` | OWD, roles, permission sets, groups, sharing rules, queues, per-persona access |
+| [`security/security-principles.md`](security/security-principles.md) | `SP-01`–`SP-10` — least privilege, permission-set-first, integration principals, testing |
+| [`security/access-model.md`](security/access-model.md) | Candidate OWD, roles, Permission Sets, queues, per-persona access, and the `DEC-021` recommendation |
 
 Security is a **primary workstream**, not a footnote.
 
 ### Data Dictionary
 
-| Planned document | Purpose |
+| Document | Purpose |
 |---|---|
-| `data-dictionary.md` | Proposed field documentation for Lead, Account, Contact, Opportunity, User |
+| [`data-dictionary/data-dictionary.md`](data-dictionary/data-dictionary.md) | 49 proposed fields across Lead, Account, Contact, Opportunity, User — preceded by a **standard-before-custom** analysis |
 
 Every proposed field carries: Object · Business Label · Proposed API Name · Type ·
 Standard/Custom · Business Purpose · Source · Required? · Reporting? · Automation Dependency? ·
 Security Consideration · PII Classification · Requirement · Status.
 
-**These remain proposals during Phase 0. No Salesforce fields are created.**
+**These remain proposals during Phase 0. No Salesforce fields are created.** **25 of the 49
+proposals are blocked on an open decision**, and no picklist values are proposed where those values
+are themselves the decision.
 
 ---
 
-## Phase 0D — Architecture & Implementation Planning ⬜
+## Phase 0D — Architecture & Implementation Planning ⬜ *(next)*
 
 **Directories:** [`architecture/`](architecture/) · [`ADR/`](ADR/) · [`analytics/`](analytics/) · [`testing/`](testing/) · [`runbooks/`](runbooks/) · [`portfolio/`](portfolio/)
 

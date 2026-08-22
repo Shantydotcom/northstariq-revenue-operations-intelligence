@@ -2,7 +2,7 @@
 
 **Enterprise Salesforce, Revenue Operations, GTM Systems & Analytics Architecture**
 
-![Phase](https://img.shields.io/badge/phase-0B%20Enterprise%20Discovery-blue)
+![Phase](https://img.shields.io/badge/phase-0C%20Requirements%20%26%20Governance-blue)
 ![Status](https://img.shields.io/badge/status-in%20progress-yellow)
 ![Salesforce](https://img.shields.io/badge/Salesforce-Developer%20Edition-00A1E0)
 ![Analytics](https://img.shields.io/badge/Analytics-Power%20BI-F2C811)
@@ -12,7 +12,7 @@
 
 > ### ⚠️ Current Project Status — Read First
 >
-> **This repository is at Phase 0B (Enterprise Discovery).**
+> **This repository is at Phase 0C (Requirements & Governance).**
 >
 > | State | Status |
 > |---|---|
@@ -273,8 +273,46 @@ why four of these metrics cannot yet support an improvement claim.
 
 ## Target Business Capabilities
 
-> 🔒 **Populated in Phase 0C — Requirements & Governance.**
-> → [`docs/requirements/business-requirements.md`](docs/requirements/)
+> ✅ **Documented in Phase 0C — Requirements & Governance.**
+> → [`business-requirements.md`](docs/requirements/business-requirements.md) ·
+> [`traceability-matrix.md`](docs/requirements/traceability-matrix.md) ·
+> [`open-decisions.md`](docs/requirements/open-decisions.md)
+
+**62 business requirements** across 12 domains, every one tracing to a Phase 0B problem and an owning
+persona. Requirements state business outcomes, not Salesforce components.
+
+| Domain | Requirements | Capability |
+|---|---|---|
+| Revenue Data Quality Framework | `BR-001`–`BR-007` | Incomplete data is detected, normalized, explained, and handled as the **main path** |
+| Account Identity & Matching Engine | `BR-008`–`BR-013` | Relationship to existing Accounts determined explicitly, with basis and confidence recorded |
+| ICP Intelligence Framework | `BR-014`–`BR-018` | One governed fit definition; **"not assessable" never treated as "poor fit"** |
+| Lifecycle Governance Framework | `BR-019`–`BR-023` | One taxonomy; transitions recorded with cause; stage duration answerable |
+| Revenue Segmentation Framework | `BR-024`–`BR-027` | Segment derived from versioned rules; unsegmentable records surfaced, never defaulted |
+| Territory Management Framework | `BR-028`–`BR-029` | Deterministic resolution including boundaries; versioned definitions |
+| Revenue Routing Engine | `BR-030`–`BR-037` | Explicit ownership precedence; **every routing decision records why**; nothing stalls silently |
+| Revenue SLA Framework | `BR-038`–`BR-043` | An agreed commitment; governed calendars; **response failure distinguished from measurement failure** |
+| Revenue Operations Exception Framework | `BR-044`–`BR-047` | Exceptions detected, classified, owned, measured |
+| Revenue Intelligence Model | `BR-048`–`BR-052` | Governed KPIs; **operational decision data reaches analytics** |
+| Security & Access | `BR-053`–`BR-058` | Least privilege per persona, permission-set-first, tested in both directions |
+| Administration & Change Management | `BR-059`–`BR-062` | Metadata-driven rules; a governed change path with rollback |
+
+**Priority:** 27 P0 · 23 P1 · 12 P2.
+**Status:** 10 fully specifiable today · 40 partially conditional · 12 blocked on an open decision.
+**None is `Approved`.**
+
+### The 22 open decisions
+
+Discovery identified 22 business decisions that **only a human can make**, and Phase 0C deliberately
+did **not** resolve any of them. Fourteen block Phase 0D architecture.
+
+> ⚠️ **`DEC-018` (event and history persistence) is different in kind.** Every other decision costs
+> rework if changed late. This one determines whether lifecycle transitions are captured at the moment
+> they occur — and **history not captured cannot be reconstructed**. Deferring it is a decision to lose
+> the data permanently.
+
+Requirements depending on an unresolved decision cite it, state what is known, mark which acceptance
+criteria are conditional, and are **not** marked `Approved`. No threshold, weight, taxonomy, or
+precedence order has been invented.
 
 ---
 
@@ -312,8 +350,14 @@ Named subsystems (canonical terminology):
 
 ## Security & Access Strategy
 
-> 🔒 **Populated in Phase 0C.**
-> → [`docs/security/`](docs/security/)
+> ✅ **Documented in Phase 0C.**
+> → [`security-principles.md`](docs/security/security-principles.md) ·
+> [`access-model.md`](docs/security/access-model.md)
+>
+> ⚠️ **This project asserts no security defect at NorthstarIQ. Nothing has been inspected.**
+> `PROB-013` carries evidence status *To Be Validated*. What can honestly be stated is a governance
+> observation: security is currently treated as a configuration task rather than a governed
+> workstream. **The access model is a candidate with a recommendation — `DEC-021` remains open.**
 
 Security is treated as a **primary workstream**, not a documentation footnote. The design layers:
 
@@ -467,7 +511,11 @@ An untested rule is `Implemented`, never `Validated`. **Test results are never f
 
 ## Change-Management Strategy
 
-> 🔒 **Populated in Phase 0C.** → [`docs/governance/change-management.md`](docs/governance/)
+> ✅ **Documented in Phase 0C.** → [`change-management.md`](docs/governance/change-management.md)
+>
+> **Weak change management is what allowed the operational debt to accumulate** (`PROB-016`). Fixing
+> routing without fixing change management would guarantee recurrence — which is why `BR-060` is P0
+> rather than administrative overhead.
 
 This project treats Salesforce administration as including **governance**, not merely
 configuration: requirement → design → review → development → source control → validation →
@@ -531,16 +579,20 @@ Future enhancements must not threaten the Day 4 release.
 
 | Item | State |
 |---|---|
-| Phase | **0B — Enterprise Discovery** |
+| Phase | **0C — Requirements & Governance** |
 | Repository foundation | ✅ Created |
 | Salesforce DX project | ✅ Valid scaffold (`sf` CLI generated) |
 | Git repository | ✅ Initialized on `main` |
 | Enterprise discovery | ✅ 11 documents — [`docs/discovery/`](docs/discovery/) |
-| Requirements (`BR-###`) | ❌ None written — Phase 0C |
-| Open decisions (`DEC-###`) | 🔵 22 identified, 0 resolved — awaiting human decision |
+| Requirements (`BR-###`) | ✅ 62 written — **0 `Approved`** |
+| Open decisions (`DEC-###`) | 🔵 **22 identified, 0 resolved** — awaiting human decision |
+| Personas (`PER-##`) | ✅ 17 defined |
+| Governed KPIs (`KPI-###`) | ✅ 15 defined — **0 targets set, 0 implemented** |
+| Data dictionary | ✅ 49 field proposals — **0 fields created** |
+| Access model | 🔵 Candidate + recommendation — **`DEC-021` open, nothing configured** |
 | Architecture / ADRs | ❌ None — Phase 0D |
-| Committed | ❌ Not yet — awaiting approval |
-| Pushed to GitHub | ❌ Not yet — awaiting approval |
+| Committed | ✅ Phase 0A + 0B checkpoint (`684da8c`); **Phase 0C uncommitted** |
+| Pushed to GitHub | ❌ Not yet — **no remote configured** |
 | Salesforce authentication | ❌ Not performed |
 | Salesforce deployment | ❌ Not performed |
 | Business metadata | ❌ None created |
