@@ -375,7 +375,7 @@ permission-set assignment unchanged.
 | Manual `Segment__c` override is silently overwritten on the next input change | `architecture.md` §5 requires overrides to be *recorded* and preserved. **Not implemented; no override field exists.** Needs a decision. |
 | Strategic segmentation for Leads | Increment 3, with matching |
 | Territory (`BR-06`) | Increment 3 — `Territory__c` deployed but unpopulated |
-| NorthstarIQ fields absent from every Lead page layout | Blocks manual UI review. Layout change **not made** — awaiting approval. |
+| NorthstarIQ fields absent from every Lead page layout | ✅ **Resolved** — temporary functional-validation section added to `Lead-Lead Layout`. Scaffolding only; see the layout entry above. |
 
 **Deviations from the approved manifest: none.** No new fields, no Apex, no changes to Increment 1
 components. One validator assertion was updated because the increment boundary moved: it now
@@ -384,6 +384,39 @@ permits the single approved Flow and still forbids Apex, triggers, and UI compon
 **Defects caught before deployment: none in the Flow** — the dry-run passed on the first attempt.
 One tooling defect surfaced during fixture load: Bulk API rejected LF line endings and required
 CRLF.
+
+### 2026-08-22 — Increment 2: Lead layout functional scaffolding
+
+```
+Requirement:   Human functional validation of BR-01 / BR-05 in the Salesforce UI
+Metadata:      1 Layout modified: Lead-Lead Layout (primary Lead layout)
+Deployment:    SUCCEEDED - deploy 0Afaj00000hbRTVCA2, 1/1, 0 errors
+Validation:    Dry-run 1/1. Layout retrieved back from the org and inspected.
+Test result:   7 sections (was 6), 32 field entries (was 26). All 6 fields present
+               and Readonly. The 6 pre-existing sections are unchanged.
+Commit:        this commit - `chore: expose NorthstarIQ lead fields for UI validation`
+Deferred:      -
+```
+
+> ### ⚠️ Lead layout configuration is temporary functional-validation scaffolding and does not represent the approved NorthstarIQ visual identity.
+
+One section, `NorthstarIQ — Functional Validation`, added immediately after *Lead Information*,
+exposing `Normalized_Domain__c`, `Data_Quality_Status__c`, `Data_Quality_Detail__c`, `Segment__c`,
+`Segment_Basis__c`, and `Territory__c`.
+
+**All six are `Readonly`.** That is a functional requirement, not a styling choice: the two formula
+fields cannot be editable, and the rest are system-derived, which `BR-05` requires not be
+user-writable. `Territory__c` is intentionally blank until Increment 3.
+
+The section mirrors the two-column structure every other section on this layout already uses, so no
+new visual convention was introduced.
+
+**Deliberately not created:** custom Lightning pages · Dynamic Forms · custom components · LWC ·
+icons · branding · decorative sections · any additional UX metadata.
+
+The NorthstarIQ Salesforce experience will be designed separately in a Visual Identity Sprint. No
+layout, field arrangement, grouping, spacing, or label in this section should be read as an approved
+user-experience decision.
 
 ---
 
@@ -429,5 +462,6 @@ physically testable one is stated rather than hidden.
 
 ## Next Step
 
-**Increment 2 awaits human UI acceptance.** Increment 3 (identity, territory, routing) is
-**not started** and not to be started without approval.
+**Increment 2 awaits human UI acceptance.** The fields are now visible on the primary Lead layout as
+temporary scaffolding. Increment 3 (identity, territory, routing) is **not started** and not to be
+started without approval.
