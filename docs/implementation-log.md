@@ -27,6 +27,8 @@ Used across the repository. Exactly one applies to any component at any time.
 |---|---|
 | **Candidate** | Proposed in documentation. Not built. Not committed to being built. |
 | **Approved — Inc N** | Approved for build in a named increment. **Still not built.** |
+| **Deployed** | Exists in the org and in source control. Behaviour not exercised. |
+| **Deployed — access verified** | Deployed, and confirmed readable at runtime. Intentionally holds no value until later automation. |
 | **Implemented** | Exists in the org and in source control |
 | **Validated** | Implemented **and** proven by an executed test with recorded results |
 | **Deferred** | Valid but out of this release |
@@ -239,23 +241,103 @@ Deferred:      Routing_Rule__mdt records, SLA fields, identity/routing fields,
 > Closing this needs `NIQ_Revenue_Operations` assigned to a user. That is a permission-set
 > **assignment**, which the approved manifest did not include, so it was not performed.
 
+### 2026-08-22 — Increment 1 runtime validation
+
+```
+Requirement:   BR-05 BR-06 BR-16 BR-18 BR-21 (foundation verification)
+Metadata:      None created or modified. One PermissionSetAssignment created.
+Deployment:    None
+Validation:    Runtime verification against the org, results below
+Test result:   All executed checks passed. Two formula branches untestable - stated.
+Commit:        this commit - `test: validate Salesforce foundation runtime`
+Deferred:      Formula branches for blank Country (no sample data exercises them)
+```
+
+**Permission set assignment.** `NIQ_Revenue_Operations` assigned to the authenticated
+administrator only, authorised specifically to make deployed fields readable for verification.
+`NIQ_Revenue_Seller` and `NIQ_Rule_Configuration` were **not** assigned — no validation required
+them. Exactly one `PermissionSetAssignment` exists.
+
+This closes the gap recorded in the previous entry: fields deployed through the Metadata API carry
+no profile FLS, and SOQL reports an invisible field as *"No such column."*
+
+**Field access — all 12 now queryable by normal SOQL.**
+
+| Object | Fields | Result |
+|---|---|---|
+| Lead | 6 | Queryable. Stored fields **expected blank** — no automation exists. |
+| Account | 3 | Queryable. `Strategic_Account__c` = false (checkbox default). |
+| User | 3 | Queryable. `Routing_Eligible__c` = false (checkbox default). |
+
+**Formula runtime results — VALIDATED where sample data allows.**
+
+| Case | Inputs | Expected | Actual | Verdict |
+|---|---|---|---|---|
+| A | Country set · Employees set | `Complete` / `None` | `Complete` / `None` | ✅ |
+| B | Country set · Employees blank | `Incomplete` / `Missing: EmployeeCount` | `Incomplete` / `Missing: EmployeeCount` | ✅ |
+| C | Country blank · Employees set | `Incomplete` / `Missing: Country` | — | ⬜ **untested** |
+| D | Country blank · Employees blank | `Incomplete` / `Missing: Country EmployeeCount` | — | ⬜ **untested** |
+
+> **Cases C and D remain untested.** All 22 stock sample Leads have a populated `CountryCode`, so
+> the blank-country branch is not reachable from existing data. No record was created to close this
+> — the branch will be exercised by the deterministic dataset, which includes missing-country
+> fixtures by design (`testing-strategy.md` scenario 9).
+
+**Lead field history — VALIDATED.** One existing sample Lead (local label `LEAD-A`; org record id
+deliberately not recorded here).
+
+| Step | Result |
+|---|---|
+| Baseline | `LeadHistory` = 0 rows org-wide |
+| Status changed | Row captured: `Working - Contacted` → `Open - Not Contacted` |
+| Owner changed | Row captured, both display names and user ids |
+| Both restored | Status and OwnerId confirmed **identical to original** |
+| Audit trail | 6 rows retained — history correctly survives the restore |
+
+`PD-09` is now evidenced rather than assumed: transitions are captured at the moment they occur.
+
+**Custom Metadata — VALIDATED.** All four `Segment_Band__mdt` records compared field-by-field
+against the source-controlled files: **all match**. Bands 0–100 / 100–1000 / 1000+ / designation-only,
+`Rule_Version__c = v1.0`, `Is_Active__c = true`. `ARR_Override_Min__c` and `SLA_Response_Hours__c`
+are null by design — both await decisions owned by later increments.
+`Routing_Rule__mdt` = **0 records**, as approved.
+
+**Global value sets — VALIDATED.** Verified on all five consuming fields; every one is
+`restricted = true`, so the governed taxonomy is enforced at the field level.
+
+| Value set | Values |
+|---|---|
+| `NIQ_Segment` | SMB · Mid-Market · Enterprise · Strategic |
+| `NIQ_Territory` | NA-West · NA-East · UK-IE · DACH — **no `Central` value exists** |
+
+**OWD — VALIDATED** by metadata retrieve (authoritative; `EntityDefinition` misreports
+`ControlledByParent` as `Private`).
+
+| Object | Sharing model |
+|---|---|
+| Lead · Account · Opportunity | `Private` |
+| Contact | `ControlledByParent` |
+| **Case** | `Private` — **org-required consequence of Account = Private.** Salesforce forbids a child of Account from being more permissive. **No Case functionality is built or planned.** |
+
 ---
 
 ## Implementation Status
 
-**Increment 1 (Foundation) is implemented. Nothing is Validated** — no test has been executed.
+**Increment 1 (Foundation) is deployed and runtime-verified.** Behaviour that does not yet exist
+(routing, segmentation, matching, SLA) is neither built nor claimed.
 
 | Area | Status |
 |---|---|
 | Salesforce org | ✅ Authenticated `northstariq-dev` · inspected read-only · **unmodified** |
-| Custom fields | ✅ **12 Implemented** (Lead 6 · Account 3 · User 3) — 0 Validated |
-| Custom Metadata Types | ✅ **2 Implemented** with 13 fields — 0 Validated |
-| Custom Metadata records | ✅ **4 Implemented** (`Segment_Band__mdt`) — 0 Validated |
-| Global value sets | ✅ **2 Implemented** |
-| Standard value sets | ✅ **3 Implemented** (`AccountType` += `Churned`) |
-| Permission sets | ✅ **3 Implemented**, 21 FLS entries — **0 assigned, 0 tested** (`NIQ_Analytics_Read` deferred) |
-| OWD | ✅ **5 changed** — Lead/Account/Opportunity/Case Private, Contact ControlledByParent |
-| Lead field history | ✅ **Implemented** — `Status` and `OwnerId` tracked |
+| Custom fields — 2 formulas | ✅ **VALIDATED** — `Data_Quality_Status__c`, `Data_Quality_Detail__c` compute correctly (2 of 4 branches reachable) |
+| Custom fields — 10 stored | ✅ **DEPLOYED — ACCESS VERIFIED** — readable; intentionally blank until automation |
+| Custom Metadata records | ✅ **VALIDATED** — 4 records match source field-by-field |
+| Custom Metadata Types | ✅ **DEPLOYED** — 2 types, 13 fields; `Routing_Rule__mdt` holds 0 records by design |
+| Global value sets | ✅ **VALIDATED** — enforced `restricted=true` on all 5 consuming fields |
+| Standard value sets | ✅ **VALIDATED** — `AccountType` = 8 values, 7 originals intact + `Churned` |
+| Lead field history | ✅ **VALIDATED** — `Status` and `OwnerId` capture verified and reverted |
+| OWD | ✅ **VALIDATED** — 5 objects confirmed by metadata retrieve |
+| Permission sets | 🟡 **DEPLOYED** — `NIQ_Revenue_Operations` assigned to the admin for verification. **Seller and Rule_Configuration unassigned and untested**; `BR-20` access testing needs seller users. |
 | Business Hours + Holidays | 🟡 **Moved to the SLA increment** — nothing in Foundation consumes them |
 | Flows | 🟡 3 candidates — **0 implemented** |
 | Apex | 🟢 **1 approved** (business-hours seam + test class) — 0 implemented |
