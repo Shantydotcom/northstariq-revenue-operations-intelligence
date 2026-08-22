@@ -1,0 +1,344 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Flow xmlns="http://soap.sforce.com/2006/04/metadata">
+    <apiVersion>67.0</apiVersion>
+    <assignments>
+        <name>asgnNormalizedDomain</name>
+        <label>Set Normalized Domain</label>
+        <locationX>176</locationX>
+        <locationY>134</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Normalized_Domain__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxNormalizedDomain</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>decHasEmployeeCount</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <description>Capture the band that matched. Bands do not overlap, so at most one match occurs.</description>
+        <name>asgnCaptureBand</name>
+        <label>Capture Matching Band</label>
+        <locationX>50</locationX>
+        <locationY>566</locationY>
+        <assignmentItems>
+            <assignToReference>varSegment</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>loopBands.Segment_Name__c</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varRuleVersion</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>loopBands.Rule_Version__c</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varMatched</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>loopBands</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <description>BR-05: record the derived segment and the basis for it.</description>
+        <name>asgnSegmentResolved</name>
+        <label>Set Segment and Basis</label>
+        <locationX>50</locationX>
+        <locationY>782</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Segment__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>varSegment</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Segment_Basis__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxBasisResolved</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+    <assignments>
+        <description>BR-05: an employee count that matches no active band is surfaced, never defaulted to a segment.</description>
+        <name>asgnNoBandMatch</name>
+        <label>Set Unsegmentable - No Band</label>
+        <locationX>314</locationX>
+        <locationY>782</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Segment__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue></stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Segment_Basis__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxBasisNoBand</elementReference>
+            </value>
+        </assignmentItems>
+    </assignments>
+    <assignments>
+        <description>BR-05: never default an underivable segment. Missing employee count is stated, not guessed.</description>
+        <name>asgnNoEmployeeCount</name>
+        <label>Set Unsegmentable - No Employee Count</label>
+        <locationX>578</locationX>
+        <locationY>350</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Segment__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue></stringValue>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Segment_Basis__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <stringValue>Not segmentable: employee count missing</stringValue>
+            </value>
+        </assignmentItems>
+    </assignments>
+    <decisions>
+        <description>Segmentation requires an employee count. Absence is an explicit state, not a default.</description>
+        <name>decHasEmployeeCount</name>
+        <label>Has Employee Count?</label>
+        <locationX>176</locationX>
+        <locationY>242</locationY>
+        <defaultConnector>
+            <targetReference>asgnNoEmployeeCount</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No - Unsegmentable</defaultConnectorLabel>
+        <rules>
+            <name>HasEmployeeCount_Yes</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.NumberOfEmployees</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>getActiveBands</targetReference>
+            </connector>
+            <label>Yes</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-21: the band boundary test lives in configuration, not in this Flow.</description>
+        <name>decBandMatches</name>
+        <label>Band Matches Employee Count?</label>
+        <locationX>50</locationX>
+        <locationY>458</locationY>
+        <defaultConnector>
+            <targetReference>loopBands</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No</defaultConnectorLabel>
+        <rules>
+            <name>BandMatches_Yes</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxBandMatches</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>asgnCaptureBand</targetReference>
+            </connector>
+            <label>Yes</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <name>decSegmentResolved</name>
+        <label>Segment Resolved?</label>
+        <locationX>176</locationX>
+        <locationY>674</locationY>
+        <defaultConnector>
+            <targetReference>asgnNoBandMatch</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No Band Matched</defaultConnectorLabel>
+        <rules>
+            <name>SegmentResolved_Yes</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>varMatched</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>asgnSegmentResolved</targetReference>
+            </connector>
+            <label>Yes</label>
+        </rules>
+    </decisions>
+    <description>BR-01 and BR-05. Normalizes the company domain and derives segment from governed Segment_Band__mdt configuration, recording the basis. Before-save: assigns fields on the triggering record only, performs no DML, and reads only Custom Metadata. Data quality remains the responsibility of the Data_Quality_Status__c and Data_Quality_Detail__c formula fields and is deliberately not duplicated here.</description>
+    <environments>Default</environments>
+    <formulas>
+        <description>Source precedence: Website when present, otherwise the Email domain. Website and Email remain the unmodified provenance values.</description>
+        <name>fxRawDomain</name>
+        <dataType>String</dataType>
+        <expression>IF(
+  NOT(ISBLANK({!$Record.Website})),
+  LOWER(TRIM({!$Record.Website})),
+  IF(
+    AND(NOT(ISBLANK({!$Record.Email})), FIND("@", {!$Record.Email}) &gt; 0),
+    LOWER(TRIM(MID({!$Record.Email}, FIND("@", {!$Record.Email}) + 1, 255))),
+    ""
+  )
+)</expression>
+    </formulas>
+    <formulas>
+        <description>Strip the scheme. Applied before the www prefix so https://www. resolves in one pass.</description>
+        <name>fxNoProtocol</name>
+        <dataType>String</dataType>
+        <expression>SUBSTITUTE(SUBSTITUTE({!fxRawDomain}, "https://", ""), "http://", "")</expression>
+    </formulas>
+    <formulas>
+        <description>Strip a leading www. prefix only.</description>
+        <name>fxNoWww</name>
+        <dataType>String</dataType>
+        <expression>IF(
+  LEFT({!fxNoProtocol}, 4) = "www.",
+  MID({!fxNoProtocol}, 5, 255),
+  {!fxNoProtocol}
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-01: drop any path, query string or trailing slash, leaving the registrable domain.</description>
+        <name>fxNormalizedDomain</name>
+        <dataType>String</dataType>
+        <expression>IF(
+  FIND("/", {!fxNoWww}) &gt; 0,
+  LEFT({!fxNoWww}, FIND("/", {!fxNoWww}) - 1),
+  IF(
+    FIND("?", {!fxNoWww}) &gt; 0,
+    LEFT({!fxNoWww}, FIND("?", {!fxNoWww}) - 1),
+    {!fxNoWww}
+  )
+)</expression>
+    </formulas>
+    <formulas>
+        <description>Inclusive lower bound, exclusive upper bound. A null Employee_Min excludes the band from size-based derivation, which is how Strategic is kept out of it. A null Employee_Max means no upper bound.</description>
+        <name>fxBandMatches</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  NOT(ISNULL({!loopBands.Employee_Min__c})),
+  {!$Record.NumberOfEmployees} &gt;= {!loopBands.Employee_Min__c},
+  OR(
+    ISNULL({!loopBands.Employee_Max__c}),
+    {!$Record.NumberOfEmployees} &lt; {!loopBands.Employee_Max__c}
+  )
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-05 explainability: concise, states the signal, the outcome and the rule version in force.</description>
+        <name>fxBasisResolved</name>
+        <dataType>String</dataType>
+        <expression>"Employee Count: " &amp; TEXT({!$Record.NumberOfEmployees}) &amp; " -&gt; " &amp; {!varSegment} &amp; " | Rule " &amp; {!varRuleVersion}</expression>
+    </formulas>
+    <formulas>
+        <name>fxBasisNoBand</name>
+        <dataType>String</dataType>
+        <expression>"Not segmentable: no active band matches employee count " &amp; TEXT({!$Record.NumberOfEmployees})</expression>
+    </formulas>
+    <interviewLabel>Lead Inbound Before Save {!$Flow.CurrentDateTime}</interviewLabel>
+    <label>Lead Inbound Before Save</label>
+    <loops>
+        <description>Four active bands today. Looping keeps the thresholds in configuration so a band can be added without editing this Flow.</description>
+        <name>loopBands</name>
+        <label>For Each Active Band</label>
+        <locationX>50</locationX>
+        <locationY>350</locationY>
+        <collectionReference>getActiveBands</collectionReference>
+        <iterationOrder>Asc</iterationOrder>
+        <nextValueConnector>
+            <targetReference>decBandMatches</targetReference>
+        </nextValueConnector>
+        <noMoreValuesConnector>
+            <targetReference>decSegmentResolved</targetReference>
+        </noMoreValuesConnector>
+    </loops>
+    <processType>AutoLaunchedFlow</processType>
+    <recordLookups>
+        <description>BR-21: segmentation thresholds are read from Custom Metadata, never hard-coded here. Custom Metadata reads do not consume SOQL query limits.</description>
+        <name>getActiveBands</name>
+        <label>Get Active Segment Bands</label>
+        <locationX>50</locationX>
+        <locationY>242</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>loopBands</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Is_Active__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </filters>
+        <getFirstRecordOnly>false</getFirstRecordOnly>
+        <object>Segment_Band__mdt</object>
+        <sortField>Employee_Min__c</sortField>
+        <sortOrder>Asc</sortOrder>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <start>
+        <locationX>50</locationX>
+        <locationY>0</locationY>
+        <connector>
+            <targetReference>asgnNormalizedDomain</targetReference>
+        </connector>
+        <filterFormula>OR(
+  ISNEW(),
+  ISCHANGED({!$Record.Website}),
+  ISCHANGED({!$Record.Email}),
+  ISCHANGED({!$Record.NumberOfEmployees})
+)</filterFormula>
+        <object>Lead</object>
+        <recordTriggerType>CreateAndUpdate</recordTriggerType>
+        <triggerType>RecordBeforeSave</triggerType>
+    </start>
+    <status>Active</status>
+    <variables>
+        <name>varSegment</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varRuleVersion</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varMatched</name>
+        <dataType>Boolean</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <value>
+            <booleanValue>false</booleanValue>
+        </value>
+    </variables>
+</Flow>

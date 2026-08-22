@@ -319,18 +319,86 @@ are null by design — both await decisions owned by later increments.
 | Contact | `ControlledByParent` |
 | **Case** | `Private` — **org-required consequence of Account = Private.** Salesforce forbids a child of Account from being more permissive. **No Case functionality is built or planned.** |
 
+### 2026-08-22 — Increment 2: Lead data quality and segmentation
+
+```
+Requirement:   BR-01 (normalization) BR-05 (segmentation + basis) BR-21 (configuration-driven)
+Metadata:      1 Flow created: Lead_Inbound_Before_Save. No new fields.
+Deployment:    SUCCEEDED - deploy 0Afaj00000haMsTCAU, 1/1, 0 errors. Flow ACTIVE.
+Validation:    Dry-run passed 1/1 first attempt. Repository validator 47 passed, 0 failed.
+Test result:   8 of 8 runtime scenarios PASSED. Bulk insert 8/8. Bulk update 8/8.
+               Entry-condition test PASSED both directions.
+Commit:        this commit - `feat: implement lead data quality and segmentation`
+Deferred:      Territory, identity/matching, routing, exceptions, SLA - later increments
+```
+
+**Implemented.** One before-save record-triggered Flow on Lead, entered only when `Website`,
+`Email`, or `NumberOfEmployees` changes (or on create). It assigns fields on the triggering record,
+performs **no DML**, and reads only Custom Metadata.
+
+| Behaviour | Detail |
+|---|---|
+| Domain normalization | `Website` preferred, `Email` domain as fallback. Four chained formulas strip scheme, `www.`, and path/query. Provenance fields untouched; no second domain field created. |
+| Segmentation | Loops active `Segment_Band__mdt` rows. **Zero thresholds in the Flow.** Inclusive lower, exclusive upper bound; null upper = unbounded. |
+| Explainability | `Segment_Basis__c` = `Employee Count: 742 -> Mid-Market | Rule v1.0` |
+| Unsegmentable | Employee count missing → `Segment__c` cleared, basis states why. **Never defaulted to SMB.** |
+| Data quality | Left entirely to the Increment 1 formula fields. **Deliberately not duplicated in Flow.** |
+
+**Runtime matrix — 8/8 passed, first execution.** Boundaries 0 · 99 · 100 · 101 · 999 · 1000 ·
+1001 · null all behaved exactly as the configuration specifies. Full matrix in
+[`testing-strategy.md`](testing-strategy.md) §2b.
+
+**The Increment 1 data-quality gap is closed.** Two fixtures were given a blank country, reaching
+formula branches C and D that stock data could not. **All four branches are now VALIDATED.**
+
+**Bulk safety.** Insert batch of 8 → 8/8 correct. Update batch of 8 → 8/8 recalculated. Proves the
+Flow does not depend on single-record execution. Modest batch by design; production scale is not
+claimed.
+
+**Regression — Increment 1 intact.** Formulas still compute on the 22 untouched stock Leads · 4
+CMDT records unchanged, `Routing_Rule__mdt` still 0 · Lead history still capturing (14 rows) ·
+global value sets unchanged and still restricted · OWD unchanged on all 5 objects · the single
+permission-set assignment unchanged.
+
+**Strategic — a real design boundary, not an omission.**
+
+> A Lead cannot become Strategic in this increment. The designation lives on
+> `Account.Strategic_Account__c` and reaches a Lead only through `Matched_Account__c`, which is
+> Increment 3 scope. The Strategic band's null `Employee_Min__c` makes it correctly non-matching for
+> size-based derivation — the configuration itself says Strategic is not a size band.
+> **No Lead-level Strategic field was invented to force it.**
+
+**Known gaps carried forward:**
+
+| Gap | Status |
+|---|---|
+| Manual `Segment__c` override is silently overwritten on the next input change | `architecture.md` §5 requires overrides to be *recorded* and preserved. **Not implemented; no override field exists.** Needs a decision. |
+| Strategic segmentation for Leads | Increment 3, with matching |
+| Territory (`BR-06`) | Increment 3 — `Territory__c` deployed but unpopulated |
+| NorthstarIQ fields absent from every Lead page layout | Blocks manual UI review. Layout change **not made** — awaiting approval. |
+
+**Deviations from the approved manifest: none.** No new fields, no Apex, no changes to Increment 1
+components. One validator assertion was updated because the increment boundary moved: it now
+permits the single approved Flow and still forbids Apex, triggers, and UI components.
+
+**Defects caught before deployment: none in the Flow** — the dry-run passed on the first attempt.
+One tooling defect surfaced during fixture load: Bulk API rejected LF line endings and required
+CRLF.
+
 ---
 
 ## Implementation Status
 
-**Increment 1 (Foundation) is deployed and runtime-verified.** Behaviour that does not yet exist
-(routing, segmentation, matching, SLA) is neither built nor claimed.
+**Increments 1–2 are deployed and runtime-validated.** Behaviour that does not yet exist
+(matching, territory, routing, exceptions, SLA) is neither built nor claimed.
 
 | Area | Status |
 |---|---|
 | Salesforce org | ✅ Authenticated `northstariq-dev` · inspected read-only · **unmodified** |
-| Custom fields — 2 formulas | ✅ **VALIDATED** — `Data_Quality_Status__c`, `Data_Quality_Detail__c` compute correctly (2 of 4 branches reachable) |
-| Custom fields — 10 stored | ✅ **DEPLOYED — ACCESS VERIFIED** — readable; intentionally blank until automation |
+| Custom fields — 2 formulas | ✅ **VALIDATED — all 4 branches** (gap closed in Increment 2) |
+| Flow `Lead_Inbound_Before_Save` | ✅ **VALIDATED** — 8/8 scenarios, bulk-safe at batch 8, entry conditions verified |
+| `Normalized_Domain__c` · `Segment__c` · `Segment_Basis__c` | ✅ **VALIDATED** — populated and explained by the Flow |
+| Custom fields — 7 remaining stored | ✅ **DEPLOYED — ACCESS VERIFIED** — readable; blank until Increments 3–4 populate them |
 | Custom Metadata records | ✅ **VALIDATED** — 4 records match source field-by-field |
 | Custom Metadata Types | ✅ **DEPLOYED** — 2 types, 13 fields; `Routing_Rule__mdt` holds 0 records by design |
 | Global value sets | ✅ **VALIDATED** — enforced `restricted=true` on all 5 consuming fields |
@@ -361,5 +429,5 @@ physically testable one is stated rather than hidden.
 
 ## Next Step
 
-**Increment 2 — not started, and not to be started without approval.** Foundation carries structure
-only; no automation reads or writes any of it yet.
+**Increment 2 awaits human UI acceptance.** Increment 3 (identity, territory, routing) is
+**not started** and not to be started without approval.

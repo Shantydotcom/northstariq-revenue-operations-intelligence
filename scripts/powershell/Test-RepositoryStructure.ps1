@@ -302,8 +302,9 @@ $metadataFiles = Get-ChildItem (Join-Path $RepoRoot 'force-app') -Recurse -File 
                  Where-Object { $_.Name -ne '.gitkeep' }
 Write-Host ("  [INFO] Metadata files in force-app/: {0}" -f $metadataFiles.Count) -ForegroundColor DarkGray
 
-# Increment 1 is Foundation: structure and configuration only, no behaviour.
-$behaviourDirs = @('classes', 'triggers', 'flows', 'aura', 'lwc')
+# Apex remains at zero except the SLA business-hours seam, which belongs to a later
+# increment. Nothing has authorised Apex, triggers, or UI components yet.
+$behaviourDirs = @('classes', 'triggers', 'aura', 'lwc')
 $premature = @()
 foreach ($d in $behaviourDirs) {
     $hits = Get-ChildItem (Join-Path $RepoRoot 'force-app') -Recurse -Directory -Force -ErrorAction SilentlyContinue |
@@ -314,9 +315,21 @@ foreach ($d in $behaviourDirs) {
         if ($n -gt 0) { $premature += "$d ($n file(s))" }
     }
 }
-Assert-That -Name "No Apex, triggers, or Flows (Increment 1 is structure only)" `
+Assert-That -Name "No Apex, triggers, or UI components yet" `
             -Condition ($premature.Count -eq 0) `
             -Detail ($premature -join ', ')
+
+# Flows are approved one increment at a time. The complexity budget is 3-5 total;
+# anything beyond the approved set means a later increment leaked into this one.
+$approvedFlows = @('Lead_Inbound_Before_Save')
+$flowFiles = @(Get-ChildItem (Join-Path $RepoRoot 'force-app') -Recurse -File -Force -ErrorAction SilentlyContinue |
+               Where-Object { $_.Name -like '*.flow-meta.xml' })
+$unapprovedFlows = @($flowFiles | Where-Object { $approvedFlows -notcontains ($_.Name -replace '\.flow-meta\.xml$', '') } |
+                     ForEach-Object { $_.Name })
+Assert-That -Name "Only approved Flows present" `
+            -Condition ($unapprovedFlows.Count -eq 0) `
+            -Detail ("Unapproved: " + ($unapprovedFlows -join ', '))
+Write-Host ("  [INFO] Flows in source: {0}" -f $flowFiles.Count) -ForegroundColor DarkGray
 
 $dataFiles = Get-ChildItem (Join-Path $RepoRoot 'data') -Recurse -File -Force -ErrorAction SilentlyContinue |
              Where-Object { $_.Name -ne '.gitkeep' -and $_.Name -ne 'README.md' }

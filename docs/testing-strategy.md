@@ -75,6 +75,62 @@ wrong, and the reason `PD-05` uses standard Salesforce Business Hours.
 
 ---
 
+## 2b. Increment 2 Test Fixtures — executed 2026-08-22
+
+Eight fictional Leads, created in **one bulk batch**, each covering a normalization case *and* a
+segmentation boundary. Names are prefixed `NIQ Test -`; domains use RFC 2606 reserved
+`.example.*` ranges. **No real PII.** These are increment fixtures, deliberately separate from the
+portfolio dataset in §3.
+
+| Fixture | Website / Email | Employees | Country | Expected domain | Expected segment |
+|---|---|---:|---|---|---|
+| HTTPS WWW / SMB Below | `https://www.northstar-alpha.example.com` | 99 | US | `northstar-alpha.example.com` | SMB |
+| HTTP Path / MM At | `http://northstar-beta.example.net/products/` | 100 | US | `northstar-beta.example.net` | Mid-Market |
+| Bare Domain / MM Above | `northstar-gamma.example.org` | 101 | US | `northstar-gamma.example.org` | Mid-Market |
+| WWW No Scheme / MM Upper | `www.northstar-delta.example.com` | 999 | US | `northstar-delta.example.com` | Mid-Market |
+| Email Fallback / ENT At | *(no website)* `ops@northstar-epsilon.example.com` | 1000 | US | `northstar-epsilon.example.com` | Enterprise |
+| No Domain Source / ENT Above | *(both blank)* | 1001 | **blank** | *(blank)* | Enterprise |
+| Trailing Slash / SMB Zero | `https://northstar-eta.example.com/` | 0 | US | `northstar-eta.example.com` | SMB |
+| Null Employees Unsegmentable | `www.northstar-theta.example.com` | **null** | **blank** | `northstar-theta.example.com` | *(none)* |
+
+**Result: 8 of 8 scenarios passed on first execution.** Every boundary — 0, 99, 100, 101, 999,
+1000, 1001, null — behaved as the configuration specifies.
+
+### The data-quality gap is now closed
+
+Increment 1 could only reach 2 of 4 formula branches, because all 22 stock Leads carry a country.
+Two fixtures were given a blank country deliberately:
+
+| Case | Inputs | Expected | Actual | |
+|---|---|---|---|---|
+| A | Country ✓ Employees ✓ | `Complete` / `None` | matched | ✅ |
+| B | Country ✓ Employees ✗ | `Incomplete` / `Missing: EmployeeCount` | matched | ✅ |
+| C | Country ✗ Employees ✓ | `Incomplete` / `Missing: Country` | matched | ✅ **closed** |
+| D | Country ✗ Employees ✗ | `Incomplete` / `Missing: Country EmployeeCount` | matched | ✅ **closed** |
+
+### Bulk safety
+
+| Test | Batch | Result |
+|---|---:|---|
+| Insert | 8 | 8/8 correct — Flow does not depend on single-record execution |
+| Update | 8 | 8/8 recalculated when employee count changed in one batch |
+
+Modest batch by design: Developer Edition storage is 5 MB and volume is not evidence. This proves
+multi-record execution, **not** production-scale performance, which this project does not claim.
+
+### Entry-condition test
+
+| Action | Expected | Actual | |
+|---|---|---|---|
+| Edit `Segment__c` alone | Flow does **not** run; the edit stands | edit retained | ✅ |
+| Then change `NumberOfEmployees` | Flow runs; segment recalculates | recalculated | ✅ |
+
+> This also exposes a real gap: a manual `Segment__c` edit survives only until an input changes,
+> then is silently overwritten. `architecture.md` §5 requires an override to be *recorded* and not
+> overwritten. **Override tracking is not implemented** and no override field exists.
+
+---
+
 ## 3. Dataset Specification
 
 | Object | Count | Purpose |

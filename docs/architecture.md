@@ -58,8 +58,8 @@ Preferred envelope. **Not hard limits** — exceeding one requires a documented 
 
 | Component | Preferred | Candidate count |
 |---|---|---:|
-| Custom fields | ~15–25 | **19** — approved, Increment 1 |
-| Flows | ~3–5 | **3** — candidate |
+| Custom fields | ~15–25 | **12** — deployed, Increment 1 |
+| Flows | ~3–5 | **1 deployed** (Increment 2) · 2 candidate |
 | Custom Metadata Types | ~1–3 | **2** — approved, Increment 1 |
 | Permission sets | ~3–5 | **3** — approved, Increment 1 (`NIQ_Analytics_Read` deferred) |
 | Queues | ~1–3 | 2 — candidate |
@@ -137,7 +137,7 @@ that administrator is already the constraint.
 
 | # | Candidate Flow | Type | Serves | Notes |
 |---|---|---|---|---|
-| 1 | `Lead_Inbound_Before_Save` | Record-triggered, before save | `BR-01`, `BR-02`, `BR-05`, `BR-06` | No DML, no queries — field assignment only. Configuration read via formula or value set where possible. |
+| 1 | `Lead_Inbound_Before_Save` | Record-triggered, before save | `BR-01`, `BR-05` | ✅ **DEPLOYED + VALIDATED (Increment 2).** Normalizes domain and derives segment from `Segment_Band__mdt`. No DML. Reads Custom Metadata only. Data quality stays in formula fields and is **not** duplicated here. Territory (`BR-06`) deferred to Increment 3. |
 | 2 | `Lead_Inbound_After_Save` | Record-triggered, after save | `BR-03`, `BR-07`, `BR-08`, `BR-10`, `BR-13` | Match, precedence, eligibility, reason capture, SLA target, exception routing |
 | 3 | `Lead_First_Touch_Capture` | Record-triggered | `BR-11` | **May fold into #2 after org inspection** if the defining events can be captured there |
 | ~~4~~ | ~~`SLA_Breach_Sweep`~~ | ~~Scheduled~~ | `BR-12` | **REMOVED.** `SLA_Status__c` as a formula evaluates at query time — reports and list views show breaches with no scheduled Flow. |
@@ -152,6 +152,52 @@ that administrator is already the constraint.
 | **No hard-coded thresholds, IDs, or mappings** | `BR-21`. Anything the business may change lives in configuration. |
 | **Recursion control on after-save updates** | Assignment writes to the record that triggered the Flow. |
 | **Named, commented decision elements** | The next administrator is the audience. |
+
+### Domain normalization — implemented (`BR-01`)
+
+Source precedence: **`Website` when present, otherwise the `Email` domain.** Both remain unmodified
+as provenance; no second original-domain field was created.
+
+Four chained Flow formulas, each doing one thing so an administrator can read them:
+
+| Formula | Does |
+|---|---|
+| `fxRawDomain` | Picks the source and lowercases/trims it |
+| `fxNoProtocol` | Strips `https://` then `http://` |
+| `fxNoWww` | Strips a leading `www.` only |
+| `fxNormalizedDomain` | Drops any path, query string, or trailing slash |
+
+| Input | Output |
+|---|---|
+| `https://www.example.com` · `http://example.net/products/` · `www.example.com` · `example.org` · `https://example.com/` | the bare registrable domain |
+| Website blank, `person@example.com` | `example.com` |
+| Website and Email both blank | blank |
+
+**No public-suffix engine, no free-email-domain list, no Apex.** No approved requirement calls for
+them, and inventing either would be exactly the over-engineering the project argues against.
+
+### Segmentation — implemented (`BR-05`, `BR-21`)
+
+The Flow holds **no thresholds**. It reads every active `Segment_Band__mdt` row, then applies:
+
+```
+Employee_Min is not null            (excludes Strategic from size-based derivation)
+AND employees >= Employee_Min       (inclusive lower bound)
+AND (Employee_Max is null           (no upper bound - Enterprise)
+     OR employees < Employee_Max)   (exclusive upper bound)
+```
+
+Adding or retuning a band is a Custom Metadata edit, not a Flow change. That is `BR-21` working.
+
+`Segment_Basis__c` records the signal, the outcome, and the rule version in force —
+`Employee Count: 742 -> Mid-Market | Rule v1.0` — so a segment can be explained without opening the
+Flow.
+
+> **Strategic is not derivable on a Lead, by design.** The designation lives on
+> `Account.Strategic_Account__c`; a Lead reaches it only through `Matched_Account__c`, which belongs
+> to Increment 3. The Strategic band's null `Employee_Min__c` makes it correctly non-matching for
+> size-based derivation — **the configuration itself expresses that Strategic is not a size band.**
+> No Lead-level Strategic field was invented to force it.
 
 ### What is deliberately *not* automated
 

@@ -75,14 +75,14 @@ The discovery finding that governs this entire document:
 
 | API name | Type | Purpose | Serves | Status |
 |---|---|---|---|---|
-| `Normalized_Domain__c` | Text(255) | Registrable domain extracted from website or email — the primary match signal | `BR-01`, `BR-03` | **Approved — Inc 1** |
+| `Normalized_Domain__c` | Text(255) | Registrable domain extracted from website or email — the primary match signal | `BR-01`, `BR-03` | ✅ **VALIDATED (Inc 2)** |
 | `Data_Quality_Status__c` | Picklist | Complete · Incomplete · Unnormalizable | `BR-02` | **Approved — Inc 1** |
 | `Data_Quality_Detail__c` | Text(255) | **Which** attributes are missing or unnormalizable | `BR-02` | **Approved — Inc 1** |
 | `Match_Status__c` | Picklist | Matched · Review · No Match | `BR-03` | **Approved — Inc 1** |
 | `Matched_Account__c` | Lookup(Account) | The Account matched | `BR-03` | **Approved — Inc 1** |
 | `Match_Basis__c` | Text(255) | Which signal produced the outcome | `BR-03` | **Approved — Inc 1** |
-| `Segment__c` | Picklist | Derived segment | `BR-05` | **Approved — Inc 1** |
-| `Segment_Basis__c` | Text(255) | Which rule and version derived it; whether overridden | `BR-05` | **Approved — Inc 1** |
+| `Segment__c` | Picklist | Derived segment | `BR-05` | ✅ **VALIDATED (Inc 2)** |
+| `Segment_Basis__c` | Text(255) | Which rule and version derived it | `BR-05` | ✅ **VALIDATED (Inc 2)** |
 | `Territory__c` | Picklist | Derived territory | `BR-06` | **Approved — Inc 1** |
 | `Routing_Reason__c` | Text(255) | **Why this owner** — precedence level, eligibility, rule version | `BR-08` | **Approved — Inc 1** |
 | `SLA_Target_DateTime__c` | Date/Time | Response deadline, visible to the owner | `BR-10`, `BR-12` | **Approved — Inc 1** |
