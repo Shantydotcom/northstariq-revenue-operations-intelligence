@@ -1,0 +1,413 @@
+<#
+.SYNOPSIS
+    Validates the NorthstarIQ repository foundation.
+
+.DESCRIPTION
+    Read-only structural, security and scope validation for the NorthstarIQ
+    Revenue Operations Intelligence Platform repository.
+
+    Checks performed:
+      1. Required directory structure
+      2. Required root files
+      3. Salesforce DX foundation validity
+      4. Secret / credential / auth-artifact scan
+      5. Deferred-technology scope leakage (Data Cloud / Agentforce)
+      6. Phase-appropriate emptiness (no premature business metadata or data)
+      7. Ignore-file coverage
+      8. Git repository state
+
+    This script MODIFIES NOTHING. It does not touch Salesforce, does not
+    authenticate, and does not perform any git write operation.
+
+.NOTES
+    Target shell : Windows PowerShell 5.1
+    Compatibility: avoids &&, ||, ternary and null-coalescing operators,
+                   which are parser errors in 5.1.
+
+.OUTPUTS
+    Exit code 0 = all checks passed.
+    Exit code 1 = one or more checks failed.
+
+.EXAMPLE
+    powershell -ExecutionPolicy Bypass -File scripts\powershell\Test-RepositoryStructure.ps1
+#>
+
+[CmdletBinding()]
+param(
+    [string] $RepoRoot,
+    [switch] $Quiet
+)
+
+$ErrorActionPreference = 'Stop'
+
+# ---------------------------------------------------------------------------
+# Resolve repository root (default: two levels above this script)
+# ---------------------------------------------------------------------------
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+    $RepoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+}
+if (-not (Test-Path $RepoRoot)) {
+    Write-Host "FATAL: repository root not found: $RepoRoot" -ForegroundColor Red
+    exit 1
+}
+$RepoRoot = (Resolve-Path $RepoRoot).Path
+
+# ---------------------------------------------------------------------------
+# Result accumulator
+# ---------------------------------------------------------------------------
+$script:Pass = 0
+$script:Fail = 0
+$script:Warn = 0
+$script:Failures = @()
+
+function Write-Section {
+    param([string] $Title)
+    if (-not $Quiet) {
+        Write-Host ""
+        Write-Host ("=" * 74) -ForegroundColor DarkGray
+        Write-Host "  $Title" -ForegroundColor Cyan
+        Write-Host ("=" * 74) -ForegroundColor DarkGray
+    }
+}
+
+function Assert-That {
+    param(
+        [string]  $Name,
+        [bool]    $Condition,
+        [string]  $Detail = "",
+        [switch]  $WarnOnly
+    )
+    if ($Condition) {
+        $script:Pass++
+        if (-not $Quiet) { Write-Host "  [PASS] $Name" -ForegroundColor Green }
+    }
+    elseif ($WarnOnly) {
+        $script:Warn++
+        if (-not $Quiet) {
+            Write-Host "  [WARN] $Name" -ForegroundColor Yellow
+            if ($Detail) { Write-Host "         $Detail" -ForegroundColor DarkYellow }
+        }
+    }
+    else {
+        $script:Fail++
+        $script:Failures += $Name
+        if (-not $Quiet) {
+            Write-Host "  [FAIL] $Name" -ForegroundColor Red
+            if ($Detail) { Write-Host "         $Detail" -ForegroundColor DarkRed }
+        }
+    }
+}
+
+if (-not $Quiet) {
+    Write-Host ""
+    Write-Host "NorthstarIQ - Revenue Operations Intelligence Platform" -ForegroundColor White
+    Write-Host "Repository Structure Validation" -ForegroundColor White
+    Write-Host "Root: $RepoRoot" -ForegroundColor DarkGray
+}
+
+# ---------------------------------------------------------------------------
+# 1. Required directories
+# ---------------------------------------------------------------------------
+Write-Section "1. Directory Structure"
+
+$requiredDirs = @(
+    'config', 'manifest', 'force-app\main\default',
+    'data\source', 'data\broken', 'data\clean', 'data\expected', 'data\reference', 'data\analytics',
+    'powerbi\model', 'powerbi\dax', 'powerbi\powerquery', 'powerbi\documentation',
+    'scripts\python', 'scripts\powershell', 'scripts\soql',
+    'tests\fixtures', 'tests\data-quality', 'tests\matching', 'tests\scoring', 'tests\lifecycle',
+    'tests\routing', 'tests\sla', 'tests\security', 'tests\analytics', 'tests\salesforce',
+    'docs\architecture', 'docs\discovery', 'docs\requirements', 'docs\data-dictionary',
+    'docs\governance', 'docs\security', 'docs\analytics', 'docs\testing', 'docs\runbooks',
+    'docs\portfolio', 'docs\ADR',
+    'prompts\claude-code', 'prompts\data-generation', 'prompts\salesforce', 'prompts\powerbi',
+    '.github\workflows', '.github\ISSUE_TEMPLATE'
+)
+
+$missingDirs = @()
+foreach ($d in $requiredDirs) {
+    if (-not (Test-Path (Join-Path $RepoRoot $d) -PathType Container)) { $missingDirs += $d }
+}
+Assert-That -Name "All $($requiredDirs.Count) required directories exist" `
+            -Condition ($missingDirs.Count -eq 0) `
+            -Detail ("Missing: " + ($missingDirs -join ', '))
+
+# Deferred technology must NOT have directories
+$forbiddenDirs = @('datacloud', 'agentforce', 'prompts\datacloud', 'prompts\agentforce')
+$presentForbidden = @()
+foreach ($d in $forbiddenDirs) {
+    if (Test-Path (Join-Path $RepoRoot $d)) { $presentForbidden += $d }
+}
+Assert-That -Name "No Data Cloud / Agentforce directories" `
+            -Condition ($presentForbidden.Count -eq 0) `
+            -Detail ("Found: " + ($presentForbidden -join ', '))
+
+# ---------------------------------------------------------------------------
+# 2. Required root files
+# ---------------------------------------------------------------------------
+Write-Section "2. Root Files"
+
+$requiredFiles = @(
+    'README.md', 'CLAUDE.md', '.gitignore', '.forceignore', 'sfdx-project.json',
+    'manifest\package.xml', 'config\project-scratch-def.json',
+    '.github\pull_request_template.md',
+    'docs\README.md',
+    'docs\governance\naming-conventions.md',
+    'docs\governance\implementation-status-conventions.md',
+    'docs\architecture\architecture-documentation-framework.md',
+    'prompts\claude-code\phase-0-master-prompt.md'
+)
+
+foreach ($f in $requiredFiles) {
+    $full = Join-Path $RepoRoot $f
+    $exists = Test-Path $full -PathType Leaf
+    $nonEmpty = $false
+    if ($exists) { $nonEmpty = ((Get-Item $full).Length -gt 0) }
+    Assert-That -Name "$f exists and is non-empty" -Condition ($exists -and $nonEmpty)
+}
+
+# ---------------------------------------------------------------------------
+# 3. Salesforce DX foundation
+# ---------------------------------------------------------------------------
+Write-Section "3. Salesforce DX Foundation"
+
+$sfdxPath = Join-Path $RepoRoot 'sfdx-project.json'
+if (Test-Path $sfdxPath) {
+    $sfdxValid = $true
+    $sfdx = $null
+    try { $sfdx = Get-Content $sfdxPath -Raw | ConvertFrom-Json }
+    catch { $sfdxValid = $false }
+
+    Assert-That -Name "sfdx-project.json is valid JSON" -Condition $sfdxValid
+
+    if ($sfdxValid -and $sfdx) {
+        Assert-That -Name "sfdx-project.json declares packageDirectories" `
+                    -Condition ($null -ne $sfdx.packageDirectories -and $sfdx.packageDirectories.Count -gt 0)
+
+        $defaultDir = $null
+        foreach ($pd in $sfdx.packageDirectories) {
+            if ($pd.default -eq $true) { $defaultDir = $pd.path }
+        }
+        Assert-That -Name "A default package directory is declared" -Condition ($null -ne $defaultDir)
+
+        if ($defaultDir) {
+            Assert-That -Name "Default package directory '$defaultDir' exists on disk" `
+                        -Condition (Test-Path (Join-Path $RepoRoot $defaultDir) -PathType Container)
+        }
+
+        Assert-That -Name "sourceApiVersion is declared" `
+                    -Condition (-not [string]::IsNullOrWhiteSpace($sfdx.sourceApiVersion))
+
+        Assert-That -Name "Project name matches repository name" `
+                    -Condition ($sfdx.name -eq 'northstariq-revenue-operations-intelligence') `
+                    -Detail "Found: $($sfdx.name)" -WarnOnly
+    }
+}
+
+# ---------------------------------------------------------------------------
+# 4. Secret / credential / auth-artifact scan
+# ---------------------------------------------------------------------------
+Write-Section "4. Security Scan"
+
+# 4a. Forbidden paths present on disk
+$authPaths = @('.sf', '.sfdx', '.env', 'server.key', 'alias.json', 'key.json')
+$foundAuth = @()
+foreach ($p in $authPaths) {
+    if (Test-Path (Join-Path $RepoRoot $p)) { $foundAuth += $p }
+}
+Assert-That -Name "No Salesforce auth / secret artifacts on disk" `
+            -Condition ($foundAuth.Count -eq 0) `
+            -Detail ("Found: " + ($foundAuth -join ', '))
+
+# 4b. Credential-bearing file extensions anywhere in the tree
+$credExt = Get-ChildItem $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
+           Where-Object { $_.FullName -notmatch '\\\.git\\' } |
+           Where-Object { $_.Extension -match '^\.(key|pem|p12|pfx|jks|keystore)$' }
+Assert-That -Name "No certificate / private-key files in repository" `
+            -Condition ($credExt.Count -eq 0) `
+            -Detail ("Found: " + (($credExt | Select-Object -ExpandProperty Name) -join ', '))
+
+# 4c. Content scan for credential-shaped strings.
+#     Excludes .git, and excludes this script plus the ignore files, which
+#     legitimately contain these words as patterns rather than as values.
+$secretPatterns = @(
+    'force://',                       # Salesforce auth URL - highest risk
+    '00D[A-Za-z0-9]{12,15}',          # Salesforce Org ID
+    'sk-[A-Za-z0-9]{20,}',            # API key shape
+    'ghp_[A-Za-z0-9]{20,}',           # GitHub personal access token
+    'BEGIN [A-Z ]*PRIVATE KEY'
+)
+$selfName = Split-Path -Leaf $PSCommandPath
+$scanFiles = Get-ChildItem $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
+             Where-Object { $_.FullName -notmatch '\\\.git\\' } |
+             Where-Object { $_.Name -ne $selfName } |
+             Where-Object { $_.Name -notin @('.gitignore', '.forceignore') } |
+             Where-Object { $_.Length -lt 2MB }
+
+$secretHits = @()
+foreach ($file in $scanFiles) {
+    $content = $null
+    try { $content = Get-Content $file.FullName -Raw -ErrorAction Stop } catch { continue }
+    if ($null -eq $content) { continue }
+    foreach ($pat in $secretPatterns) {
+        if ($content -cmatch $pat) {
+            $secretHits += ("{0} :: {1}" -f $file.Name, $pat)
+        }
+    }
+}
+Assert-That -Name "No credential-shaped strings in tracked content" `
+            -Condition ($secretHits.Count -eq 0) `
+            -Detail ($secretHits -join '; ')
+
+# ---------------------------------------------------------------------------
+# 5. Deferred technology scope leakage
+# ---------------------------------------------------------------------------
+Write-Section "5. Scope Boundaries"
+
+# Data Cloud / Agentforce must never appear as ACTIVE architecture components.
+#
+# They MAY legitimately appear in two situations:
+#   (a) a brief future-expansion note (README, roadmap), and
+#   (b) governance text that enforces their exclusion - a guardrail cannot
+#       forbid a technology without naming it.
+#
+# So the check is not "is the word present" but "is it present WITHOUT
+# exclusionary or future-scope framing". Anything else is scope leakage.
+$exclusionFraming = 'future expansion|outside the scope|out of scope|intentionally|deferred|' +
+                    'excluded|exclusion|not part of|no directories|scope leakage|must not|' +
+                    'do not implement|reserved for a future'
+
+$scopeHits = @()
+foreach ($file in $scanFiles) {
+    if ($file.Extension -notin @('.md', '.d2', '.json', '.xml', '.ps1', '.py', '.yml', '.yaml')) { continue }
+    $content = $null
+    try { $content = Get-Content $file.FullName -Raw -ErrorAction Stop } catch { continue }
+    if ($null -eq $content) { continue }
+    if ($content -imatch 'data\s*cloud|agentforce') {
+        if ($content -inotmatch $exclusionFraming) {
+            $rel = $file.FullName.Substring($RepoRoot.Length).TrimStart('\')
+            $scopeHits += $rel
+        }
+    }
+}
+Assert-That -Name "Data Cloud / Agentforce never appear as active components" `
+            -Condition ($scopeHits.Count -eq 0) `
+            -Detail ("Unframed mentions in: " + ($scopeHits -join ', '))
+
+# ---------------------------------------------------------------------------
+# 6. Phase-appropriate emptiness
+# ---------------------------------------------------------------------------
+Write-Section "6. Phase Discipline (no premature implementation)"
+
+$metadataFiles = Get-ChildItem (Join-Path $RepoRoot 'force-app') -Recurse -File -Force -ErrorAction SilentlyContinue |
+                 Where-Object { $_.Name -ne '.gitkeep' }
+Assert-That -Name "No Salesforce business metadata in force-app/" `
+            -Condition ($metadataFiles.Count -eq 0) `
+            -Detail ("Found $($metadataFiles.Count) file(s)")
+
+$dataFiles = Get-ChildItem (Join-Path $RepoRoot 'data') -Recurse -File -Force -ErrorAction SilentlyContinue |
+             Where-Object { $_.Name -ne '.gitkeep' -and $_.Name -ne 'README.md' }
+Assert-That -Name "No synthetic dataset generated yet" `
+            -Condition ($dataFiles.Count -eq 0) `
+            -Detail ("Found $($dataFiles.Count) file(s)")
+
+$pbixFiles = Get-ChildItem $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
+             Where-Object { $_.Extension -match '^\.(pbix|pbit)$' }
+Assert-That -Name "No Power BI binaries in repository" -Condition ($pbixFiles.Count -eq 0)
+
+# ---------------------------------------------------------------------------
+# 7. Ignore-file coverage
+# ---------------------------------------------------------------------------
+Write-Section "7. Ignore File Coverage"
+
+$gitignore = ""
+$gitignorePath = Join-Path $RepoRoot '.gitignore'
+if (Test-Path $gitignorePath) { $gitignore = Get-Content $gitignorePath -Raw }
+
+$mustIgnore = @('.sf/', '.sfdx/', '.env', '*.key', 'node_modules/', '*.pbix', '__pycache__/')
+$notIgnored = @()
+foreach ($pattern in $mustIgnore) {
+    if ($gitignore -notmatch [regex]::Escape($pattern)) { $notIgnored += $pattern }
+}
+Assert-That -Name ".gitignore covers critical patterns" `
+            -Condition ($notIgnored.Count -eq 0) `
+            -Detail ("Missing: " + ($notIgnored -join ', '))
+
+$forceignore = ""
+$forceignorePath = Join-Path $RepoRoot '.forceignore'
+if (Test-Path $forceignorePath) { $forceignore = Get-Content $forceignorePath -Raw }
+Assert-That -Name ".forceignore excludes non-metadata directories" `
+            -Condition ($forceignore -match 'docs/\*\*' -and $forceignore -match 'data/\*\*')
+
+# ---------------------------------------------------------------------------
+# 8. Git state
+# ---------------------------------------------------------------------------
+Write-Section "8. Git State"
+
+$gitAvailable = $null -ne (Get-Command git -ErrorAction SilentlyContinue)
+Assert-That -Name "git is available" -Condition $gitAvailable
+
+if ($gitAvailable) {
+    Assert-That -Name "Repository is initialized (.git present)" `
+                -Condition (Test-Path (Join-Path $RepoRoot '.git'))
+
+    Push-Location $RepoRoot
+    try {
+        $branch = (git branch --show-current 2>$null)
+        Assert-That -Name "Current branch is 'main'" -Condition ($branch -eq 'main') -Detail "Found: $branch"
+
+        # `git ls-files` with no tracked files returns empty, which is the expected
+        # Phase 0A state (nothing committed yet). Do not use --error-unmatch here:
+        # it treats an empty index as an error rather than a valid state.
+        $tracked = @(git ls-files)
+        $badTracked = @($tracked | Where-Object { $_ -match '^\.sf/|^\.sfdx/|\.key$|^\.env' })
+        Assert-That -Name "No Salesforce auth files tracked by git" `
+                    -Condition ($badTracked.Count -eq 0) `
+                    -Detail ($badTracked -join ', ')
+
+        # Confirm the Phase 0A gate: nothing committed, no remote configured.
+        #
+        # Use `--all` rather than `HEAD`: on a repository with no commits, HEAD is an
+        # unknown revision and git writes to stderr. Windows PowerShell 5.1 wraps native
+        # stderr in an ErrorRecord, which terminates the script under
+        # $ErrorActionPreference = 'Stop'. `--all` returns 0 cleanly on an empty repo.
+        $commitCount = 0
+        $revList = (git rev-list --count --all)
+        if (-not [string]::IsNullOrWhiteSpace($revList)) {
+            $commitCount = [int]$revList
+        }
+        Assert-That -Name "No commits yet (Phase 0A gate: commit requires approval)" `
+                    -Condition ($commitCount -eq 0) `
+                    -Detail "Commit count: $commitCount" -WarnOnly
+
+        $remotes = @(git remote)
+        Assert-That -Name "No git remote configured (Phase 0A gate: push requires approval)" `
+                    -Condition ($remotes.Count -eq 0) `
+                    -Detail ("Remotes: " + ($remotes -join ', ')) -WarnOnly
+    }
+    finally { Pop-Location }
+}
+
+# ---------------------------------------------------------------------------
+# Summary
+# ---------------------------------------------------------------------------
+Write-Host ""
+Write-Host ("=" * 74) -ForegroundColor DarkGray
+Write-Host "  VALIDATION SUMMARY" -ForegroundColor White
+Write-Host ("=" * 74) -ForegroundColor DarkGray
+Write-Host ("  Passed:   {0}" -f $script:Pass)  -ForegroundColor Green
+Write-Host ("  Warnings: {0}" -f $script:Warn)  -ForegroundColor Yellow
+Write-Host ("  Failed:   {0}" -f $script:Fail)  -ForegroundColor Red
+
+if ($script:Fail -gt 0) {
+    Write-Host ""
+    Write-Host "  Failed checks:" -ForegroundColor Red
+    foreach ($f in $script:Failures) { Write-Host "    - $f" -ForegroundColor Red }
+    Write-Host ""
+    exit 1
+}
+
+Write-Host ""
+Write-Host "  All structural, security and scope checks passed." -ForegroundColor Green
+Write-Host ""
+exit 0

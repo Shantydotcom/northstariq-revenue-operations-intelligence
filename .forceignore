@@ -1,0 +1,91 @@
+# =============================================================================
+# NorthstarIQ - Revenue Operations Intelligence Platform
+# .forceignore
+#
+# Controls what Salesforce CLI DEPLOYS to / RETRIEVES from an org.
+# This is NOT a security control - use .gitignore for that.
+#
+# Purpose here: keep the source-controlled metadata set intentional.
+# A retrieve should bring back the components this project actually owns,
+# not the entire Developer Edition org.
+#
+# Status: Phase 0 baseline. Expected to be revised in Phase 1 (Salesforce
+# Foundation & Security) once the owned metadata set is defined.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# CLI / tooling artifacts
+# -----------------------------------------------------------------------------
+package.xml
+**/jsconfig.json
+**/.eslintrc.json
+**/__tests__/**
+node_modules/
+.sf/
+.sfdx/
+
+# -----------------------------------------------------------------------------
+# Non-metadata directories that live in this repo
+# These hold documentation, fixtures, analytics and scripts. They must never
+# be interpreted as deployable source.
+# -----------------------------------------------------------------------------
+docs/**
+data/**
+tests/**
+scripts/**
+powerbi/**
+prompts/**
+.github/**
+
+# -----------------------------------------------------------------------------
+# Profiles
+#
+# ADR-pending (see docs/security/): this project manages business permissions
+# through PERMISSION SETS and PERMISSION SET GROUPS, not Profiles.
+# Profiles retrieve as large, org-shaped, merge-hostile files whose contents
+# depend on which components exist at retrieve time - they create noisy diffs
+# and false deployment conflicts.
+#
+# Profiles are therefore excluded from source control by default. If a profile
+# must be managed (e.g. a minimum-access baseline), it will be un-ignored
+# explicitly and deliberately in Phase 1, with the reason documented.
+# -----------------------------------------------------------------------------
+**/profiles/**
+
+# -----------------------------------------------------------------------------
+# Org-level settings & standard metadata not owned by this project
+#
+# Retrieving these pulls in Developer Edition defaults that this project did
+# not author and does not intend to manage as source. Excluding them keeps the
+# repository an honest record of what was actually designed and built.
+# -----------------------------------------------------------------------------
+**/settings/**
+**/standardValueSets/**
+**/appMenus/**
+**/*.profile-meta.xml
+
+# Managed-package components (not authored here)
+**/*__*.object-meta.xml
+**/installedPackages/**
+
+# -----------------------------------------------------------------------------
+# Deliberately NOT ignored - these are core project deliverables and MUST be
+# source-controlled once they exist (Phase 1+):
+#
+#   force-app/main/default/objects/**          custom fields, validation rules
+#   force-app/main/default/flows/**            record-triggered & screen Flows
+#   force-app/main/default/customMetadata/**   metadata-driven business rules
+#   force-app/main/default/objects/*/fields/** field-level definitions
+#   force-app/main/default/permissionsets/**   least-privilege access model
+#   force-app/main/default/permissionsetgroups/**
+#   force-app/main/default/sharingRules/**
+#   force-app/main/default/roles/**
+#   force-app/main/default/groups/**           public groups
+#   force-app/main/default/queues/**           exception & routing queues
+#   force-app/main/default/reports/**
+#   force-app/main/default/dashboards/**
+#   force-app/main/default/duplicateRules/**
+#   force-app/main/default/matchingRules/**
+#
+# Do not add blanket ignores that would silently exclude the above.
+# -----------------------------------------------------------------------------
