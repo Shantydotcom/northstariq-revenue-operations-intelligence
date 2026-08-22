@@ -418,12 +418,62 @@ The NorthstarIQ Salesforce experience will be designed separately in a Visual Id
 layout, field arrangement, grouping, spacing, or label in this section should be read as an approved
 user-experience decision.
 
+### 2026-08-22 — Increment 2: HUMAN ACCEPTANCE
+
+```
+Requirement:   BR-01 BR-05 BR-21
+Metadata:      None created or modified.
+Deployment:    None
+Validation:    Manual UI validation performed by the practitioner in the Salesforce
+               Developer Edition org. Reported as PASSED.
+Test result:   Post-validation re-verification: 8 of 8 fixtures still match expected
+               values. No restoration required - no fixture had drifted.
+Commit:        this commit - `docs: record increment 2 human acceptance`
+Deferred:      -
+```
+
+**✅ Increment 2 is HUMAN ACCEPTED.**
+
+Automated verification alone was never the acceptance gate for this project. The practitioner
+inspected the behaviour directly in the Salesforce UI and confirmed it. That confirmation, not the
+CLI output, is what moves Increment 2 to accepted.
+
+**Post-acceptance state re-verified:**
+
+| Check | Result |
+|---|---|
+| Fixture derived values | 8 of 8 match expected — domain, segment, basis, and both data-quality formulas |
+| Fixture inputs | All 8 at designed employee counts (0 · 99 · 100 · 101 · 999 · 1000 · 1001 · null) |
+| Restoration needed | **None** — nothing drifted during UI testing |
+| `Territory__c` | Blank on all 8, correctly — territory belongs to Increment 3 |
+| Stock sample Leads | 22, untouched, **0 with a segment set** — the Flow correctly never ran on them |
+
+**Accepted capabilities**
+
+| Capability | Status |
+|---|---|
+| Domain normalization (`BR-01`) | ✅ **VALIDATED + ACCEPTED** |
+| Data-quality formulas, all 4 branches (`BR-02`) | ✅ **VALIDATED + ACCEPTED** |
+| Configuration-driven segmentation (`BR-05`, `BR-21`) | ✅ **VALIDATED + ACCEPTED** |
+| Segment explainability (`BR-05`) | ✅ **VALIDATED + ACCEPTED** |
+| `Lead_Inbound_Before_Save` | ✅ **VALIDATED + ACCEPTED** — bulk-safe at batch 8, entry conditions verified |
+
+**Open items carried into later increments** — accepted as known, not as defects:
+
+| Item | Owner |
+|---|---|
+| Manual `Segment__c` override is silently overwritten on the next input change | **Needs a decision.** `architecture.md` §5 requires overrides to be recorded and preserved; no override field exists. |
+| Strategic segmentation for Leads | Increment 3, via `Matched_Account__c` |
+| Territory derivation (`BR-06`) | Increment 3 |
+| Lead layout section | Temporary functional scaffolding; superseded by the Visual Identity Sprint |
+| 8 `NIQ Test —` fixtures remain in the org | Increment-2 fixtures, separate from the portfolio dataset. Removed at the gated sample-data cleanup step. |
+
 ---
 
 ## Implementation Status
 
-**Increments 1–2 are deployed and runtime-validated.** Behaviour that does not yet exist
-(matching, territory, routing, exceptions, SLA) is neither built nor claimed.
+**Increments 1–2 are deployed, runtime-validated, and human-accepted.** Behaviour that does not yet
+exist (matching, territory, routing, exceptions, SLA) is neither built nor claimed.
 
 | Area | Status |
 |---|---|
@@ -462,6 +512,5 @@ physically testable one is stated rather than hidden.
 
 ## Next Step
 
-**Increment 2 awaits human UI acceptance.** The fields are now visible on the primary Lead layout as
-temporary scaffolding. Increment 3 (identity, territory, routing) is **not started** and not to be
-started without approval.
+**Increment 3 — identity, territory, and routing — is NOT started.** It does not begin until its
+implementation plan is presented and approved.
