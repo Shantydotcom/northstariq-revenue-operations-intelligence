@@ -51,6 +51,11 @@ prompts/**
 # explicitly and deliberately in Phase 1, with the reason documented.
 # -----------------------------------------------------------------------------
 **/profiles/**
+# EXCEPTION: Minimum Access - Salesforce is the representative Seller's base profile.
+# Page-layout assignment is PROFILE-scoped only - a permission set cannot assign a
+# layout - so this profile must be source-controlled to carry the Lead assignment.
+# Only layoutAssignments are managed here; no permissions are declared in the file.
+!**/profiles/Minimum Access - Salesforce.profile-meta.xml
 
 # -----------------------------------------------------------------------------
 # Org-level settings & standard metadata not owned by this project
@@ -63,6 +68,7 @@ prompts/**
 !**/settings/Security.settings-meta.xml
 **/appMenus/**
 **/*.profile-meta.xml
+!**/profiles/Minimum Access - Salesforce.profile-meta.xml
 
 # Standard value sets are excluded by default for the reason above, EXCEPT the
 # ones this project deliberately governs. AccountType gains a business value

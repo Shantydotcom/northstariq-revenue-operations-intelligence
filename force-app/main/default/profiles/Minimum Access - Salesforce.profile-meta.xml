@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Minimum Access - Salesforce remains the representative Seller's base profile.
+
+    This file declares ONE thing: the Lead page-layout assignment.
+
+    Why it must live on the profile: page-layout assignment is PROFILE-scoped in
+    Salesforce. A permission set cannot assign a layout. Granting Lead object access
+    through NIQ_Revenue_Seller therefore left this profile with no Lead layout, and
+    Lightning failed to render the record page with:
+
+      "One or more profiles have no page layout assigned for the 'Lead' Object."
+
+    No permissions, FLS, CRUD, tab or application settings are declared here.
+    Profile deployments are partial: only the elements present in this file change.
+-->
+<Profile xmlns="http://soap.sforce.com/2006/04/metadata">
+    <layoutAssignments>
+        <layout>Lead-Lead Layout</layout>
+    </layoutAssignments>
+</Profile>

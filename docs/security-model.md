@@ -227,6 +227,24 @@ and neither grantor holds `Modify All Data` or `View All Data` — so FLS **is**
 Platform-computed `UserRecordAccess`: **3 of 42 Leads readable**, exactly the `NIQ_North_America`
 queue records.
 
+> ### Page-layout assignment is profile-scoped — a permission set cannot do it
+>
+> Granting Lead access through `NIQ_Revenue_Seller` did **not** give the profile a Lead page-layout
+> assignment, because **layout assignment exists only on Profiles**. `Minimum Access - Salesforce`
+> ships with no Lead assignment (it normally has no Lead access), so Lightning failed to render the
+> record page:
+>
+> *"One or more profiles have no page layout assigned for the 'Lead' Object."*
+>
+> **This is the boundary of the permission-set-first model.** Capability is grantable by permission
+> set; **presentation assignment is not.** `Minimum Access - Salesforce` therefore carries exactly one
+> declared element in source — the Lead layout assignment — and no permissions. Profile deployments
+> are partial, so nothing else on the profile is touched.
+>
+> `Account` still has no layout assignment on this profile. **Deliberately left alone:** the Seller has
+> 0 record access to Accounts under Private OWD and never opens an Account detail page, so it cannot
+> manifest in the approved Increment 3 experience.
+
 > ### Known limitation — Account visibility
 > Under `Account` OWD = **Private**, the Seller holds Account **object** Read but has **no
 > record-level access** to Accounts they do not own — 0 of 13. `Matched_Account__c` may therefore

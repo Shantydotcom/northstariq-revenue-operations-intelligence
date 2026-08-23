@@ -629,6 +629,54 @@ or Account team was added.** `Routing_Reason__c` remains the seller-facing expla
 
 **Not yet human-accepted.** Runtime Seller validation in the UI is still outstanding.
 
+### 2026-08-22 — Acceptance defect: Seller record page could not render
+
+```
+Requirement:   BR-18 / BR-20 (representative Seller must be able to use the record page)
+Metadata:      1 Profile layout assignment. Nothing else.
+Deployment:    0Afaj00000hcA9lCAE - 2/2, 0 errors (dry-run 2/2 first)
+Validation:    Profile RETRIEVED BACK from the org, not read from source
+Test result:   Assignment present; Seller access and Increment 1-3 regression unchanged
+Commit:        this commit - `fix: assign Lead page layout to the minimal Seller profile`
+Deferred:      Account layout assignment on this profile - not needed, see below
+```
+
+**Distinct acceptance defect — backend correct, presentation broken.** Object CRUD, field-level
+security, queue membership, routing automation and Lightning Experience access were all valid and
+verified. The record page still failed with:
+
+> *"One or more profiles have no page layout assigned for the 'Lead' Object."*
+
+**Root cause.** Page-layout assignment is **profile-scoped**; a permission set cannot assign a layout.
+`Minimum Access - Salesforce` ships with no Lead assignment because it normally has no Lead access.
+Granting that access through `NIQ_Revenue_Seller` left the presentation layer unassigned.
+
+| Profile | Layout assignments | Lead | Account |
+|---|---:|---|---|
+| `Admin` | 151 | `Lead-Lead Layout` | `Account-Account Layout` |
+| `Minimum Access - Salesforce` **(before)** | 81 | **NONE** | **NONE** |
+| `Minimum Access - Salesforce` **(after)** | **82** | **`Lead-Lead Layout`** | NONE *(unchanged)* |
+
+**Fix — the smallest possible.** The existing `Lead-Lead Layout` was assigned to the profile. **No new
+layout, no custom profile, no switch to Standard User, no CRUD/FLS/sharing broadened.** The profile
+file in source declares **one element** — the layout assignment — and no permissions; profile deploys
+are partial, so nothing else changed. Verified: the profile still grants **0** Lead/Account object
+permissions, leaving `NIQ_Revenue_Seller` the sole grantor, and the Seller can still edit **0** custom
+Lead fields.
+
+The temporary `NorthstarIQ - Functional Validation` section is preserved intact — 7 sections, 36
+fields, 10 in that section. It remains validation scaffolding, not the NorthstarIQ visual identity.
+
+**Account deliberately not remediated.** The same gap exists for Account on this profile, but the
+Seller has 0 record access to Accounts under Private OWD and never opens an Account detail page, so it
+cannot arise in the approved Increment 3 experience.
+
+**The lesson worth keeping:** the permission-set-first model grants *capability*, not *presentation*.
+A minimal profile plus permission sets is not complete until the profile also carries a layout
+assignment for every object the permission set opens up.
+
+**Increment 3 remains NOT human-accepted** pending the Seller UI retest.
+
 ---
 
 ## Implementation Status
