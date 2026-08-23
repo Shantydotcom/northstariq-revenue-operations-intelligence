@@ -721,12 +721,84 @@ unchanged (R+E, no Create/Delete) · Account unchanged (R only) · 1 queue membe
 
 **Increment 3 remains NOT human-accepted** pending the Seller UI retest.
 
+### 2026-08-23 - Increment 3: HUMAN ACCEPTANCE (validated as the Seller persona)
+
+```
+Requirement:   BR-03 BR-06 BR-07 BR-08 BR-13 BR-18 BR-20 BR-21
+Metadata:      None changed. Closeout verification only.
+Deployment:    None
+Validation:    Manual UI acceptance performed by the practitioner while logged in as
+               NIQ Seller - a non-administrative persona - not as System Administrator.
+Test result:   All acceptance criteria met. Full Increment 1-3 regression passed.
+Commit:        this commit - `test: record Increment 3 human acceptance`
+Deferred:      Seller Account visibility; final NorthstarIQ visual design
+```
+
+**Increment 3 is HUMAN ACCEPTED.**
+
+**Validated as the Seller persona, not as an administrator.** That distinction is the point: the
+System Administrator holds `Modify All Data`, which bypasses field-level security, so admin testing
+could never have proven the field-authority model. Acceptance was performed as `NIQ Seller`, a user
+on `Minimum Access - Salesforce` with no role, whose only capability comes from `NIQ_Revenue_Seller`.
+
+**Human-validated evidence:**
+
+| # | Evidence | Result |
+|---|---|---|
+| 1 | Seller lands in Lightning Experience | PASS |
+| 2 | Lead Details page renders successfully | PASS |
+| 3 | Seller sees exactly the three accessible Leads | PASS |
+| 4 | `Website` and `Number of Employees` visible and editable | PASS |
+| 5 | Standard Address renders coherently; approved components editable | PASS |
+| 6 | `Company` remains editable | PASS |
+| 7 | NorthstarIQ derived fields **visible but non-editable** | PASS |
+| 8 | Employees 40 to 1500 recalculated Segment **SMB to Enterprise** | PASS |
+| 9 | Seller could **not** directly edit Segment | PASS |
+| 10 | State California to New York recalculated Territory **NA-West to NA-East** | PASS |
+| 11 | Seller could **not** directly edit Territory | PASS |
+| 12 | Owner remained `NIQ North America Coverage` through both updates | PASS |
+| 13 | Routing Reason preserved the original NA-West intake decision after the geography change - **BR-08 AC5 satisfied** | PASS |
+| 14 | Fixture restored to 40 / California, returned to SMB / NA-West | PASS |
+
+> **Items 8 to 11 together are the whole security argument:** a user who cannot write a field
+> nonetheless causes it to change, because authorized automation retains the authority the user
+> lacks.
+
+**Fixture provenance - proven, not asserted.** `NIQ R3 - No Match NA-West` shows
+`LastModifiedBy = NIQ Seller`, yet the Seller holds `edit = false` on `Segment__c`, `Territory__c`,
+`Segment_Basis__c`, `Routing_Reason__c` and `Exception_Type__c`. Those values therefore **could not
+have been typed in** - they were written by `Lead_Inbound_Before_Save` in system context. The
+security model itself is the evidence. The values are also consistent with configuration: 40
+employees falls inside the SMB band, and `CA` appears in the `US_West` state list mapping to NA-West.
+
+---
+
+### Increment 3 findings discovered through testing
+
+Recorded as **implementation and testing findings**, not production incidents. Each was found before
+acceptance, by deliberate testing rather than by chance.
+
+| # | Finding | Resolution |
+|---|---|---|
+| 1 | **Territory resolution depended on Custom Metadata record-return order.** US/California resolved to NA-East instead of NA-West, because the country-default rule was evaluated before the state-specific one. | Capture specific and default matches into separate variables and resolve by **specificity** after the loop. Correctness no longer depends on query order. |
+| 2 | **Governed-intake Routing Reason was overwritten on any later update.** `ISNEW()` is false on update, so correctly routed Leads fell into the non-routing branch and lost their explanation, violating BR-08 AC5. | A **CREATE/UPDATE seam**: the update path ends at the authority gate with **no connector at all**, so preservation is structural. Reasons are prefixed `At intake:` to mark them historical. |
+| 3 | **System Administrator testing was insufficient to prove Seller field authority.** `Modify All Data` bypasses FLS, so the admin could edit derived fields regardless of configuration. | Created one representative Seller on a minimal profile. Field authority is now proven by a principal that FLS actually constrains. |
+| 4 | **Seller opened in Salesforce Classic.** `Minimum Access - Salesforce` has `PermissionsLightningExperienceUser = false` and the permission set did not grant it. | Added `LightningExperienceUser` to `NIQ_Revenue_Seller` - permission-set-first, profile untouched. |
+| 5 | **`Minimum Access - Salesforce` had no Lead page-layout assignment** after Lead capability was granted through the permission set, so Lightning could not render the record page. | Assigned the existing `Lead-Lead Layout` to the profile. **Page-layout assignment is profile-scoped - a permission set cannot do it.** |
+| 6 | **Seller business inputs were on the layout but invisible**, because standard-field FLS had never been granted; the permission set covered only the derived fields. | Granted read and edit on the inputs. The Admin never saw this: the System Administrator profile carries standard-field FLS by default. |
+| 7 | **Salesforce requires compound `Lead.Address` FLS**, rejecting separate `StateCode`, `CountryCode`, `Street`, `City` and `PostalCode` rows. | One `Lead.Address` grant delivers all components including the State and Country picklists - narrower metadata than proposed, delivering identical access. |
+
+**The pattern worth keeping:** findings 3 to 7 are the same lesson in different clothing - *a
+capability model is not proven until it is exercised by the principal it constrains*. Backend access,
+automation and FLS were each correct while the representative user still could not use the record.
+
 ---
 
 ## Implementation Status
 
-**Increments 1–2 are human-accepted. Increment 3 is deployed and runtime-validated, awaiting UI
-acceptance.** SLA does not exist yet and is not claimed.
+**Increments 1, 2 and 3 are deployed, runtime-validated, and human-accepted.** Increment 3 was
+accepted as the **Seller persona**, not as an administrator. SLA does not exist yet and is not
+claimed.
 
 | Area | Status |
 |---|---|
@@ -746,7 +818,7 @@ acceptance.** SLA does not exist yet and is not claimed.
 | Lead field history | ✅ **VALIDATED** — `Status` and `OwnerId` capture verified and reverted |
 | OWD | ✅ **VALIDATED** — 5 objects confirmed by metadata retrieve |
 | Permission sets | ✅ **`NIQ_Revenue_Seller` VALIDATED** — assigned to a real non-admin principal; effective FLS read-only on all 10 derived fields; `UserRecordAccess` 3/42. `NIQ_Rule_Configuration` still unassigned. |
-| Representative Seller | ✅ **DEPLOYED** — 1 user, Minimum Access + `NIQ_Revenue_Seller`, no role, 1 queue. Awaiting human UI acceptance. |
+| Representative Seller | ✅ **VALIDATED + HUMAN ACCEPTED** — 1 user, Minimum Access + `NIQ_Revenue_Seller`, no role, 1 queue. Field authority proven by a principal FLS actually constrains. |
 | Business Hours + Holidays | 🟡 **Moved to the SLA increment** — nothing in Foundation consumes them |
 | Flows | 🟡 3 candidates — **0 implemented** |
 | Apex | 🟢 **1 approved** (business-hours seam + test class) — 0 implemented |
@@ -770,5 +842,11 @@ physically testable one is stated rather than hidden.
 
 ## Next Step
 
-**Increment 3 awaits human UI acceptance**, pending a cache-cleared re-check. The metadata is
-verified correct in the org and at the UI-API layer. Increment 4 (SLA) is **not started**.
+**Increment 4 (SLA) is NOT started.** It requires its own implementation plan and explicit approval.
+
+**Deferred, and deliberately not resolved during closeout:**
+
+| Deferred item | Status |
+|---|---|
+| Seller Account record visibility / `Matched_Account__c` display under Account Private OWD | **Deferred.** The Seller holds Account object Read but no record access, so the lookup may render blank. `Routing_Reason__c` remains the seller-facing explainability mechanism. |
+| Final NorthstarIQ UX / visual design | **Deferred.** The `NorthstarIQ - Functional Validation` layout section remains **temporary validation scaffolding** and is **not** the approved NorthstarIQ visual identity. |
