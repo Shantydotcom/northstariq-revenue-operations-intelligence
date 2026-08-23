@@ -216,6 +216,7 @@ of `NIQ_North_America` only. Consumes 1 of 4 Salesforce licences (3 used, 1 free
 | Grant | Justification |
 |---|---|
 | Lead **Read** | View records routed to their coverage queue (`BR-08`) |
+| Lead **input FLS** — `Website`, `NumberOfEmployees`, `Address` | Seller-maintained business inputs. `Address` is the **compound** field: its components (Street, City, State, PostalCode, Country, and the State/Country picklists) are **not individually permissionable**, so one grant covers all of them. |
 | Lead **Edit** | Maintain seller-owned business inputs (`BR-18`) |
 | Account **Read** | So `Matched_Account__c` can resolve |
 | `LightningExperienceUser` | `Minimum Access - Salesforce` does not grant it, so the user opened in Classic. Added to the permission set, **not** by changing profile. |
@@ -244,6 +245,22 @@ queue records.
 > `Account` still has no layout assignment on this profile. **Deliberately left alone:** the Seller has
 > 0 record access to Accounts under Private OWD and never opens an Account detail page, so it cannot
 > manifest in the approved Increment 3 experience.
+
+> ### FLS is granted per *permissionable* field, and compounds are one unit
+>
+> `NIQ_Revenue_Seller` originally granted FLS on the ten **derived** fields and none of the **inputs**.
+> The inputs were on the layout but invisible to the Seller. The Admin never saw this because the
+> System Administrator profile carries FLS on standard fields by default.
+>
+> Two platform constraints surfaced while fixing it:
+>
+> | Attempted | Rejected because |
+> |---|---|
+> | `Lead.StateCode`, `Lead.CountryCode` | With State/Country picklists enabled these are **not FLS-permissionable**; the base fields govern them |
+> | `Lead.Street`, `City`, `State`, `Country`, `PostalCode` | All are components of the **compound `Lead.Address`**, which is the permissionable unit |
+>
+> The correct grant is therefore **three rows** — `Website`, `NumberOfEmployees`, `Address` — delivering
+> exactly the seven approved logical fields. **PII (`Email`, `Phone`, `MobilePhone`) remains ungranted.**
 
 > ### Known limitation — Account visibility
 > Under `Account` OWD = **Private**, the Seller holds Account **object** Read but has **no

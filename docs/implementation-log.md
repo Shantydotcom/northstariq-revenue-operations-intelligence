@@ -677,6 +677,50 @@ assignment for every object the permission set opens up.
 
 **Increment 3 remains NOT human-accepted** pending the Seller UI retest.
 
+### 2026-08-22 — Acceptance defect: Seller could not see standard Lead inputs
+
+```
+Requirement:   BR-18 / BR-20 (Seller must maintain legitimate business inputs)
+Metadata:      NIQ_Revenue_Seller - 3 fieldPermissions added. Nothing else.
+Deployment:    0Afaj00000hcFLRCA2 - 3/3, 0 errors (after two rejected dry-runs)
+Validation:    Effective Seller FLS re-computed; derived fields re-verified
+Test result:   7 approved logical fields now read+edit; 10 derived fields still edit=false
+Commit:        this commit - `fix: grant seller field access to standard lead inputs`
+Deferred:      PII (Email, Phone, MobilePhone) deliberately ungranted
+```
+
+**Second presentation-layer defect, at a different layer from the last one.** The previous defect was
+a missing profile *layout assignment*; this one is missing *field-level security*.
+
+**Root cause.** `Website`, `NumberOfEmployees` and the compound `Address` were already on the layout
+and marked editable. `NIQ_Revenue_Seller` granted FLS on the ten **derived** fields and **none of the
+inputs**, and `Minimum Access - Salesforce` grants no FLS on standard Lead fields. The Seller had
+**10 FLS rows on Lead, all custom, zero standard.** The Admin never hit it — the System Administrator
+profile carries 22 FLS rows on Lead by default, including `Website` and `NumberOfEmployees`.
+
+`Company`, `LastName` and `Status` were unaffected: `permissionable = false` means FLS cannot restrict
+them, so **Company was already editable**.
+
+**Two platform constraints found by dry-run, before any deployment:**
+
+| Attempt | Rejection |
+|---|---|
+| 7 individual fields, appended after `objectPermissions` | *"Element fieldPermissions is duplicated at this location"* — the schema requires one contiguous block |
+| `Lead.StateCode`, `Lead.CountryCode` | *"Invalid field permission field name"* — with State/Country picklists enabled these are not FLS-permissionable |
+| `Lead.Street`, `City`, `State`, `Country`, `PostalCode` | Same — all are components of the **compound `Lead.Address`** |
+
+**Correction — three rows, not seven.** `Website`, `NumberOfEmployees`, and `Address`. The compound
+grant delivers Street, City, State, PostalCode, Country **and** the State/Country picklists in one
+row. This is the platform-native form and is *narrower* metadata than proposed while delivering
+exactly the approved access.
+
+**Boundaries verified after deployment:** all 10 derived fields still `edit = false` · Lead CRUD
+unchanged (R+E, no Create/Delete) · Account unchanged (R only) · 1 queue membership · **0 PII grants**
+· OWD Private on Lead and Account · profile untouched · layout untouched. `UserRecordAccess` still
+**3 of 42** Leads.
+
+**Increment 3 remains NOT human-accepted** pending the Seller UI retest.
+
 ---
 
 ## Implementation Status

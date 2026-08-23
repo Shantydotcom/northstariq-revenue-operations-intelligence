@@ -199,6 +199,20 @@ human validation. No password was set and no credential was handled.
 | **5** Non-governed update | ✅ Segment recalculated; ownership and reason still preserved |
 | **6** Bulk update, 9 records (8 governed + 1 non-governed) | ✅ **0** ownership changes, **0** reasons altered, **0** exception types altered, **0** reclassified |
 
+### Seller input access — corrected 2026-08-22
+
+The Seller held FLS on the ten derived fields and none of the inputs, so `Website`,
+`NumberOfEmployees` and the address were invisible despite being on the layout. Corrected with three
+FLS rows on `NIQ_Revenue_Seller`: `Website`, `NumberOfEmployees`, and the compound `Address`.
+
+| Verified after deployment | Result |
+|---|---|
+| 7 approved logical inputs readable + editable | ✅ |
+| 10 NorthstarIQ derived fields still non-editable | ✅ 0 violations |
+| PII (`Email`, `Phone`, `MobilePhone`) | ✅ still ungranted |
+| Lead CRUD, Account access, queue, OWD, profile, layout | ✅ unchanged |
+| Seller record access | ✅ still 3 of 42 |
+
 ### Current vs historical — stated so it cannot mislead
 
 After TEST 3 the record reads `Territory__c = NA-East` (current classification) and
