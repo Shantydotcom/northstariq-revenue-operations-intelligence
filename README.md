@@ -5,8 +5,10 @@
 A governed Revenue Operations architecture built on Salesforce Sales Cloud and Microsoft Power BI
 for **NorthstarIQ**, a fictional $42M-ARR B2B SaaS company.
 
-> ⚠️ **Current status: documentation consolidated. Nothing is implemented.**
-> No Salesforce org authenticated · no metadata · no dataset · no tests executed.
+> ⚠️ **Current status.** Salesforce Increments 1-4 are deployed and human-accepted. The
+> NorthstarIQ assessment application under [`web/`](web/) is implemented and **verified locally
+> against fixtures and its disconnected state only** - no Salesforce Connected App exists, so it has
+> **never connected to the org**, and it is **not deployed**.
 > [`docs/implementation-log.md`](docs/implementation-log.md) is the sole authority on what exists.
 
 ---
@@ -46,7 +48,7 @@ Fictional. Every figure below is invented to make the scenario coherent.
 | ARR | ~$42M · ~650 customers · ~450 employees (64 revenue-facing) |
 | Markets | US · Canada · UK · Germany |
 | Segments | SMB · Mid-Market · Enterprise · Strategic |
-| Stack | Salesforce Sales Cloud · Microsoft Power BI |
+| Stack | Salesforce Sales Cloud · Microsoft Power BI · a read-only Next.js assessment application |
 
 NorthstarIQ grew from ~$4M to ~$42M ARR in six years. Salesforce was configured incrementally by
 whoever needed something, the sales process changed three times without the prior configuration
@@ -89,6 +91,8 @@ Nine documents. Read in this order.
 | [`implementation-log.md`](docs/implementation-log.md) | **The running record of what was actually built** |
 
 [`CLAUDE.md`](CLAUDE.md) is the engineering contract governing how work is done here.
+[`web/README.md`](web/README.md) documents the assessment application: its four routes, six checks,
+scoring, and credential boundary.
 
 > 🟡 **Candidate** means documented, not built, and not committed to being built. No Salesforce org
 > has been inspected. Candidates are expected to be **removed** after org inspection — that is the
@@ -122,6 +126,7 @@ it was governed behaviour and explainability.
 
 ```
 docs/                 9 consolidated documents
+web/                  Next.js assessment application — read-only over the org
 force-app/main/default/    Salesforce DX source — empty until metadata exists
 data/       sample/ expected/     Small synthetic dataset
 tests/      scenarios/ results/   Scenario definitions and recorded outcomes
@@ -192,5 +197,5 @@ implementation, requirements, or architecture exist for them, and none will be c
 
 ---
 
-<sub>Salesforce Sales Cloud · Salesforce DX · Power BI · D2 · Python · PowerShell · Git · GitHub ·
-VS Code · Claude Code. All data synthetic. Fictional company.</sub>
+<sub>Salesforce Sales Cloud · Salesforce DX · Power BI · Next.js · React · TypeScript · D2 · Python ·
+PowerShell · Git · GitHub · VS Code · Claude Code. All data synthetic. Fictional company.</sub>

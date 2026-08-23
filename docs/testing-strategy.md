@@ -257,6 +257,55 @@ hand. That distinction is what keeps the provenance argument intact.
 
 ---
 
+## 2f. Web MVP unit tests — executed 2026-08-23
+
+**20 tests, 20 pass, 0 fail.** `node --test` over `web/test/`. **No network and no Salesforce org is
+involved** — the checks and the scoring are pure functions over fixture records, which is why they
+can be asserted at all before a Connected App exists.
+
+**`web/test/checks.test.ts` — 12 tests, all pass**
+
+| Test as executed | What it protects |
+|---|---|
+| missing firmographics is scoped to the governed intake population | The process makes no promise about Leads it never handled |
+| missing firmographics flags either missing attribute | Employees *or* country, not only both |
+| routing exceptions counts only Leads held by the exception queue | Ownership, not a guessed status |
+| **SLA risk evaluates only Leads that carry an SLA target** | **`M-07`. A Lead with no target is excluded from the denominator — unmeasurable is not Breached** |
+| SLA risk treats At Risk and both breach states as failing | `Breached` and `Breached (Late Response)` both count |
+| ambiguous match reports Leads automation refused to attach | The refusal is the finding |
+| missing territory is scoped to the governed intake population | Same governed scope as the firmographics check |
+| stale opportunities are open deals whose close date has passed | Closed records are not stale |
+| the negative control finds nothing on a clean governed population | The engine reports what it finds; it does not manufacture work |
+| a check with nothing to evaluate scores 100 rather than 0 | Absence of data is not evidence of failure |
+| runAllChecks runs exactly the six implemented checks | A seventh check cannot reach the UI by accident |
+| evidence is capped for display while the count stays complete | The number is never the truncated list length |
+
+**`web/test/score.test.ts` — 8 tests, all pass**
+
+| Test as executed | What it protects |
+|---|---|
+| a multi-check category scores as the mean, not the minimum | One weak check does not erase a category that is otherwise healthy |
+| category scores round to a whole number | Presentation is deterministic |
+| overall health is the mean of the category scores | Equal weighting, stated rather than tuned |
+| an empty category list scores 100 rather than 0 | Same rule as an unevaluated check |
+| healthy checks never become findings | A findings list is failures only |
+| findings sort by severity, then by how many records are affected | The worst thing is first |
+| an assessment over a clean org reports full health and no findings | No invented work on a clean population |
+| the assessment total is traceable from records to overall health | Every number can be walked back to records |
+
+**Also verified locally, not by unit test:** TypeScript clean · production Next.js build clean · the
+**disconnected Salesforce path** — with no credentials configured every page renders, states that
+the connection is not configured, and **shows no results**.
+
+### What these results do not prove
+
+**No test here touched Salesforce.** These are fixture results. The Connected App does not exist, so
+the connected path — authentication, live SOQL, an assessment over real org records — has **never
+been executed**. A passing suite proves the logic is correct given records. It proves nothing about
+what the org returns.
+
+---
+
 ## 3. Dataset Specification
 
 | Object | Count | Purpose |

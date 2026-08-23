@@ -2,9 +2,9 @@
 
 | | |
 |---|---|
-| **Purpose** | How the requirements are intended to be met in Salesforce |
-| **Status** | 🟢 Org inspected 2026-08-22 · **Increment 1 approved** · automation still CANDIDATE |
-| **Related** | [`requirements.md`](requirements.md) · [`data-model.md`](data-model.md) · [`security-model.md`](security-model.md) |
+| **Purpose** | How the requirements are met in Salesforce, and how the NorthstarIQ application reads the result |
+| **Status** | 🟢 Org inspected 2026-08-22 · Increments 1-4 implemented · §13 Web MVP implemented, **live Salesforce connection not configured** · unbuilt items still CANDIDATE |
+| **Related** | [`requirements.md`](requirements.md) · [`data-model.md`](data-model.md) · [`security-model.md`](security-model.md) · [`../web/README.md`](../web/README.md) |
 
 ---
 
@@ -19,8 +19,13 @@ Management is unavailable, so the configuration-driven model is required rather 
 preferred · standard field history replaces custom history fields · `Account.Type` replaces
 `Customer_Status__c` · the scheduled SLA sweep is removed in favour of a formula.
 
-**Increment 1 (Foundation) is approved.** Automation below remains CANDIDATE until its own
-increment. **Nothing here is implemented.**
+**Increments 1-4 are implemented and human-accepted**, and the sections below marked *implemented*
+say so on that basis. Anything still marked **CANDIDATE** is documented and **not built**.
+[`implementation-log.md`](implementation-log.md) remains the sole authority on which is which.
+
+**Section 13 describes the NorthstarIQ application under `web/`** - a separate system that reads
+this org. It is implemented and verified locally, and its **live Salesforce connection is not
+configured and has never been exercised**.
 
 ---
 
@@ -127,6 +132,10 @@ us to skip the single highest-value SLA test.
 **The horizontal line through the whole design is explainability.** Every box that makes a decision
 also records why it decided that way. That is not instrumentation added afterwards — it is the
 reason the decision points exist as data at all.
+
+**That picture is the process inside Salesforce.** The NorthstarIQ application that reads those
+decisions back out and assesses them sits outside the org entirely - browser, then server, then a
+credential boundary, then Salesforce. It is drawn in §13.
 
 ---
 
@@ -543,3 +552,111 @@ Architecture diagrams are authored in **D2** (`d2 0.7.1` verified locally), sour
 
 Diagrams are produced **after** org inspection, when the architecture is real. Drawing them now
 would illustrate a design that has not survived contact with the org.
+
+---
+
+## 13. The NorthstarIQ Application (`web/`)
+
+**Status: implemented and verified locally · 🟡 the live Salesforce connection is not configured and
+has never been exercised.** Everything in this section exists in source control. Only the last hop
+is unproven, and it is marked as such in the picture below.
+
+Sections 1-12 describe the process **inside** Salesforce. This section describes the application
+that **reads** it. The two are deliberately separate systems: the org governs the records, and the
+application assesses what the org did. Nothing here writes to Salesforce.
+
+### The system in one picture
+
+```
+   BROWSER
+   No Salesforce credential ever reaches here. No token, no client secret,
+   no session id — not obfuscated, not present.
+        │  HTTPS
+        ▼
+ ┌────────────────────────────────────────────────────────────┐
+ │  NEXT.JS WEB MVP  (web/)                                   │
+ │  Overview · Findings · Finding detail · Integrations       │
+ │  Server Components render on the server; the browser       │
+ │  receives rendered output and scored results only          │
+ └────────────────────────────┬───────────────────────────────┘
+                              │  same origin
+                              ▼
+ ┌────────────────────────────────────────────────────────────┐
+ │  SERVER-SIDE API ROUTES                                    │
+ │  GET  /api/salesforce/status      connection probe         │
+ │  POST /api/assessment/run         run the six checks       │
+ │  GET  /api/findings/[checkId]     evidence for one check   │
+ │  Salesforce failures are classified into safe codes here   │
+ │  and never forwarded verbatim                              │
+ └────────────────────────────┬───────────────────────────────┘
+                              ▼
+ ┌────────────────────────────────────────────────────────────┐
+ │  ASSESSMENT · SCORING · CHECK LOGIC                        │
+ │  6 rendered checks + 1 negative control                    │
+ │  Pure functions over records already fetched               │
+ │  Mean-based scoring: check → category → overall health     │
+ │  No network here at all — which is why it is unit-testable │
+ └────────────────────────────┬───────────────────────────────┘
+                              ▼
+ ╔════════════════════════════════════════════════════════════╗
+ ║  SALESFORCE INTEGRATION BOUNDARY   lib/salesforce.ts       ║
+ ║  The only module that holds credentials.                   ║
+ ║  Guarded by `server-only`: importing it from browser code  ║
+ ║  is a build error, not a runtime risk.                     ║
+ ║  SF_LOGIN_URL · SF_CLIENT_ID · SF_CLIENT_SECRET            ║
+ ║  OAuth 2.0 Client Credentials Flow · SOQL query only       ║
+ ╚════════════════════════════┬═══════════════════════════════╝
+                              │
+                              │  🟡 IMPLEMENTED, NEVER EXERCISED
+                              │     No Connected App exists yet.
+                              ▼
+   SALESFORCE DEVELOPER EDITION  (`northstariq-dev`)
+   Lead · Opportunity — read. Account · Contact — counted only.
+```
+
+### Credentials are server-side, and the browser is not trusted with them
+
+| Mechanism | What it guarantees |
+|---|---|
+| `server-only` import in `lib/salesforce.ts` | Importing the credential module from a Client Component **fails the build**. The guarantee is compile-time, not a convention someone must remember. |
+| Environment variables are **not** `NEXT_PUBLIC_`-prefixed | Next.js inlines `NEXT_PUBLIC_*` into the client bundle. Omitting the prefix is what keeps the secret out of it. |
+| Access tokens held in module memory only | Never a cookie, never storage, never a response body, never serialised into a page payload. A cold start simply re-authenticates. |
+| Errors are classified, not forwarded | A Salesforce error body can restate the submitted query or credentials. The boundary replaces it with one of five codes: `NOT_CONFIGURED` · `AUTH_FAILED` · `API_ERROR` · `NETWORK_ERROR` · `UNKNOWN`. |
+| SOQL is static literals | No user input is interpolated into a query anywhere. The route path segment is validated against a closed union before use. |
+| No PII is queried | No Contact email, phone, or personal field appears in any query or on any screen. |
+
+**The browser receives:** rendered pages, scored results, and capped evidence rows.
+**The browser never receives:** a client id, a client secret, an access token, an instance session,
+or a raw Salesforce error.
+
+### Integration state — stated exactly
+
+| Element | State |
+|---|---|
+| Salesforce integration boundary | ✅ **Implemented** — typed, guarded, read-only by construction |
+| Disconnected / not-configured path | ✅ **Verified locally** — every page renders and **no results are invented** |
+| Error and failure paths | ✅ **Verified locally** — classified into safe codes; the status probe cannot 500 |
+| Check and scoring logic | ✅ **Verified against fixtures** — 20/20 unit tests, no network |
+| Salesforce Connected App / OAuth credentials | ⬜ **Not configured** |
+| Live authentication, live SOQL, live assessment | ⬜ **Not validated.** No request has ever been made to the org from this application. |
+| Deployment | ⬜ **Not deployed.** No Vercel project exists. |
+
+**The distinction that matters.** The connected path is *implemented*, not *validated*. Under the
+status vocabulary in [`implementation-log.md`](implementation-log.md) those are different words with
+different evidence standards, and this section will not use the second until an assessment has
+actually run against the org.
+
+### What this application deliberately is not
+
+No database. No queue. No cache layer. No authentication system. No scheduled work. No AI. No write
+path of any kind — absent, not disabled. Assessment results are not persisted, because a result that
+always reflects the current org is more honest than a stored one that may not.
+
+Four runtime dependencies: `next` · `react` · `react-dom` · `server-only`. Adding Next.js · React ·
+TypeScript beyond the stack declared in `CLAUDE.md` §2 is justified against `BR-22` (a measure must
+carry a stated reliability class) and `BR-23` (recorded reasons and bases are read back out without
+operational write), and the justification is recorded in
+[`implementation-log.md`](implementation-log.md) under the Web MVP entry.
+
+Full application detail, including the six checks and the scoring formula, is in
+[`../web/README.md`](../web/README.md).

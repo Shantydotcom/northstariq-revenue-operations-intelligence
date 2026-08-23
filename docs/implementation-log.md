@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Purpose** | The running record of what was actually built, deployed, and validated |
-| **Status** | Open — **no implementation has occurred** |
+| **Status** | Open — Salesforce Increments 1-4 human-accepted · Web MVP implemented and verified locally · **no live Salesforce connection** |
 
 ---
 
@@ -901,6 +901,129 @@ No further Salesforce configuration increment is planned.
 
 ---
 
+### 2026-08-23 — Web MVP: NorthstarIQ assessment application (`web/`)
+
+```
+Requirement:   BR-02 BR-08 BR-11 BR-13 BR-22 BR-23 - reads back the decisions,
+               reasons and bases the org already records, without writing
+Component:     Next.js 15 App Router application under web/ — 4 pages, 3 API routes,
+               6 checks, deterministic scoring. 0 Salesforce metadata changed.
+Deployment:    None. No Vercel project exists. Not deployed.
+Validation:    TypeScript clean · production build clean ·
+               repository validator 51 passed / 0 failed / 0 warnings
+Test result:   20 of 20 unit tests pass — fixtures only, no network, no org
+Commit:        this commit - `feat(web): add NorthstarIQ assessment MVP`
+Deferred:      Live Salesforce connection — the Connected App does not exist yet
+```
+
+> **Not validated against a live org.** Everything below was verified locally against fixtures and
+> against the disconnected Salesforce path. **No Salesforce Connected App or OAuth credential has
+> been configured, so this application has never made a request to the Developer Edition org.** Its
+> behaviour with real org data is **unproven** and is not claimed.
+
+**What exists.**
+
+| Surface | Path | What it does |
+|---|---|---|
+| Overview / Assessment | `/` | Connection state, then run an assessment: overall health, category scores, finding counts |
+| Findings list | `/findings` | Failing checks only, sorted by severity then records affected |
+| Finding detail | `/findings/[checkId]` | One check: question, impact, recommendation, population, and the evidence records behind the number |
+| Integrations | `/integrations` | Connection detail, the objects read, and the access each read needs |
+| Status API | `GET /api/salesforce/status` | Connection probe. Cannot throw, so it cannot 500 |
+| Assessment API | `POST /api/assessment/run` | Runs the six checks and returns the scored result |
+| Finding detail API | `GET /api/findings/[checkId]` | Evidence for one check; an unknown id is 404, not an empty result |
+
+**Six rendered checks**, all pure functions over already-fetched records:
+
+| # | Check | Category | Population it judges |
+|---|---|---|---|
+| 1 | Leads missing routing firmographics | Data Quality | Governed-intake Leads |
+| 2 | Leads in the routing exception queue | Routing | All Leads |
+| 3 | Leads at risk of or in SLA breach | SLA Performance | Leads carrying an SLA target |
+| 4 | Leads with an ambiguous account match | Identity & Matching | All Leads |
+| 5 | Governed Leads without a territory | Routing | Governed-intake Leads |
+| 6 | Open Opportunities with a past close date | Pipeline Hygiene | Open Opportunities |
+
+**A seventh check runs and is never displayed** — governed Leads without a segment. It is a
+**negative control**: it is expected to return zero, and it is retained as evidence that the engine
+reports what it finds rather than manufacturing work. It is not surfaced in the UI even if it were
+to fail; that would make it a seventh finding.
+
+**Scoring is mean-based and traceable end to end.** No weights, no adjustment, no inference.
+
+```
+checkScore    = evaluated === 0 ? 100 : round(100 x (1 - failing / evaluated))
+categoryScore = round(mean(check scores in that category))
+overallHealth = round(mean(category scores))
+```
+
+Mean and not minimum: one weak check should not erase a category that is otherwise healthy. A check
+that evaluated nothing scores 100 — **absence of data is not evidence of failure**.
+
+**SLA population rule — `BR-11` and `M-07`, applied in the application.**
+
+- SLA is evaluated **only** for Leads carrying `SLA_Target_DateTime__c`.
+- A Lead with no target was never given a commitment, so it is **excluded from the denominator**
+  rather than counted as a failure.
+- **Unmeasurable is not Breached.** `M-07` exists to prevent exactly that overstatement, and the
+  application honours it rather than restating org data against a more flattering denominator.
+
+**The disconnected state is a first-class path, not an error screen.** With no credentials
+configured, every page renders, states plainly that the connection is not configured, names the
+variables that are missing, and **shows no results at all**. This is the path that was actually
+exercised locally, and it is why nothing invented appears when the org is absent.
+
+**Credentials are server-side only.** `lib/salesforce.ts` imports `server-only`, so importing it
+from browser code fails the build instead of shipping a secret. The environment variables are
+deliberately **not** `NEXT_PUBLIC_`-prefixed, which would inline them into the client bundle. Access
+tokens live in module memory for the life of a server instance and never reach a cookie, storage or
+a response body. A Salesforce error body can restate the query or the submitted credentials, so the
+boundary replaces it with one of five safe codes rather than forwarding it.
+
+**Read-only by construction.** The only Salesforce operation the application can perform is a SOQL
+query, and every query is a static string literal — no user input is interpolated anywhere. There is
+no create, update or delete path: absent, not disabled.
+
+**Dependencies and security posture — stated, not implied.**
+
+| Change | Detail |
+|---|---|
+| Next.js **15.5.4 → 15.5.23** | Security patch upgrade, taken before commit rather than after |
+| `server-only` added | The build-time guard that makes the credential boundary enforceable rather than a convention |
+| Runtime dependencies | `next`, `react`, `react-dom`, `server-only` — four, deliberately |
+| **Residual advisories** | `npm audit` reports **3 high** advisories in transitive image-optimization packages (`sharp`, `postcss`) reachable only through `next`. The only offered fix is `next@16`, a breaking major. **Not taken, and not hidden.** The application renders no images. |
+
+**Repository validator updated, not weakened.** Three changes: the `web/` directories and
+`web/package.json`, `web/.env.example`, `web/README.md` were added to the required set · a new check
+asserts that **no `.env` file exists anywhere in the repository**, not only at the root · and
+generated paths (`.git`, `node_modules`, `.next`, `.vercel`, `__pycache__`) are excluded from the
+recursive scans. Those paths are git-ignored and are not the repository being validated; scanning
+them reported on dependency code and made the run take minutes rather than seconds. The exclusion
+**narrows what is scanned, never what is asserted** — and the new `.env` check is strictly stronger
+than what preceded it.
+
+**Technology addition, justified as `CLAUDE.md` §2 requires.** Next.js · React · TypeScript sit
+outside the declared stack. The justification is `BR-22` and `BR-23`: `BR-22` requires each measure
+to carry a **stated reliability class**, and `BR-23` requires the recorded reasons and bases to be
+**read back out without operational write**. This application does both literally — every score
+displays the population it judged, and the only Salesforce operation available to it is a SOQL
+query. Salesforce reports can show a seller their own records, but they cannot present a Revenue
+Operations reader an assessment of the process as a whole with its measurability stated alongside
+it. More Salesforce reports was the alternative, and it was rejected because the Salesforce
+foundation is MVP COMPLETE and further org configuration was explicitly closed. The addition is
+bounded: four runtime dependencies, no database, no queue, no authentication system, no scheduled
+work, targeting the Vercel Hobby free plan.
+
+**What has not happened, stated explicitly:**
+
+| Not done | Consequence |
+|---|---|
+| Salesforce Connected App / OAuth credentials | **This application has never connected to the org.** The connected path is implemented and typed, and it is **unexercised**. |
+| Live assessment run | No check has ever judged a real Salesforce record. All 20 test results are fixture results. |
+| Vercel deployment | No project, no environment variables, no URL |
+
+---
+
 ## Implementation Status
 
 **Increments 1, 2 and 3 are deployed, runtime-validated, and human-accepted.** Increment 3 was
@@ -935,6 +1058,24 @@ claimed.
 | Tests | ⬜ **No test has been executed. No results exist.** |
 | Power BI | ⬜ Not started |
 
+### Web MVP status — separate from the Salesforce table above
+
+The table above records the **Salesforce** implementation. The application under `web/` is a
+different artifact with a different evidence standard, so it is stated separately rather than
+folded into rows about org metadata.
+
+| Area | Status |
+|---|---|
+| Next.js application under `web/` | ✅ **IMPLEMENTED** — 4 pages, 3 API routes, in source control |
+| Six assessment checks + scoring | ✅ **VALIDATED against fixtures** — 20/20 unit tests, no network, no org |
+| Negative control (governed without segment) | ✅ **VALIDATED against fixtures** — returns zero, never rendered |
+| SLA measurable-population rule (`M-07`) | ✅ **VALIDATED against fixtures** — unmeasurable Leads excluded from the denominator |
+| Disconnected / not-configured path | ✅ **VERIFIED locally** — every page renders, no results are invented |
+| Salesforce integration boundary (`lib/salesforce.ts`) | ✅ **IMPLEMENTED** — 🟡 **UNEXERCISED**. Typed, guarded by `server-only`, never once run against the org. |
+| Connected path (auth, SOQL, live assessment) | ⬜ **NOT VALIDATED** — no Connected App exists |
+| Salesforce Connected App / OAuth credentials | ⬜ **NOT CONFIGURED** |
+| Vercel deployment | ⬜ **NOT DEPLOYED** — no project exists |
+
 ### Developer Edition constraint — recorded
 
 **The fictional enterprise contains more personas than Developer Edition can instantiate.** Four
@@ -950,9 +1091,18 @@ physically testable one is stated rather than hidden.
 ## Next Step
 
 **Salesforce foundation is MVP COMPLETE.** Increments 1-4 are human-accepted. No further Salesforce
-configuration increment is planned. The next phase is the external NorthstarIQ application
-integration: read, assess, findings, evidence - with writes deliberately held back to a later,
-separate increment.
+configuration increment is planned.
+
+**The external NorthstarIQ application now exists** - read, assess, findings, evidence - and is
+committed in this repository under `web/`. Writes remain deliberately held back; there is no write
+path in the application at all.
+
+**The next step is the single smallest thing that would change what this project can claim:**
+create the Salesforce Connected App in the Developer Edition org, configure the Client Credentials
+Flow, and run one assessment against real org data. Until that happens the connected path is
+implemented and **unexercised**, and no claim about live behaviour may be made. Vercel deployment
+comes after that, not before - deploying an integration that has never once connected would put an
+unproven claim on a public URL.
 
 **Deferred, and deliberately not resolved during closeout:**
 

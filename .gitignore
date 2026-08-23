@@ -249,3 +249,12 @@ docs/architecture/render/
 *.exe
 *.msi
 *.dll
+
+# -----------------------------------------------------------------------------
+# NorthstarIQ web application (web/) build and deployment artifacts
+# .env / .env.* are already ignored above; .env.example is tracked deliberately.
+# -----------------------------------------------------------------------------
+.next/
+.vercel/
+next-env.d.ts
+*.tsbuildinfo

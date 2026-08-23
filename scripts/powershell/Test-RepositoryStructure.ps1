@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Validates the NorthstarIQ repository foundation.
 
@@ -60,6 +60,12 @@ $script:Fail = 0
 $script:Warn = 0
 $script:Failures = @()
 
+# Paths that are generated rather than authored: version-control internals,
+# dependency trees and build output. All are git-ignored, so they are not part
+# of the repository being validated - scanning them reports on other people's
+# code and makes the run take minutes instead of seconds.
+$script:GeneratedPaths = '\\(\.git|node_modules|\.next|\.vercel|__pycache__)\\'
+
 function Write-Section {
     param([string] $Title)
     if (-not $Quiet) {
@@ -118,7 +124,8 @@ $requiredDirs = @(
     'tests\scenarios', 'tests\results',
     'docs',
     'prompts\claude-code',
-    '.github\workflows'
+    '.github\workflows',
+    'web\app', 'web\lib', 'web\components', 'web\test'
 )
 
 $missingDirs = @()
@@ -151,7 +158,8 @@ $requiredFiles = @(
     'docs\business-case.md', 'docs\requirements.md', 'docs\architecture.md',
     'docs\data-model.md', 'docs\metric-dictionary.md', 'docs\security-model.md',
     'docs\testing-strategy.md', 'docs\assumptions.md', 'docs\implementation-log.md',
-    'prompts\claude-code\phase-0-master-prompt.md'
+    'prompts\claude-code\phase-0-master-prompt.md',
+    'web\package.json', 'web\.env.example', 'web\README.md'
 )
 
 foreach ($f in $requiredFiles) {
@@ -215,9 +223,19 @@ Assert-That -Name "No Salesforce auth / secret artifacts on disk" `
             -Condition ($foundAuth.Count -eq 0) `
             -Detail ("Found: " + ($foundAuth -join ', '))
 
+# 4a-ii. The web application reads Salesforce credentials from environment
+#        variables, so a stray .env can now appear below the root as well as at
+#        it. .env.example holds placeholders only and is expected to be present.
+$envFiles = Get-ChildItem $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -notmatch $script:GeneratedPaths } |
+            Where-Object { $_.Name -match '^\.env' -and $_.Name -ne '.env.example' }
+Assert-That -Name "No .env file anywhere in the repository" `
+            -Condition ($envFiles.Count -eq 0) `
+            -Detail ("Found: " + (($envFiles | Select-Object -ExpandProperty Name) -join ', '))
+
 # 4b. Credential-bearing file extensions anywhere in the tree
 $credExt = Get-ChildItem $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
-           Where-Object { $_.FullName -notmatch '\\\.git\\' } |
+           Where-Object { $_.FullName -notmatch $script:GeneratedPaths } |
            Where-Object { $_.Extension -match '^\.(key|pem|p12|pfx|jks|keystore)$' }
 Assert-That -Name "No certificate / private-key files in repository" `
             -Condition ($credExt.Count -eq 0) `
@@ -235,7 +253,7 @@ $secretPatterns = @(
 )
 $selfName = Split-Path -Leaf $PSCommandPath
 $scanFiles = Get-ChildItem $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
-             Where-Object { $_.FullName -notmatch '\\\.git\\' } |
+             Where-Object { $_.FullName -notmatch $script:GeneratedPaths } |
              Where-Object { $_.Name -ne $selfName } |
              Where-Object { $_.Name -notin @('.gitignore', '.forceignore') } |
              Where-Object { $_.Length -lt 2MB }
@@ -338,6 +356,7 @@ Assert-That -Name "No synthetic dataset generated yet" `
             -Detail ("Found $($dataFiles.Count) file(s)")
 
 $pbixFiles = Get-ChildItem $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
+             Where-Object { $_.FullName -notmatch $script:GeneratedPaths } |
              Where-Object { $_.Extension -match '^\.(pbix|pbit)$' }
 Assert-That -Name "No Power BI binaries in repository" -Condition ($pbixFiles.Count -eq 0)
 
@@ -373,7 +392,7 @@ Write-Section "8. Documentation Integrity"
 # Every relative Markdown link must resolve. After a consolidation this is the
 # check that catches references left pointing at deleted documents.
 $mdFiles = Get-ChildItem $RepoRoot -Recurse -File -Filter '*.md' -Force -ErrorAction SilentlyContinue |
-           Where-Object { $_.FullName -notmatch '\\\.git\\' }
+           Where-Object { $_.FullName -notmatch $script:GeneratedPaths }
 
 $brokenLinks = @()
 foreach ($file in $mdFiles) {
