@@ -532,6 +532,50 @@ record, not a new queue.
 override field · third CMDT · rule interpreter · second Flow · seller users · round robin · fuzzy
 matching · enrichment · Apex.
 
+### 2026-08-22 — Increment 3 UI validation defect: investigated, NOT a metadata defect
+
+```
+Requirement:   Human UI validation of BR-03 / BR-07 / BR-08 / BR-13
+Metadata:      NONE CHANGED. Investigation concluded no correction was warranted.
+Deployment:    None
+Validation:    Six-way root-cause investigation, below
+Test result:   Layout, FLS, assignment and UI-API service all verified correct
+Commit:        this commit - `docs: record increment 3 UI validation root cause`
+Deferred:      -
+```
+
+**Reported:** the four Increment 3 fields — Match Status, Matched Account, Exception Type,
+Routing Reason — were not visible on the `NIQ R3 - Ambiguous Match` Lead, although the
+`NorthstarIQ - Functional Validation` section rendered with its six Increment 2 fields.
+
+**Investigation — every candidate cause tested against evidence, before changing anything:**
+
+| # | Candidate cause | Evidence | Verdict |
+|---|---|---|---|
+| A | Repository metadata missing the fields | Repo layout holds 36 field entries incl. all four | ❌ ruled out |
+| B | Deployment mismatch | Layout retrieved from org: 36 entries, **field sets identical to repo** | ❌ ruled out |
+| C | Field-level security | `FieldPermissions`: read = true on all four in both permission sets; admin can SOQL the values | ❌ ruled out |
+| D | Layout assignment | Admin profile retrieved **with** the layouts so assignments populate: `Lead-Lead Layout`, default record type | ❌ ruled out |
+| F | Other configuration | **No Lead FlexiPage exists** — no Lightning Record Page, no Dynamic Forms overriding the layout | ❌ ruled out |
+| **E** | **Lightning rendering / client cache** | **UI API `record-ui` — the service Lightning itself renders from — returns the section with all 10 fields, including all four, for this user on this record** | ✅ **ROOT CAUSE** |
+
+> **The decisive test.** `/ui-api/record-ui/{id}?layoutTypes=Full&modes=View` is what the Lightning
+> client calls to build the page. It served all ten fields. The platform is delivering the correct
+> layout; the browser session was rendering a cached copy from before the Increment 3 deploy — which
+> is exactly consistent with seeing precisely the six Increment 2 fields and none of the four new
+> ones.
+
+**No correction was made.** The conditional authorization to add the four fields was contingent on
+them having been omitted. They were not. Adding them would have created duplicate layout entries and
+corrupted a layout that is already correct. **A green deployment report was not treated as proof —
+the org was re-read, and so was the UI service on top of it.**
+
+**Regression re-confirmed:** 9 Increment 3 fixtures · 8 Increment 2 fixtures · 4 segment bands ·
+9 routing rules · 3 queues — all intact.
+
+**Resolution for the reviewer:** open the record in a private window to confirm, then hard-refresh
+the normal session. Increment 3 remains **NOT human-accepted** pending that re-check.
+
 ---
 
 ## Implementation Status
@@ -580,4 +624,5 @@ physically testable one is stated rather than hidden.
 
 ## Next Step
 
-**Increment 3 awaits human UI acceptance.** Increment 4 (SLA) is **not started**.
+**Increment 3 awaits human UI acceptance**, pending a cache-cleared re-check. The metadata is
+verified correct in the org and at the UI-API layer. Increment 4 (SLA) is **not started**.
