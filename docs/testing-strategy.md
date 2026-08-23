@@ -223,6 +223,40 @@ to the same coverage queue.
 
 ---
 
+## 2e. Increment 4 SLA tests — executed 2026-08-23
+
+**7 fixtures**, covering all seven SLA states.
+
+| # | Claim | Result |
+|---|---|---|
+| 1 | Eligible Lead starts SLA | ✅ target + basis written at intake |
+| 2 | Non-governed Lead excluded | ✅ target blank, `Excluded` |
+| 3 | Routing exception excluded | ✅ blank, basis states RevOps triage |
+| 4 | Unrelated update (Title) leaves SLA unchanged | ✅ byte-identical |
+| 5 | Legitimate input change does not alter SLA | ✅ Segment recalculated SMB→Enterprise; **target and basis unchanged** |
+| 6 | Seller cannot edit SLA fields | ✅ `edit=false` on all 4, both permission sets |
+| 7 | Owner never changed by SLA automation | ✅ runtime **and** source: no SLA element assigns `OwnerId` |
+| 8 | Early response becomes Met | ✅ |
+| 9 | Genuine untouched breach | ✅ `Breached` |
+| 10 | Late response distinguished | ✅ `Breached (Late Response)` |
+| 11 | Missing configuration fails safely | ✅ blank target, `Unmeasurable`, basis names the missing config — **no deadline invented** |
+| 12 | Reassignment does not restart SLA | ✅ |
+| 13 | Repeated Status changes do not move first touch | ✅ write-once held across 2 further changes |
+| 14 | Bulk (9 records, mixed) | ✅ 0 owner / 0 target / 0 basis / 0 first-touch changes |
+| 15 | Increments 1–3 regression | ✅ 9/9 routing, 8/8 governed reasons, 9 rules, 3 queues, 0 Apex |
+
+### Test method note — honest about the artifact
+
+Breach states could not be produced with the real 4-hour configuration, because testing occurred on a
+**local Saturday** and the weekend shift pushes every target at least two days out. Breach fixtures
+were therefore created under a **temporary negative `SLA_Response_Hours__c` value**, deployed and
+**reverted immediately** (verified back at 4 for all four bands).
+
+**The target was still computed by automation from configuration** — no SLA field was ever written by
+hand. That distinction is what keeps the provenance argument intact.
+
+---
+
 ## 3. Dataset Specification
 
 | Object | Count | Purpose |

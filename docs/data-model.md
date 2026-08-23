@@ -71,22 +71,27 @@ The discovery finding that governs this entire document:
 
 **22 candidates.** Preferred envelope is 15–25.
 
-### Lead — 13 from Increment 1, plus 4 from Increment 3
+### Lead — 12 built across Increments 2–4
 
 | API name | Type | Purpose | Serves | Status |
 |---|---|---|---|---|
-| `Normalized_Domain__c` | Text(255) | Registrable domain extracted from website or email — the primary match signal | `BR-01`, `BR-03` | ✅ **VALIDATED (Inc 2)** |
-| `Data_Quality_Status__c` | Picklist | Complete · Incomplete · Unnormalizable | `BR-02` | **Approved — Inc 1** |
-| `Data_Quality_Detail__c` | Text(255) | **Which** attributes are missing or unnormalizable | `BR-02` | **Approved — Inc 1** |
-| `Match_Status__c` | Picklist | Matched · Review · No Match | `BR-03` | **Approved — Inc 1** |
-| `Matched_Account__c` | Lookup(Account) | The Account matched | `BR-03` | **Approved — Inc 1** |
-| `Match_Basis__c` | Text(255) | Which signal produced the outcome | `BR-03` | **Approved — Inc 1** |
+| `Normalized_Domain__c` | Text(255) | Registrable domain from website or email — the primary match signal | `BR-01`, `BR-03` | ✅ **VALIDATED (Inc 2)** |
+| `Data_Quality_Status__c` | **Formula(Text)** | Complete · Incomplete | `BR-02` | ✅ **VALIDATED (Inc 2)** — all 4 branches |
+| `Data_Quality_Detail__c` | **Formula(Text)** | *Which* attributes are missing | `BR-02` | ✅ **VALIDATED (Inc 2)** |
 | `Segment__c` | Picklist | Derived segment | `BR-05` | ✅ **VALIDATED (Inc 2)** |
 | `Segment_Basis__c` | Text(255) | Which rule and version derived it | `BR-05` | ✅ **VALIDATED (Inc 2)** |
-| `Territory__c` | Picklist | Derived territory | `BR-06` | **Approved — Inc 1** |
-| `Routing_Reason__c` | Text(255) | **Why this owner** — precedence level, eligibility, rule version | `BR-08` | **Approved — Inc 1** |
-| `SLA_Target_DateTime__c` | Date/Time | Response deadline, visible to the owner | `BR-10`, `BR-12` | **Approved — Inc 1** |
-| `First_Touch_DateTime__c` | Date/Time | When first touch occurred | `BR-11` | **Approved — Inc 1** |
+| `Match_Status__c` | Picklist | Matched · Review · No Match | `BR-03` | ✅ **VALIDATED (Inc 3)** |
+| `Matched_Account__c` | Lookup(Account) | The Account matched | `BR-03` | ✅ **VALIDATED (Inc 3)** |
+| `Territory__c` | Picklist | Derived territory | `BR-06` | ✅ **VALIDATED (Inc 3)** |
+| `Routing_Reason__c` | Text(255) | **Why this owner** — precedence tier, territory, rule version | `BR-08` | ✅ **VALIDATED (Inc 3)** |
+| `Exception_Type__c` | Picklist | Exception class | `BR-13` | ✅ **VALIDATED (Inc 3)** |
+| `SLA_Target_DateTime__c` | Date/Time | Response deadline, set once at intake | `BR-10`, `BR-12` | ✅ **VALIDATED (Inc 4)** — write-once |
+| `SLA_Basis__c` | Text(255) | Why this deadline, or why none was set | `BR-10`, `BR-08` | ✅ **VALIDATED (Inc 4)** — write-once |
+| `First_Touch_DateTime__c` | Date/Time | First seller action | `BR-11` | ✅ **VALIDATED (Inc 4)** — write-once |
+| `SLA_Status__c` | **Formula(Text)** | Excluded · Unmeasurable · Pending · At Risk · Met · Breached · Breached (Late Response) | `BR-11`, `BR-12` | ✅ **VALIDATED (Inc 4)** — zero mutation |
+
+> ~~`Match_Basis__c`~~ — **NOT BUILT.** Rejected in Increment 3: with a single matching signal the
+> basis is constant, so `Match_Status__c` + `Matched_Account__c` already answer *what* and *which*.
 
 ### Account — 3 approved (1 replaced by standard)
 

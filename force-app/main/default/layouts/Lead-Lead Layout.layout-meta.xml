@@ -102,6 +102,14 @@
                 <behavior>Readonly</behavior>
                 <field>Matched_Account__c</field>
             </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>SLA_Target_DateTime__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>SLA_Basis__c</field>
+            </layoutItems>
 </layoutColumns>
         <layoutColumns>
             <layoutItems>
@@ -123,6 +131,14 @@
             <layoutItems>
                 <behavior>Readonly</behavior>
                 <field>Exception_Type__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>First_Touch_DateTime__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>SLA_Status__c</field>
             </layoutItems>
 </layoutColumns>
         <style>TwoColumnsTopToBottom</style>

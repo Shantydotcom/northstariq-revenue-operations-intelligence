@@ -284,6 +284,40 @@ Metadata record, not a new queue.
 > inference. `LeadSource` being unrestricted is an acknowledged Developer Edition limitation; the
 > Flow nonetheless requires exact equality to the governed value.
 
+### SLA - implemented (`BR-10`, `BR-11`, `BR-12`)
+
+Two stages inside the existing before-save Flow. **No new Flow, no scheduled automation, no Apex.**
+
+| Stage | Runs | Writes |
+|---|---|---|
+| **A - SLA initialization** | Create, governed intake, segment resolved, hours configured, not routed to the exception queue | `SLA_Target_DateTime__c`, `SLA_Basis__c` |
+| **B - First touch** | `Status` first transitions to `Working - Contacted` or a Closed value | `First_Touch_DateTime__c` |
+
+**All three are write-once.** Stage A sits on the create path only, so no update can reach it - a later
+configuration change cannot retarget an existing Lead. Stage B is guarded by a blank check, so
+repeated Status changes cannot move first touch.
+
+`SLA_Status__c` is a **formula** - Excluded · Unmeasurable · Pending · At Risk · Met · Breached ·
+Breached (Late Response). Nothing writes it, so it carries zero mutation risk and is always current.
+
+> **Unmeasurable is deliberately distinct from Breached.** An SLA that could not be established is not
+> a seller failure, and folding the two together would overstate breach - the `M-07` guard.
+
+> ### Time basis - APPROXIMATION, stated plainly
+>
+> The target is computed by a **weekend-aware declarative calculation**, isolated in five Flow
+> formulas so the basis can be replaced without touching any other element.
+>
+> **This is a portfolio approximation. It is NOT Salesforce Business Hours and it does NOT honour
+> Holiday records.** Two known limitations:
+>
+> 1. **No holiday awareness** - the production gap.
+> 2. **Weekend-day aware, not time-of-day clamped.** A Lead arriving Saturday 23:20 local shifts to
+>    Monday 23:20 and adds 4h, landing Tuesday 03:20 - a shifted day, but not a business hour.
+>
+> Business Hours and Holiday records were deliberately **not** configured, since doing so would imply
+> a fidelity the calculation does not have.
+
 ### What is deliberately *not* automated
 
 | Not automated | Why |

@@ -262,6 +262,13 @@ queue records.
 > The correct grant is therefore **three rows** — `Website`, `NumberOfEmployees`, `Address` — delivering
 > exactly the seven approved logical fields. **PII (`Email`, `Phone`, `MobilePhone`) remains ungranted.**
 
+> ### SLA fields follow the same authority model
+>
+> All four SLA fields are **system-derived**: read for both `NIQ_Revenue_Seller` and
+> `NIQ_Revenue_Operations`, **editable by neither**. Sellers must *see* their deadline - that is the
+> point of `BR-12` - but no principal may write it. Object CRUD, OWD, sharing, roles, queues and
+> profiles are unchanged.
+
 > ### Known limitation — Account visibility
 > Under `Account` OWD = **Private**, the Seller holds Account **object** Read but has **no
 > record-level access** to Accounts they do not own — 0 of 13. `Matched_Account__c` may therefore

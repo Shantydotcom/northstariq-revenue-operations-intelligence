@@ -792,6 +792,113 @@ acceptance, by deliberate testing rather than by chance.
 capability model is not proven until it is exercised by the principal it constrains*. Backend access,
 automation and FLS were each correct while the representative user still could not use the record.
 
+### 2026-08-23 — Increment 4: Lead SLA & Operational Control
+
+```
+Requirement:   BR-10 BR-11 BR-12 BR-13 BR-21 BR-22
+Metadata:      4 Lead fields, 4 CMDT values, 1 Flow modified, 2 permission sets,
+               1 layout, 2 reports. 0 new Flows. 0 Apex.
+Deployment:    0Afaj00000hcWpLCAU (74/74) and 0Afaj00000hcsJZCAY (2/2), 0 errors
+Validation:    Repository validator 47 passed, 0 failed
+Test result:   15 of 15 tests pass, including 8 negative/guardrail tests
+Commit:        pending human authorisation
+Deferred:      Task/Event first touch; scheduled breach notification
+```
+
+**Implemented.** SLA target at intake · Status-based first touch · derived SLA state · exclusion
+handling · 2 reports · Seller visibility · audit/provenance.
+
+**Mutation surface: three write-once fields and one formula.** The sequence is
+source → validation → comparison → policy → minimum mutation → audit, applied literally: Stage A
+sits on the create path only, so no update can reach it; Stage B is guarded by a blank check.
+
+**SLA hours = 4 for all four segments.** `ASM-08` is the authoritative value. **Per-segment
+differentiation is documented nowhere and was not invented.**
+
+**Guardrails proven, not asserted:**
+
+| Guardrail | Evidence |
+|---|---|
+| Write-once target | Employees changed SMB→Enterprise; target and basis byte-identical |
+| Write-once first touch | Two further Status changes; timestamp unmoved |
+| Null protection | No path writes a null over a value |
+| Change detection | Only `ISCHANGED(Status)` was added to entry criteria |
+| **Owner protection** | Runtime **and source**: the three `OwnerId` assignments are all Increment 3 routing; **no SLA element writes `OwnerId` or `Status`** |
+| Config-change safety | Configuration edited mid-test; existing Leads never retargeted |
+| Missing config | Blank target, `Unmeasurable`, basis names the gap — **never an invented deadline** |
+| Bulk | 9 mixed records, zero unintended mutations |
+
+**Approximation — stated, not hidden.** The target uses a **weekend-aware declarative calculation**,
+isolated in five formulas. It is **not** Salesforce Business Hours and does **not** honour Holidays.
+Two limits: no holiday awareness (the production gap), and it shifts **days but not time-of-day**, so
+a Saturday 23:20 arrival lands Tuesday 03:20. Business Hours and Holiday records were deliberately
+**not** configured, because doing so would imply a fidelity the calculation does not have.
+
+**Deferred, and not pretended otherwise:** `PD-06` allows activity-based first touch; **only the
+Status path is implemented**. Scheduled breach notification was not built — the formula and reports
+carry the operational signal.
+
+**Increment 4 was subsequently HUMAN ACCEPTED** - see the acceptance entry above.
+
+### 2026-08-23 - Increment 4: HUMAN ACCEPTANCE (NIQ Seller persona)
+
+```
+Requirement:   BR-10 BR-11 BR-12 BR-13 BR-21 BR-22
+Metadata:      None changed. Closure verification only.
+Deployment:    None
+Validation:    Manual UI acceptance performed as NIQ Seller, a non-administrative
+               persona - not as System Administrator.
+Test result:   PASS on all six required acceptance steps.
+Commit:        this commit - `test: record Increment 4 human acceptance`
+Deferred:      Task/Event first touch; scheduled breach notification
+```
+
+**Increment 4 is HUMAN ACCEPTED.** The Salesforce foundation is now **portfolio-MVP complete**.
+
+| Acceptance step | Result |
+|---|---|
+| SLA fields visible to the Seller | PASS |
+| SLA fields **not** Seller-editable | PASS |
+| Status to `Working - Contacted` stamped First Touch | PASS |
+| SLA Status changed `Pending` to `Met` | PASS |
+| Subsequent Status change did **not** move First Touch | PASS |
+| Owner remained `NIQ North America Coverage` | PASS |
+
+> **The security argument, demonstrated end to end:** a user who cannot write `First_Touch_DateTime__c`
+> caused it to be written, because authorized automation retains the authority the user lacks. The
+> same principle closed Increment 3; here it is proven on a field the Seller can see changing in
+> front of them.
+
+**Closure verification:** `SLA_Response_Hours__c` = **4/4/4/4** · no temporary permissions
+(`NIQ_Revenue_Seller` carries `LightningExperienceUser` only; *Set Audit Fields* was never granted) ·
+no temporary configuration · 9 Increment 3 and 8 Increment 2 fixtures intact · **0 Apex** · validator
+47 passed, 0 failed.
+
+**One acceptance fixture was added:** `NIQ S4 - Seller Acceptance`. The only Seller-visible untouched
+SLA Lead carried the temporary `-100h` test value in its basis, which would have read as a defect. A
+single data fixture - no metadata - gave the acceptance test honest `SMB 4h` configuration and a real
+`Pending` to `Met` transition.
+
+---
+
+### Salesforce foundation - MVP COMPLETE
+
+Increments 1-4 are deployed, runtime-validated and human-accepted. **Salesforce expansion stops
+here.** The following remain **roadmap items**, deliberately not built under the 4-day portfolio MVP
+constraint:
+
+| Roadmap item | Why deferred |
+|---|---|
+| Task/Event first-touch capture (`PD-06` second path) | Needs DML on a second object; Status path proves the capability |
+| Scheduled breach notification | The `SLA_Status__c` formula and two reports carry the operational signal |
+| Holiday-aware SLA calculation | Requires Apex `BusinessHours`; the weekend-aware approximation is documented as such |
+| Seller Account record visibility | Account OWD Private; `Routing_Reason__c` is the seller-facing explainability mechanism |
+| Final NorthstarIQ visual identity | The functional-validation layout section remains temporary scaffolding |
+| Additional fields, Flows, reports, queues, routing, Apex | Not required by any accepted requirement |
+
+**Next phase: the external NorthstarIQ application integration** - read, assess, findings, evidence.
+No further Salesforce configuration increment is planned.
+
 ---
 
 ## Implementation Status
@@ -842,7 +949,10 @@ physically testable one is stated rather than hidden.
 
 ## Next Step
 
-**Increment 4 (SLA) is NOT started.** It requires its own implementation plan and explicit approval.
+**Salesforce foundation is MVP COMPLETE.** Increments 1-4 are human-accepted. No further Salesforce
+configuration increment is planned. The next phase is the external NorthstarIQ application
+integration: read, assess, findings, evidence - with writes deliberately held back to a later,
+separate increment.
 
 **Deferred, and deliberately not resolved during closeout:**
 

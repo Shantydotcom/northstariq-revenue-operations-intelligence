@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Report xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>BR-22/M-06/M-07. SLA outcome by segment. Unmeasurable and Excluded remain distinct groupings and must never be folded into Breached - an unmeasurable record is not a breached one.</description>
+    <format>Summary</format>
+    <groupingsDown>
+        <dateGranularity>Day</dateGranularity>
+        <field>Lead.Segment__c</field>
+        <sortOrder>Asc</sortOrder>
+    </groupingsDown>
+    <groupingsDown>
+        <dateGranularity>Day</dateGranularity>
+        <field>Lead.SLA_Status__c</field>
+        <sortOrder>Asc</sortOrder>
+    </groupingsDown>
+    <name>NIQ SLA Attainment by Segment</name>
+    <reportType>LeadList</reportType>
+    <showDetails>false</showDetails>
+    <columns><field>Lead.SLA_Target_DateTime__c</field></columns>
+    <columns><field>Lead.First_Touch_DateTime__c</field></columns>
+</Report>

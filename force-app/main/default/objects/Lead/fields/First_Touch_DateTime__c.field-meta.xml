@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>First_Touch_DateTime__c</fullName>
+    <description>BR-11. When the seller first acted, captured from the first Status transition into a working or closed value. WRITE-ONCE: once stamped it never moves, so repeated Status changes cannot rewrite history. PD-06 also allows activity-based capture; that is deferred - see implementation-log.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>When this Lead first received seller action. Stamped once.</inlineHelpText>
+    <label>First Touch</label>
+    <required>false</required>
+    <trackHistory>true</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

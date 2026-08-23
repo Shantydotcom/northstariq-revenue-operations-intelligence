@@ -38,6 +38,13 @@
             </value>
         </assignmentItems>
         <assignmentItems>
+            <assignToReference>varSLAHours</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>loopBands.SLA_Response_Hours__c</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
             <assignToReference>varMatched</assignToReference>
             <operator>Assign</operator>
             <value>
@@ -252,6 +259,9 @@
         <locationY>2618</locationY>
         <assignmentItems><assignToReference>$Record.OwnerId</assignToReference><operator>Assign</operator><value><elementReference>varAccountOwnerId</elementReference></value></assignmentItems>
         <assignmentItems><assignToReference>$Record.Routing_Reason__c</assignToReference><operator>Assign</operator><value><elementReference>fxReasonStrategic</elementReference></value></assignmentItems>
+            <connector>
+            <targetReference>decSLAEligible</targetReference>
+        </connector>
     </assignments>
     <assignments>
         <description>BR-07 tier 2. An existing customer goes to the Account owner, not a coverage pool.</description>
@@ -261,6 +271,9 @@
         <locationY>2618</locationY>
         <assignmentItems><assignToReference>$Record.OwnerId</assignToReference><operator>Assign</operator><value><elementReference>varAccountOwnerId</elementReference></value></assignmentItems>
         <assignmentItems><assignToReference>$Record.Routing_Reason__c</assignToReference><operator>Assign</operator><value><elementReference>fxReasonCustomer</elementReference></value></assignmentItems>
+            <connector>
+            <targetReference>decSLAEligible</targetReference>
+        </connector>
     </assignments>
     <assignments>
         <description>BR-07 tier 3. Territory resolves to a coverage queue; several territories may share one.</description>
@@ -290,6 +303,34 @@
         <locationY>2834</locationY>
         <assignmentItems><assignToReference>$Record.OwnerId</assignToReference><operator>Assign</operator><value><elementReference>getQueue.Id</elementReference></value></assignmentItems>
         <assignmentItems><assignToReference>$Record.Routing_Reason__c</assignToReference><operator>Assign</operator><value><elementReference>fxReasonQueue</elementReference></value></assignmentItems>
+            <connector>
+            <targetReference>decSLAEligible</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <description>BR-10 Stage A. Establishes the response deadline ONCE at intake. Write-once by construction: this element sits on the create path only, so no update can reach it and a later configuration change cannot retarget an existing Lead.</description>
+        <name>asgnSLATarget</name>
+        <label>Set SLA Target</label>
+        <locationX>446</locationX>
+        <locationY>3050</locationY>
+        <assignmentItems><assignToReference>$Record.SLA_Target_DateTime__c</assignToReference><operator>Assign</operator><value><elementReference>fxSLATarget</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>$Record.SLA_Basis__c</assignToReference><operator>Assign</operator><value><elementReference>fxSLABasis</elementReference></value></assignmentItems>
+    </assignments>
+    <assignments>
+        <description>BR-10. No deadline could be established. The target is left BLANK - never guessed - and the basis states why, so SLA_Status__c reads Unmeasurable or Excluded rather than silently absent.</description>
+        <name>asgnNoSLA</name>
+        <label>Record No SLA Established</label>
+        <locationX>710</locationX>
+        <locationY>3050</locationY>
+        <assignmentItems><assignToReference>$Record.SLA_Basis__c</assignToReference><operator>Assign</operator><value><elementReference>fxSLABasisNone</elementReference></value></assignmentItems>
+    </assignments>
+    <assignments>
+        <description>BR-11 Stage B. Stamps first touch ONCE. The blank check in fxIsFirstTouch is the write-once guard, so repeated Status changes cannot move it.</description>
+        <name>asgnFirstTouch</name>
+        <label>Stamp First Touch</label>
+        <locationX>1106</locationX>
+        <locationY>2726</locationY>
+        <assignmentItems><assignToReference>$Record.First_Touch_DateTime__c</assignToReference><operator>Assign</operator><value><elementReference>$Flow.CurrentDateTime</elementReference></value></assignmentItems>
     </assignments>
     <decisions>
         <description>Segmentation requires an employee count. Absence is an explicit state, not a default.</description>
@@ -525,7 +566,8 @@
         <label>Routing Authority (Create Only)</label>
         <locationX>578</locationX>
         <locationY>2402</locationY>
-        <defaultConnectorLabel>Update - Preserve Routing History</defaultConnectorLabel>
+        <defaultConnector><targetReference>decFirstTouch</targetReference></defaultConnector>
+        <defaultConnectorLabel>Update - Preserve Routing, Check First Touch</defaultConnectorLabel>
         <rules>
             <name>RoutingEligible_GovernedCreate</name>
             <conditionLogic>and</conditionLogic>
@@ -604,6 +646,45 @@
             </conditions>
             <connector><targetReference>asgnTargetTerritoryQueue</targetReference></connector>
             <label>Tier 3 - Territory Coverage</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-10. SLA eligibility. A routing-exception Lead is deliberately excluded: its next action is RevOps triage, not a seller response, and counting it as a seller breach would blame the wrong party.</description>
+        <name>decSLAEligible</name>
+        <label>SLA Eligible?</label>
+        <locationX>578</locationX>
+        <locationY>2942</locationY>
+        <defaultConnector><targetReference>asgnNoSLA</targetReference></defaultConnector>
+        <defaultConnectorLabel>No - Record Why</defaultConnectorLabel>
+        <rules>
+            <name>SLAEligible_Yes</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxSLAEligible</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnSLATarget</targetReference></connector>
+            <label>Yes</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-11 Stage B. Runs on the UPDATE path only. Writes nothing except First_Touch_DateTime__c, and only when it is blank.</description>
+        <name>decFirstTouch</name>
+        <label>First Touch?</label>
+        <locationX>1106</locationX>
+        <locationY>2618</locationY>
+        <defaultConnectorLabel>No - Leave Unchanged</defaultConnectorLabel>
+        <rules>
+            <name>FirstTouch_Yes</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxIsFirstTouch</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnFirstTouch</targetReference></connector>
+            <label>Yes</label>
         </rules>
     </decisions>
     <description>BR-01, BR-03, BR-05, BR-06, BR-07, BR-08, BR-13. Normalizes the company domain and derives segment from governed Segment_Band__mdt configuration, recording the basis. Before-save: assigns fields on the triggering record only, performs no DML, and reads only Custom Metadata. Data quality remains the responsibility of the Data_Quality_Status__c and Data_Quality_Detail__c formula fields and is deliberately not duplicated here.</description>
@@ -750,6 +831,80 @@
 IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.Exception_Type__c})) &amp;
 " | Rule v1.0"</expression>
     </formulas>
+    <formulas>
+        <description>BR-10. Eligible when a segment resolved, SLA hours are configured, and the Lead was not routed to the exception queue.</description>
+        <name>fxSLAEligible</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  NOT(ISBLANK({!varSegment})),
+  NOT(ISNULL({!varSLAHours})),
+  {!varTargetQueueName} &lt;&gt; "NIQ_Routing_Exception"
+)</expression>
+    </formulas>
+    <formulas>
+        <description>Day of week of the intake moment. 0 = Sunday, 6 = Saturday.</description>
+        <name>fxNowDow</name>
+        <dataType>Number</dataType>
+        <scale>0</scale>
+        <expression>MOD( DATEVALUE({!$Flow.CurrentDateTime}) - DATE(1900,1,7), 7 )</expression>
+    </formulas>
+    <formulas>
+        <description>Weekend-aware start: a Lead arriving Saturday or Sunday starts its clock Monday.</description>
+        <name>fxStartAdj</name>
+        <dataType>DateTime</dataType>
+        <expression>{!$Flow.CurrentDateTime} + IF({!fxNowDow} = 6, 2, IF({!fxNowDow} = 0, 1, 0))</expression>
+    </formulas>
+    <formulas>
+        <name>fxRawTarget</name>
+        <dataType>DateTime</dataType>
+        <expression>{!fxStartAdj} + ({!varSLAHours} / 24)</expression>
+    </formulas>
+    <formulas>
+        <name>fxRawDow</name>
+        <dataType>Number</dataType>
+        <scale>0</scale>
+        <expression>MOD( DATEVALUE({!fxRawTarget}) - DATE(1900,1,7), 7 )</expression>
+    </formulas>
+    <formulas>
+        <description>APPROXIMATION - PORTFOLIO DEMO. Weekend-aware only. This is NOT Salesforce Business Hours and does NOT honour Holiday records; that remains a known production gap. The calculation is deliberately isolated in these five formulas so the basis can be replaced without touching any other element.</description>
+        <name>fxSLATarget</name>
+        <dataType>DateTime</dataType>
+        <expression>{!fxRawTarget} + IF({!fxRawDow} = 6, 2, IF({!fxRawDow} = 0, 1, 0))</expression>
+    </formulas>
+    <formulas>
+        <description>BR-08/BR-10 explainability: segment, configured hours, time basis and rule version in force at intake.</description>
+        <name>fxSLABasis</name>
+        <dataType>String</dataType>
+        <expression>"At intake: " &amp; {!varSegment} &amp; " " &amp; TEXT({!varSLAHours}) &amp; "h (weekend-aware approximation) | Rule " &amp; IF(ISBLANK({!varRuleVersion}), "v1.0", {!varRuleVersion})</expression>
+    </formulas>
+    <formulas>
+        <description>States why no deadline was established, so a blank target explains itself.</description>
+        <name>fxSLABasisNone</name>
+        <dataType>String</dataType>
+        <expression>IF(
+  {!varTargetQueueName} = "NIQ_Routing_Exception",
+  "No SLA: routing exception - RevOps triage, not seller response",
+  IF(
+    ISBLANK({!varSegment}),
+    "No SLA: segment not resolved",
+    "No SLA: no response hours configured for segment " &amp; {!varSegment}
+  )
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-11 write-once guard. The blank check is what stops a later Status change moving first touch.</description>
+        <name>fxIsFirstTouch</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  ISBLANK({!$Record.First_Touch_DateTime__c}),
+  ISCHANGED({!$Record.Status}),
+  OR(
+    TEXT({!$Record.Status}) = "Working - Contacted",
+    TEXT({!$Record.Status}) = "Closed - Converted",
+    TEXT({!$Record.Status}) = "Closed - Not Converted"
+  )
+)</expression>
+    </formulas>
     <interviewLabel>Lead Inbound Before Save {!$Flow.CurrentDateTime}</interviewLabel>
     <label>Lead Inbound Before Save</label>
     <loops>
@@ -891,7 +1046,8 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
   ISCHANGED({!$Record.Email}),
   ISCHANGED({!$Record.NumberOfEmployees}),
   ISCHANGED({!$Record.CountryCode}),
-  ISCHANGED({!$Record.StateCode})
+  ISCHANGED({!$Record.StateCode}),
+  ISCHANGED({!$Record.Status})
 )</filterFormula>
         <object>Lead</object>
         <recordTriggerType>CreateAndUpdate</recordTriggerType>
@@ -1033,6 +1189,14 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
     <variables>
         <name>varQueueDefault</name>
         <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varSLAHours</name>
+        <dataType>Number</dataType>
+        <scale>2</scale>
         <isCollection>false</isCollection>
         <isInput>false</isInput>
         <isOutput>false</isOutput>
