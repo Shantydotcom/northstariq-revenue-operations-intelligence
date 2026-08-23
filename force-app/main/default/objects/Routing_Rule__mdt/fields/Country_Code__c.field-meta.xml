@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Country_Code__c</fullName>
+    <description>ISO country code this rule covers. BR-06.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>ISO country code this rule covers. BR-06.</inlineHelpText>
+    <label>Country Code</label>
+    <required>false</required>
+    <length>8</length>
+    <unique>false</unique>
+    <type>Text</type>
+</CustomField>

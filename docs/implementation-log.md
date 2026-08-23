@@ -468,12 +468,76 @@ CLI output, is what moves Increment 2 to accepted.
 | Lead layout section | Temporary functional scaffolding; superseded by the Visual Identity Sprint |
 | 8 `NIQ Test —` fixtures remain in the org | Increment-2 fixtures, separate from the portfolio dataset. Removed at the gated sample-data cleanup step. |
 
+### 2026-08-22 — Increment 3: Identity, Strategic, Territory, Routing
+
+```
+Requirement:   BR-03 BR-06 BR-07 BR-08 BR-13 BR-21
+Metadata:      8 fields, 9 CMDT records, 3 queues, 1 LeadSource value.
+               Flow extended. 3 permission sets and 1 layout modified. 0 Apex.
+Deployment:    0Afaj00000hbkO5CAI - 68/68, 0 errors (dry-run 68/68 first)
+               0Afaj00000hbmBNCAY - Flow defect fix, 1/1
+Validation:    Repository validator 47 passed, 0 failed
+Test result:   9 of 9 runtime scenarios PASSED after one defect was found and fixed.
+               Regression: Increment 2 8/8 unchanged; Increment 1 intact.
+Commit:        this commit - `feat: implement identity, territory and routing`
+Deferred:      Round robin, re-routing automation, Account segment/territory derivation
+```
+
+**Automation-authority boundary.** Automated ownership routing is authorized only for Leads entering
+through the governed **NorthstarIQ Inbound** intake path. Leads outside that path retain their
+existing ownership. Routing-eligible Leads that cannot be resolved deterministically fail safe to
+the routing exception queue.
+
+**Platform limitation, recorded.** Before-save automation cannot distinguish default ownership from
+explicit self-assignment when both resolve to the running user: `Lead.CreatedById` is
+`createable = false`, so it is not populated before save, and owner state is unusable as an
+authorization signal. NorthstarIQ therefore uses an explicit governed intake signal rather than
+owner-state inference. `LeadSource` being unrestricted is an acknowledged Developer Edition
+limitation — the Flow nonetheless requires exact equality to the governed value.
+
+**Runtime matrix — 9 of 9 passed.** All three ownership states proven:
+
+| State | Fixture | Result |
+|---|---|---|
+| Governed intake + routable | Strategic, Customer, NA-West, DACH, US-default | Automated ownership ✅ |
+| Governed intake + unresolvable | Ambiguous, Unsupported Geo, Missing Geo | `NIQ_Routing_Exception` ✅ |
+| **Not governed intake** | UK-IE with explicit owner | **Owner preserved**, territory still derived ✅ |
+
+**Defect found by testing, and fixed.**
+
+> Territory resolution depended on the order Custom Metadata rows were returned in. US/California
+> resolved to **NA-East** instead of NA-West, because the country-default rule was evaluated before
+> the state-specific one. Fixed by capturing specific and default matches into separate variables
+> and resolving by **specificity** after the loop — correctness no longer depends on query order.
+> Every happy path had passed; only the boundary fixture exposed it.
+
+**`BR-07` AC4 refined, deliberately.** The original wording required precedence itself to be
+configuration. The four tiers consume structurally different signals, so uniform rule rows would
+need an interpreter — abstraction without administrative benefit. Precedence is explicit in Flow;
+territory-to-coverage mapping stays configuration-driven. **Recorded as a refinement, not an unmet
+requirement.**
+
+**Segment authority enforced by construction.** `Segment__c`, `Segment_Basis__c`, `Territory__c`,
+and `Normalized_Domain__c` had edit access removed from `NIQ_Revenue_Operations`. Since
+Metadata-API-deployed fields carry no profile FLS, **no principal can now edit them** — no override
+field, no validation rule. This also closes the Increment 2 gap where a manual segment edit was
+silently overwritten. `Account.Strategic_Account__c` remains editable: it is the RevOps input.
+
+**Territory decoupled from coverage.** Four territories resolve to two queues
+(`NA-West`/`NA-East` → `NIQ_North_America`, `UK-IE`/`DACH` → `NIQ_EMEA`), demonstrating that the
+territory taxonomy does not dictate queue architecture. A fifth territory is one Custom Metadata
+record, not a new queue.
+
+**Not built:** `Match_Basis__c` (redundant with one matching signal) · Lead Strategic flag · segment
+override field · third CMDT · rule interpreter · second Flow · seller users · round robin · fuzzy
+matching · enrichment · Apex.
+
 ---
 
 ## Implementation Status
 
-**Increments 1–2 are deployed, runtime-validated, and human-accepted.** Behaviour that does not yet
-exist (matching, territory, routing, exceptions, SLA) is neither built nor claimed.
+**Increments 1–2 are human-accepted. Increment 3 is deployed and runtime-validated, awaiting UI
+acceptance.** SLA does not exist yet and is not claimed.
 
 | Area | Status |
 |---|---|
@@ -481,7 +545,11 @@ exist (matching, territory, routing, exceptions, SLA) is neither built nor claim
 | Custom fields — 2 formulas | ✅ **VALIDATED — all 4 branches** (gap closed in Increment 2) |
 | Flow `Lead_Inbound_Before_Save` | ✅ **VALIDATED** — 8/8 scenarios, bulk-safe at batch 8, entry conditions verified |
 | `Normalized_Domain__c` · `Segment__c` · `Segment_Basis__c` | ✅ **VALIDATED** — populated and explained by the Flow |
-| Custom fields — 7 remaining stored | ✅ **DEPLOYED — ACCESS VERIFIED** — readable; blank until Increments 3–4 populate them |
+| `Territory__c` · `Match_Status__c` · `Matched_Account__c` · `Routing_Reason__c` · `Exception_Type__c` | ✅ **VALIDATED (Inc 3)** |
+| `Account.Normalized_Domain__c` | ✅ **VALIDATED (Inc 3)** — reproduces Lead normalization on all 13 stock Accounts |
+| Queues — 3 | ✅ **VALIDATED** — coverage pools and fail-safe exception destination |
+| Routing config — 9 `Routing_Rule__mdt` records | ✅ **VALIDATED** — 4 territories → 2 coverage queues |
+| Custom fields — SLA (2 remaining) | ✅ **DEPLOYED — ACCESS VERIFIED** — blank until Increment 4 |
 | Custom Metadata records | ✅ **VALIDATED** — 4 records match source field-by-field |
 | Custom Metadata Types | ✅ **DEPLOYED** — 2 types, 13 fields; `Routing_Rule__mdt` holds 0 records by design |
 | Global value sets | ✅ **VALIDATED** — enforced `restricted=true` on all 5 consuming fields |
@@ -512,5 +580,4 @@ physically testable one is stated rather than hidden.
 
 ## Next Step
 
-**Increment 3 — identity, territory, and routing — is NOT started.** It does not begin until its
-implementation plan is presented and approved.
+**Increment 3 awaits human UI acceptance.** Increment 4 (SLA) is **not started**.

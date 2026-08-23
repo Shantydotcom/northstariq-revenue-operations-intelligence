@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Matched_Account__c</fullName>
+    <description>BR-03. The Account this Lead was matched to. Populated only on an unambiguous match. ConvertedAccountId populates at conversion, which is too late for routing.</description>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <inlineHelpText>The existing Account this Lead belongs to.</inlineHelpText>
+    <label>Matched Account</label>
+    <referenceTo>Account</referenceTo>
+    <relationshipLabel>Matched Leads</relationshipLabel>
+    <relationshipName>Matched_Leads</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

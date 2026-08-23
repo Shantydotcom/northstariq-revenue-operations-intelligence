@@ -59,7 +59,8 @@ Preferred envelope. **Not hard limits** — exceeding one requires a documented 
 | Component | Preferred | Candidate count |
 |---|---|---:|
 | Custom fields | ~15–25 | **12** — deployed, Increment 1 |
-| Flows | ~3–5 | **1 deployed** (Increment 2) · 2 candidate |
+| Flows | ~3–5 | **1 deployed** (extended in Increment 3) |
+| Queues | ~1–3 | **3 deployed** — coverage pools, zero licences |
 | Custom Metadata Types | ~1–3 | **2** — approved, Increment 1 |
 | Permission sets | ~3–5 | **3** — approved, Increment 1 (`NIQ_Analytics_Read` deferred) |
 | Queues | ~1–3 | 2 — candidate |
@@ -198,6 +199,83 @@ Flow.
 > to Increment 3. The Strategic band's null `Employee_Min__c` makes it correctly non-matching for
 > size-based derivation — **the configuration itself expresses that Strategic is not a size band.**
 > No Lead-level Strategic field was invented to force it.
+
+### Identity matching — implemented (`BR-03`)
+
+`Account.Normalized_Domain__c` is a **formula** mirroring the Lead normalization exactly, so both
+sides are comparable. Matching is **exact equality on that key**:
+
+| Accounts sharing the domain | Outcome |
+|---:|---|
+| 0, or no domain available | `No Match` |
+| exactly 1 | `Matched` + `Matched_Account__c` |
+| 2 or more | `Review` + `Ambiguous Match` — **never guessed** |
+
+**No fuzzy matching, no probabilistic scoring, no enrichment, no Apex.** Standard Duplicate Rules
+were evaluated and rejected for this purpose: they cover Lead↔Lead and Lead↔Contact, and Salesforce
+has **no standard Lead→Account matching rule.**
+
+### Strategic classification — implemented
+
+A uniquely matched Account with `Strategic_Account__c = true` sets `Segment__c = Strategic`,
+overriding the size-derived band. **No Lead-level Strategic flag exists** — one designation, one
+source of truth on Account. `Segment_Basis__c` explains it:
+`Strategic Account: Burlington Textiles Corp of America | Rule v1.0`
+
+### Territory — implemented (`BR-06`, `BR-21`)
+
+Country and state map to territory through `Routing_Rule__mdt`. **Specificity, not record order,
+decides:** a state-specific rule always beats a country default, because each kind is captured into
+its own variable and resolved after the loop.
+
+> This was found by testing. The first implementation relied on Custom Metadata sort order, and
+> US/California resolved to NA-East instead of NA-West. Correctness must not depend on the order a
+> query returns rows in.
+
+| Condition | Behaviour |
+|---|---|
+| State in a state-specific rule | That territory (e.g. US/CA → NA-West) |
+| Country matched, no state rule | Country default (US → NA-East) |
+| Country present, no rule | **Unsupported Geography** exception |
+| Country absent | **Missing Geography** exception |
+
+### Routing — implemented (`BR-07`, `BR-08`)
+
+Four explicit tiers, first match wins:
+
+```
+1  Matched Strategic Account   -> Account owner
+2  Matched existing Customer   -> Account owner
+3  Territory resolved          -> coverage queue
+4  otherwise                   -> NIQ_Routing_Exception
+```
+
+**Territory classification is decoupled from ownership coverage.** Four territories resolve to two
+coverage queues — `NA-West`/`NA-East` → `NIQ_North_America`, `UK-IE`/`DACH` → `NIQ_EMEA` — proving a
+territory taxonomy need not dictate queue architecture. Adding a fifth territory is one Custom
+Metadata record, not a new queue.
+
+**Queues, not users.** They consume no licences, need no rotation state, and require no `User` DML.
+
+### The automation-authority boundary (`BR-07`)
+
+> **Automated ownership routing is authorized only for Leads entering through the governed
+> NorthstarIQ Inbound intake path. Leads outside that path retain their existing ownership.
+> Routing-eligible Leads that cannot be resolved deterministically fail safe to the routing
+> exception queue.**
+
+| State | Behaviour |
+|---|---|
+| Governed intake + routable | Deterministic owner or coverage queue |
+| Governed intake + unresolvable | `NIQ_Routing_Exception` + categorical `Exception_Type__c` |
+| **Not governed intake** | **`OwnerId` preserved exactly.** `Exception_Type__c = Non-Routing Intake` — an authority boundary, *not* a routing exception. Identity, data quality, segmentation, and territory still derive. |
+
+> **Platform limitation, stated plainly.** Before-save automation cannot distinguish default
+> ownership from explicit self-assignment when both resolve to the running user — `CreatedById` is
+> not populated before save (`createable = false`), and owner state is therefore unusable as an
+> authorization signal. NorthstarIQ uses an explicit governed intake signal instead of owner-state
+> inference. `LeadSource` being unrestricted is an acknowledged Developer Edition limitation; the
+> Flow nonetheless requires exact equality to the governed value.
 
 ### What is deliberately *not* automated
 

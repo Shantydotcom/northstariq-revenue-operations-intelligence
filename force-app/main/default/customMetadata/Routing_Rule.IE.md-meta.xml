@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomMetadata xmlns="http://soap.sforce.com/2006/04/metadata" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+    <label>Ireland</label>
+    <protected>false</protected>
+    <values>
+        <field>Precedence_Order__c</field>
+        <value xsi:type="xsd:double">60</value>
+    </values>
+    <values>
+        <field>Country_Code__c</field>
+        <value xsi:type="xsd:string">IE</value>
+    </values>
+    <values>
+        <field>State_Codes__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>Territory__c</field>
+        <value xsi:type="xsd:string">UK-IE</value>
+    </values>
+    <values>
+        <field>Destination_Queue__c</field>
+        <value xsi:type="xsd:string">NIQ_EMEA</value>
+    </values>
+    <values>
+        <field>Basis__c</field>
+        <value xsi:type="xsd:string">Territory Coverage</value>
+    </values>
+    <values>
+        <field>Segment_Name__c</field>
+        <value xsi:nil="true"/>
+    </values>
+    <values>
+        <field>Rule_Version__c</field>
+        <value xsi:type="xsd:string">v1.0</value>
+    </values>
+    <values>
+        <field>Is_Active__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+</CustomMetadata>

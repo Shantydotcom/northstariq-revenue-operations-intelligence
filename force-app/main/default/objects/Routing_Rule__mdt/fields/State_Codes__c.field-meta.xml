@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>State_Codes__c</fullName>
+    <description>Comma-delimited state/province codes for a sub-national split. Blank means the rest of the country. BR-06.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Comma-delimited state/province codes for a sub-national split. Blank means the rest of the country. BR-06.</inlineHelpText>
+    <label>State Codes</label>
+    <required>false</required>
+    <length>255</length>
+    <unique>false</unique>
+    <type>Text</type>
+</CustomField>

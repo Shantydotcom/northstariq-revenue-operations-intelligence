@@ -71,7 +71,7 @@ The discovery finding that governs this entire document:
 
 **22 candidates.** Preferred envelope is 15–25.
 
-### Lead — 13 approved for Increment 1
+### Lead — 13 from Increment 1, plus 4 from Increment 3
 
 | API name | Type | Purpose | Serves | Status |
 |---|---|---|---|---|

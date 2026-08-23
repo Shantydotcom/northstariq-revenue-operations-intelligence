@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Destination_Queue__c</fullName>
+    <description>DeveloperName of the coverage queue this territory routes to. Several territories may share one queue. BR-07.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>DeveloperName of the coverage queue this territory routes to. Several territories may share one queue. BR-07.</inlineHelpText>
+    <label>Destination Queue</label>
+    <required>false</required>
+    <length>80</length>
+    <unique>false</unique>
+    <type>Text</type>
+</CustomField>

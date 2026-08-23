@@ -68,6 +68,9 @@
                 <elementReference>fxBasisResolved</elementReference>
             </value>
         </assignmentItems>
+            <connector>
+            <targetReference>decHasDomain</targetReference>
+        </connector>
     </assignments>
     <assignments>
         <description>BR-05: an employee count that matches no active band is surfaced, never defaulted to a segment.</description>
@@ -89,6 +92,9 @@
                 <elementReference>fxBasisNoBand</elementReference>
             </value>
         </assignmentItems>
+            <connector>
+            <targetReference>decHasDomain</targetReference>
+        </connector>
     </assignments>
     <assignments>
         <description>BR-05: never default an underivable segment. Missing employee count is stated, not guessed.</description>
@@ -110,6 +116,180 @@
                 <stringValue>Not segmentable: employee count missing</stringValue>
             </value>
         </assignmentItems>
+            <connector>
+            <targetReference>decHasDomain</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <description>Count every Account sharing the normalized domain and capture its detail. Bands do not overlap; Accounts can, which is exactly what Review detects.</description>
+        <name>asgnCaptureAccount</name>
+        <label>Capture Candidate Account</label>
+        <locationX>50</locationX>
+        <locationY>1214</locationY>
+        <assignmentItems><assignToReference>varMatchCount</assignToReference><operator>Add</operator><value><numberValue>1.0</numberValue></value></assignmentItems>
+        <assignmentItems><assignToReference>varMatchedAccountId</assignToReference><operator>Assign</operator><value><elementReference>loopAccounts.Id</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varAccountOwnerId</assignToReference><operator>Assign</operator><value><elementReference>loopAccounts.OwnerId</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varAccountType</assignToReference><operator>Assign</operator><value><elementReference>loopAccounts.Type</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varAccountStrategic</assignToReference><operator>Assign</operator><value><elementReference>loopAccounts.Strategic_Account__c</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varAccountName</assignToReference><operator>Assign</operator><value><elementReference>loopAccounts.Name</elementReference></value></assignmentItems>
+        <connector><targetReference>loopAccounts</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>BR-03. No Account shares this domain, or no domain was available.</description>
+        <name>asgnNoMatch</name>
+        <label>Set No Match</label>
+        <locationX>578</locationX>
+        <locationY>1322</locationY>
+        <assignmentItems><assignToReference>$Record.Match_Status__c</assignToReference><operator>Assign</operator><value><stringValue>No Match</stringValue></value></assignmentItems>
+        <connector><targetReference>decHasCountry</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>BR-03. Exactly one Account shares the normalized domain.</description>
+        <name>asgnMatched</name>
+        <label>Set Matched</label>
+        <locationX>50</locationX>
+        <locationY>1430</locationY>
+        <assignmentItems><assignToReference>$Record.Match_Status__c</assignToReference><operator>Assign</operator><value><stringValue>Matched</stringValue></value></assignmentItems>
+        <assignmentItems><assignToReference>$Record.Matched_Account__c</assignToReference><operator>Assign</operator><value><elementReference>varMatchedAccountId</elementReference></value></assignmentItems>
+        <connector><targetReference>decStrategic</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>BR-03/BR-13. Two or more Accounts share the domain. Never guess - surface for review.</description>
+        <name>asgnAmbiguous</name>
+        <label>Set Ambiguous Match</label>
+        <locationX>314</locationX>
+        <locationY>1322</locationY>
+        <assignmentItems><assignToReference>$Record.Match_Status__c</assignToReference><operator>Assign</operator><value><stringValue>Review</stringValue></value></assignmentItems>
+        <assignmentItems><assignToReference>$Record.Exception_Type__c</assignToReference><operator>Assign</operator><value><stringValue>Ambiguous Match</stringValue></value></assignmentItems>
+        <connector><targetReference>decHasCountry</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>Account.Strategic_Account__c is the authoritative designation. A uniquely matched Strategic Account overrides the size-derived segment.</description>
+        <name>asgnStrategicSegment</name>
+        <label>Apply Strategic Designation</label>
+        <locationX>50</locationX>
+        <locationY>1538</locationY>
+        <assignmentItems><assignToReference>$Record.Segment__c</assignToReference><operator>Assign</operator><value><stringValue>Strategic</stringValue></value></assignmentItems>
+        <assignmentItems><assignToReference>$Record.Segment_Basis__c</assignToReference><operator>Assign</operator><value><elementReference>fxStrategicBasis</elementReference></value></assignmentItems>
+        <connector><targetReference>decHasCountry</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>BR-06/BR-13. No country: territory cannot be derived. Never defaulted.</description>
+        <name>asgnMissingGeo</name>
+        <label>Set Missing Geography</label>
+        <locationX>842</locationX>
+        <locationY>1754</locationY>
+        <assignmentItems><assignToReference>$Record.Exception_Type__c</assignToReference><operator>Assign</operator><value><stringValue>Missing Geography</stringValue></value></assignmentItems>
+        <connector><targetReference>decRoutingEligible</targetReference></connector>
+    </assignments>
+        <assignments>
+        <description>A state-specific rule matched. Captured separately from country defaults so specificity - not record order - decides the winner.</description>
+        <name>asgnCaptureSpecific</name>
+        <label>Capture Specific Territory Rule</label>
+        <locationX>50</locationX>
+        <locationY>1970</locationY>
+        <assignmentItems><assignToReference>varTerritorySpecific</assignToReference><operator>Assign</operator><value><elementReference>loopTerritoryRules.Territory__c</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varQueueSpecific</assignToReference><operator>Assign</operator><value><elementReference>loopTerritoryRules.Destination_Queue__c</elementReference></value></assignmentItems>
+        <connector><targetReference>loopTerritoryRules</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>A country-default rule (blank State_Codes) matched. Used only if no state-specific rule matched.</description>
+        <name>asgnCaptureDefault</name>
+        <label>Capture Country Default Rule</label>
+        <locationX>314</locationX>
+        <locationY>1970</locationY>
+        <assignmentItems><assignToReference>varTerritoryDefault</assignToReference><operator>Assign</operator><value><elementReference>loopTerritoryRules.Territory__c</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varQueueDefault</assignToReference><operator>Assign</operator><value><elementReference>loopTerritoryRules.Destination_Queue__c</elementReference></value></assignmentItems>
+        <connector><targetReference>loopTerritoryRules</targetReference></connector>
+    </assignments>
+        <assignments>
+        <description>BR-06. A state-specific rule beats the country default regardless of the order rules were returned in.</description>
+        <name>asgnTerritoryFromSpecific</name>
+        <label>Set Territory - Specific Rule</label>
+        <locationX>50</locationX>
+        <locationY>2186</locationY>
+        <assignmentItems><assignToReference>$Record.Territory__c</assignToReference><operator>Assign</operator><value><elementReference>varTerritorySpecific</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varTerritory</assignToReference><operator>Assign</operator><value><elementReference>varTerritorySpecific</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varQueueName</assignToReference><operator>Assign</operator><value><elementReference>varQueueSpecific</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varTerritoryMatched</assignToReference><operator>Assign</operator><value><booleanValue>true</booleanValue></value></assignmentItems>
+        <connector><targetReference>decRoutingEligible</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>BR-06. No state-specific rule matched; the country default applies.</description>
+        <name>asgnTerritoryFromDefault</name>
+        <label>Set Territory - Country Default</label>
+        <locationX>314</locationX>
+        <locationY>2186</locationY>
+        <assignmentItems><assignToReference>$Record.Territory__c</assignToReference><operator>Assign</operator><value><elementReference>varTerritoryDefault</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varTerritory</assignToReference><operator>Assign</operator><value><elementReference>varTerritoryDefault</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varQueueName</assignToReference><operator>Assign</operator><value><elementReference>varQueueDefault</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varTerritoryMatched</assignToReference><operator>Assign</operator><value><booleanValue>true</booleanValue></value></assignmentItems>
+        <connector><targetReference>decRoutingEligible</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>BR-06/BR-13. Country present but covered by no active rule.</description>
+        <name>asgnUnsupportedGeo</name>
+        <label>Set Unsupported Geography</label>
+        <locationX>314</locationX>
+        <locationY>2186</locationY>
+        <assignmentItems><assignToReference>$Record.Exception_Type__c</assignToReference><operator>Assign</operator><value><stringValue>Unsupported Geography</stringValue></value></assignmentItems>
+        <connector><targetReference>decRoutingEligible</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>AUTOMATION-AUTHORITY BOUNDARY. Outside the governed intake path, ownership is preserved exactly as supplied or defaulted. This is NOT a routing exception - the Lead is not moved to the exception queue.</description>
+        <name>asgnNonRoutingIntake</name>
+        <label>Preserve Ownership - Non-Routing Intake</label>
+        <locationX>1106</locationX>
+        <locationY>2402</locationY>
+        <assignmentItems><assignToReference>$Record.Exception_Type__c</assignToReference><operator>Assign</operator><value><stringValue>Non-Routing Intake</stringValue></value></assignmentItems>
+        <assignmentItems><assignToReference>$Record.Routing_Reason__c</assignToReference><operator>Assign</operator><value><stringValue>Ownership preserved: record not received through governed intake</stringValue></value></assignmentItems>
+    </assignments>
+    <assignments>
+        <description>BR-07 tier 1. Strategic designation outranks everything else.</description>
+        <name>asgnOwnerStrategic</name>
+        <label>Assign Owner - Strategic Account</label>
+        <locationX>50</locationX>
+        <locationY>2618</locationY>
+        <assignmentItems><assignToReference>$Record.OwnerId</assignToReference><operator>Assign</operator><value><elementReference>varAccountOwnerId</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>$Record.Routing_Reason__c</assignToReference><operator>Assign</operator><value><elementReference>fxReasonStrategic</elementReference></value></assignmentItems>
+    </assignments>
+    <assignments>
+        <description>BR-07 tier 2. An existing customer goes to the Account owner, not a coverage pool.</description>
+        <name>asgnOwnerCustomer</name>
+        <label>Assign Owner - Existing Customer</label>
+        <locationX>314</locationX>
+        <locationY>2618</locationY>
+        <assignmentItems><assignToReference>$Record.OwnerId</assignToReference><operator>Assign</operator><value><elementReference>varAccountOwnerId</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>$Record.Routing_Reason__c</assignToReference><operator>Assign</operator><value><elementReference>fxReasonCustomer</elementReference></value></assignmentItems>
+    </assignments>
+    <assignments>
+        <description>BR-07 tier 3. Territory resolves to a coverage queue; several territories may share one.</description>
+        <name>asgnTargetTerritoryQueue</name>
+        <label>Target Territory Coverage Queue</label>
+        <locationX>578</locationX>
+        <locationY>2618</locationY>
+        <assignmentItems><assignToReference>varTargetQueueName</assignToReference><operator>Assign</operator><value><elementReference>varQueueName</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>varRoutingBasis</assignToReference><operator>Assign</operator><value><elementReference>fxBasisTerritoryCoverage</elementReference></value></assignmentItems>
+        <connector><targetReference>getQueue</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>BR-07 tier 4 and BR-13. Fail-safe terminal destination. A routing-eligible Lead is never left silently on its creator.</description>
+        <name>asgnTargetExceptionQueue</name>
+        <label>Target Routing Exception Queue</label>
+        <locationX>842</locationX>
+        <locationY>2618</locationY>
+        <assignmentItems><assignToReference>varTargetQueueName</assignToReference><operator>Assign</operator><value><stringValue>NIQ_Routing_Exception</stringValue></value></assignmentItems>
+        <assignmentItems><assignToReference>varRoutingBasis</assignToReference><operator>Assign</operator><value><stringValue>Routing Exception</stringValue></value></assignmentItems>
+        <connector><targetReference>getQueue</targetReference></connector>
+    </assignments>
+    <assignments>
+        <description>BR-08. Queue ownership plus the reason it was chosen.</description>
+        <name>asgnOwnerQueue</name>
+        <label>Assign Owner - Queue</label>
+        <locationX>710</locationX>
+        <locationY>2834</locationY>
+        <assignmentItems><assignToReference>$Record.OwnerId</assignToReference><operator>Assign</operator><value><elementReference>getQueue.Id</elementReference></value></assignmentItems>
+        <assignmentItems><assignToReference>$Record.Routing_Reason__c</assignToReference><operator>Assign</operator><value><elementReference>fxReasonQueue</elementReference></value></assignmentItems>
     </assignments>
     <decisions>
         <description>Segmentation requires an employee count. Absence is an explicit state, not a default.</description>
@@ -188,7 +368,235 @@
             <label>Yes</label>
         </rules>
     </decisions>
-    <description>BR-01 and BR-05. Normalizes the company domain and derives segment from governed Segment_Band__mdt configuration, recording the basis. Before-save: assigns fields on the triggering record only, performs no DML, and reads only Custom Metadata. Data quality remains the responsibility of the Data_Quality_Status__c and Data_Quality_Detail__c formula fields and is deliberately not duplicated here.</description>
+    <decisions>
+        <description>BR-03. Matching needs a normalized domain; without one there is nothing to match on.</description>
+        <name>decHasDomain</name>
+        <label>Has Normalized Domain?</label>
+        <locationX>314</locationX>
+        <locationY>998</locationY>
+        <defaultConnector><targetReference>asgnNoMatch</targetReference></defaultConnector>
+        <defaultConnectorLabel>No Domain</defaultConnectorLabel>
+        <rules>
+            <name>HasDomain_Yes</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.Normalized_Domain__c</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue><booleanValue>false</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>getMatchingAccounts</targetReference></connector>
+            <label>Yes</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-03. Exact equality on a normalized key. No fuzzy matching, no scoring.</description>
+        <name>decMatchCount</name>
+        <label>How Many Accounts Matched?</label>
+        <locationX>314</locationX>
+        <locationY>1322</locationY>
+        <defaultConnector><targetReference>asgnNoMatch</targetReference></defaultConnector>
+        <defaultConnectorLabel>None</defaultConnectorLabel>
+        <rules>
+            <name>MatchCount_One</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>varMatchCount</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><numberValue>1.0</numberValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnMatched</targetReference></connector>
+            <label>Exactly One</label>
+        </rules>
+        <rules>
+            <name>MatchCount_Many</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>varMatchCount</leftValueReference>
+                <operator>GreaterThan</operator>
+                <rightValue><numberValue>1.0</numberValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnAmbiguous</targetReference></connector>
+            <label>Two or More</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <name>decStrategic</name>
+        <label>Matched Account Strategic?</label>
+        <locationX>50</locationX>
+        <locationY>1538</locationY>
+        <defaultConnector><targetReference>decHasCountry</targetReference></defaultConnector>
+        <defaultConnectorLabel>No - Retain Size Segment</defaultConnectorLabel>
+        <rules>
+            <name>Strategic_Yes</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>varAccountStrategic</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnStrategicSegment</targetReference></connector>
+            <label>Yes</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-06. CountryCode is a restricted standard picklist, so geography is already normalized.</description>
+        <name>decHasCountry</name>
+        <label>Has Country?</label>
+        <locationX>314</locationX>
+        <locationY>1754</locationY>
+        <defaultConnector><targetReference>asgnMissingGeo</targetReference></defaultConnector>
+        <defaultConnectorLabel>No - Missing Geography</defaultConnectorLabel>
+        <rules>
+            <name>HasCountry_Yes</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>$Record.CountryCode</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue><booleanValue>false</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>getTerritoryRules</targetReference></connector>
+            <label>Yes</label>
+        </rules>
+    </decisions>
+        <decisions>
+        <description>BR-21. Classifies each configured rule as state-specific or country-default. Specificity decides the winner after the loop, so correctness never depends on the order Custom Metadata is returned in.</description>
+        <name>decTerritoryRuleMatches</name>
+        <label>Classify Territory Rule</label>
+        <locationX>176</locationX>
+        <locationY>1862</locationY>
+        <defaultConnector><targetReference>loopTerritoryRules</targetReference></defaultConnector>
+        <defaultConnectorLabel>No Match</defaultConnectorLabel>
+        <rules>
+            <name>Rule_SpecificMatch</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxRuleIsSpecificMatch</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnCaptureSpecific</targetReference></connector>
+            <label>State-Specific Match</label>
+        </rules>
+        <rules>
+            <name>Rule_CountryDefault</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxRuleIsDefault</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnCaptureDefault</targetReference></connector>
+            <label>Country Default</label>
+        </rules>
+    </decisions>
+        <decisions>
+        <name>decTerritoryResolved</name>
+        <label>Territory Resolved?</label>
+        <locationX>176</locationX>
+        <locationY>2078</locationY>
+        <defaultConnector><targetReference>asgnUnsupportedGeo</targetReference></defaultConnector>
+        <defaultConnectorLabel>No - Unsupported Geography</defaultConnectorLabel>
+        <rules>
+            <name>Territory_Specific</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>varTerritorySpecific</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue><booleanValue>false</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnTerritoryFromSpecific</targetReference></connector>
+            <label>State-Specific Rule Won</label>
+        </rules>
+        <rules>
+            <name>Territory_Default</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>varTerritoryDefault</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue><booleanValue>false</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnTerritoryFromDefault</targetReference></connector>
+            <label>Country Default Applied</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>THE AUTOMATION-AUTHORITY BOUNDARY. Automated ownership is authorized only for Leads entering through the governed NorthstarIQ Inbound intake path. Owner state is never used to infer authorization: before-save automation cannot distinguish a defaulted owner from deliberate self-assignment.</description>
+        <name>decRoutingEligible</name>
+        <label>Routing Eligible? (Governed Intake)</label>
+        <locationX>578</locationX>
+        <locationY>2402</locationY>
+        <defaultConnector><targetReference>asgnNonRoutingIntake</targetReference></defaultConnector>
+        <defaultConnectorLabel>No - Preserve Ownership</defaultConnectorLabel>
+        <rules>
+            <name>RoutingEligible_Yes</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxRoutingEligible</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>decRoutingTier</targetReference></connector>
+            <label>Yes</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-07. Four explicit tiers, each consuming a structurally different business signal. First match wins.</description>
+        <name>decRoutingTier</name>
+        <label>Routing Precedence</label>
+        <locationX>446</locationX>
+        <locationY>2510</locationY>
+        <defaultConnector><targetReference>asgnTargetExceptionQueue</targetReference></defaultConnector>
+        <defaultConnectorLabel>Tier 4 - Cannot Resolve</defaultConnectorLabel>
+        <rules>
+            <name>Tier1_Strategic</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>varMatchCount</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><numberValue>1.0</numberValue></rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>varAccountStrategic</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnOwnerStrategic</targetReference></connector>
+            <label>Tier 1 - Strategic Account</label>
+        </rules>
+        <rules>
+            <name>Tier2_Customer</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>varMatchCount</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><numberValue>1.0</numberValue></rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>fxIsCustomer</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnOwnerCustomer</targetReference></connector>
+            <label>Tier 2 - Existing Customer</label>
+        </rules>
+        <rules>
+            <name>Tier3_Territory</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>varTerritoryMatched</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>varMatchCount</leftValueReference>
+                <operator>LessThanOrEqualTo</operator>
+                <rightValue><numberValue>1.0</numberValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnTargetTerritoryQueue</targetReference></connector>
+            <label>Tier 3 - Territory Coverage</label>
+        </rules>
+    </decisions>
+    <description>BR-01, BR-03, BR-05, BR-06, BR-07, BR-08, BR-13. Normalizes the company domain and derives segment from governed Segment_Band__mdt configuration, recording the basis. Before-save: assigns fields on the triggering record only, performs no DML, and reads only Custom Metadata. Data quality remains the responsibility of the Data_Quality_Status__c and Data_Quality_Detail__c formula fields and is deliberately not duplicated here.</description>
     <environments>Default</environments>
     <formulas>
         <description>Source precedence: Website when present, otherwise the Email domain. Website and Email remain the unmodified provenance values.</description>
@@ -258,6 +666,74 @@
         <dataType>String</dataType>
         <expression>"Not segmentable: no active band matches employee count " &amp; TEXT({!$Record.NumberOfEmployees})</expression>
     </formulas>
+        <formulas>
+        <description>BR-06. A state-specific rule: State_Codes is populated and the record's state appears in it. Comma padding stops CA matching inside CAN. First specific match wins.</description>
+        <name>fxRuleIsSpecificMatch</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  ISBLANK({!varTerritorySpecific}),
+  NOT(ISBLANK({!loopTerritoryRules.State_Codes__c})),
+  NOT(ISBLANK(TEXT({!$Record.StateCode}))),
+  CONTAINS("," &amp; {!loopTerritoryRules.State_Codes__c} &amp; ",", "," &amp; TEXT({!$Record.StateCode}) &amp; ",")
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-06. A country-default rule: State_Codes is blank. Applied only when no state-specific rule matched.</description>
+        <name>fxRuleIsDefault</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  ISBLANK({!varTerritoryDefault}),
+  ISBLANK({!loopTerritoryRules.State_Codes__c})
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-07 tier 2. Account.Type carries Customer - Direct and Customer - Channel.</description>
+        <name>fxIsCustomer</name>
+        <dataType>Boolean</dataType>
+        <expression>BEGINS({!varAccountType}, "Customer")</expression>
+    </formulas>
+    <formulas>
+        <description>THE AUTOMATION-AUTHORITY TEST. Governed intake signal only. Never owner-state inference.</description>
+        <name>fxRoutingEligible</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  ISNEW(),
+  TEXT({!$Record.LeadSource}) = "NorthstarIQ Inbound"
+)</expression>
+    </formulas>
+    <formulas>
+        <name>fxStrategicBasis</name>
+        <dataType>String</dataType>
+        <expression>"Strategic Account: " &amp; {!varAccountName} &amp; " | Rule " &amp; IF(ISBLANK({!varRuleVersion}), "v1.0", {!varRuleVersion})</expression>
+    </formulas>
+    <formulas>
+        <name>fxTerritoryLabel</name>
+        <dataType>String</dataType>
+        <expression>IF(ISBLANK(TEXT({!$Record.Territory__c})), "none", TEXT({!$Record.Territory__c}))</expression>
+    </formulas>
+    <formulas>
+        <name>fxReasonStrategic</name>
+        <dataType>String</dataType>
+        <expression>"Strategic Account Owner: " &amp; {!varAccountName} &amp; " | Territory " &amp; {!fxTerritoryLabel} &amp; " | Rule v1.0"</expression>
+    </formulas>
+    <formulas>
+        <name>fxReasonCustomer</name>
+        <dataType>String</dataType>
+        <expression>"Existing Customer Owner: " &amp; {!varAccountName} &amp; " | Territory " &amp; {!fxTerritoryLabel} &amp; " | Rule v1.0"</expression>
+    </formulas>
+    <formulas>
+        <name>fxBasisTerritoryCoverage</name>
+        <dataType>String</dataType>
+        <expression>"Territory Coverage: " &amp; {!varTerritory}</expression>
+    </formulas>
+    <formulas>
+        <description>BR-08. Serves both the territory and the exception queue paths.</description>
+        <name>fxReasonQueue</name>
+        <dataType>String</dataType>
+        <expression>{!varRoutingBasis} &amp; " -&gt; " &amp; {!varTargetQueueName} &amp;
+IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.Exception_Type__c})) &amp;
+" | Rule v1.0"</expression>
+    </formulas>
     <interviewLabel>Lead Inbound Before Save {!$Flow.CurrentDateTime}</interviewLabel>
     <label>Lead Inbound Before Save</label>
     <loops>
@@ -274,6 +750,27 @@
         <noMoreValuesConnector>
             <targetReference>decSegmentResolved</targetReference>
         </noMoreValuesConnector>
+    </loops>
+    <loops>
+        <description>Counts candidates and captures detail. With one match the captured detail is the only one; with several it is ignored in favour of Review.</description>
+        <name>loopAccounts</name>
+        <label>For Each Candidate Account</label>
+        <locationX>50</locationX>
+        <locationY>1106</locationY>
+        <collectionReference>getMatchingAccounts</collectionReference>
+        <iterationOrder>Asc</iterationOrder>
+        <nextValueConnector><targetReference>asgnCaptureAccount</targetReference></nextValueConnector>
+        <noMoreValuesConnector><targetReference>decMatchCount</targetReference></noMoreValuesConnector>
+    </loops>
+    <loops>
+        <name>loopTerritoryRules</name>
+        <label>For Each Territory Rule</label>
+        <locationX>50</locationX>
+        <locationY>1862</locationY>
+        <collectionReference>getTerritoryRules</collectionReference>
+        <iterationOrder>Asc</iterationOrder>
+        <nextValueConnector><targetReference>decTerritoryRuleMatches</targetReference></nextValueConnector>
+        <noMoreValuesConnector><targetReference>decTerritoryResolved</targetReference></noMoreValuesConnector>
     </loops>
     <processType>AutoLaunchedFlow</processType>
     <recordLookups>
@@ -300,6 +797,72 @@
         <sortOrder>Asc</sortOrder>
         <storeOutputAutomatically>true</storeOutputAutomatically>
     </recordLookups>
+    <recordLookups>
+        <description>BR-03. Exact equality against the Account-side normalized domain formula.</description>
+        <name>getMatchingAccounts</name>
+        <label>Get Accounts By Normalized Domain</label>
+        <locationX>50</locationX>
+        <locationY>998</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector><targetReference>loopAccounts</targetReference></connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Normalized_Domain__c</field>
+            <operator>EqualTo</operator>
+            <value><elementReference>$Record.Normalized_Domain__c</elementReference></value>
+        </filters>
+        <getFirstRecordOnly>false</getFirstRecordOnly>
+        <object>Account</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <recordLookups>
+        <description>BR-06/BR-21. Territory mapping is configuration. Custom Metadata reads do not consume SOQL limits.</description>
+        <name>getTerritoryRules</name>
+        <label>Get Territory Rules For Country</label>
+        <locationX>50</locationX>
+        <locationY>1754</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector><targetReference>loopTerritoryRules</targetReference></connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Is_Active__c</field>
+            <operator>EqualTo</operator>
+            <value><booleanValue>true</booleanValue></value>
+        </filters>
+        <filters>
+            <field>Country_Code__c</field>
+            <operator>EqualTo</operator>
+            <value><elementReference>$Record.CountryCode</elementReference></value>
+        </filters>
+        <getFirstRecordOnly>false</getFirstRecordOnly>
+        <object>Routing_Rule__mdt</object>
+        <sortField>Precedence_Order__c</sortField>
+        <sortOrder>Asc</sortOrder>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <recordLookups>
+        <description>Resolve the coverage queue DeveloperName held in configuration to its Group Id.</description>
+        <name>getQueue</name>
+        <label>Get Queue By Developer Name</label>
+        <locationX>710</locationX>
+        <locationY>2726</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector><targetReference>asgnOwnerQueue</targetReference></connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>DeveloperName</field>
+            <operator>EqualTo</operator>
+            <value><elementReference>varTargetQueueName</elementReference></value>
+        </filters>
+        <filters>
+            <field>Type</field>
+            <operator>EqualTo</operator>
+            <value><stringValue>Queue</stringValue></value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Group</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
     <start>
         <locationX>50</locationX>
         <locationY>0</locationY>
@@ -310,7 +873,9 @@
   ISNEW(),
   ISCHANGED({!$Record.Website}),
   ISCHANGED({!$Record.Email}),
-  ISCHANGED({!$Record.NumberOfEmployees})
+  ISCHANGED({!$Record.NumberOfEmployees}),
+  ISCHANGED({!$Record.CountryCode}),
+  ISCHANGED({!$Record.StateCode})
 )</filterFormula>
         <object>Lead</object>
         <recordTriggerType>CreateAndUpdate</recordTriggerType>
@@ -340,5 +905,120 @@
         <value>
             <booleanValue>false</booleanValue>
         </value>
+    </variables>
+    <variables>
+        <name>varMatchCount</name>
+        <dataType>Number</dataType>
+        <scale>0</scale>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <value>
+            <numberValue>0.0</numberValue>
+        </value>
+    </variables>
+    <variables>
+        <name>varMatchedAccountId</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varAccountOwnerId</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varAccountType</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varAccountStrategic</name>
+        <dataType>Boolean</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <value>
+            <booleanValue>false</booleanValue>
+        </value>
+    </variables>
+    <variables>
+        <name>varAccountName</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varTerritory</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varQueueName</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varTerritoryMatched</name>
+        <dataType>Boolean</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <value>
+            <booleanValue>false</booleanValue>
+        </value>
+    </variables>
+    <variables>
+        <name>varTargetQueueName</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varRoutingBasis</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varTerritorySpecific</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varQueueSpecific</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varTerritoryDefault</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <name>varQueueDefault</name>
+        <dataType>String</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
     </variables>
 </Flow>

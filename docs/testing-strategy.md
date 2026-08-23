@@ -131,6 +131,45 @@ multi-record execution, **not** production-scale performance, which this project
 
 ---
 
+## 2c. Increment 3 Test Fixtures — executed 2026-08-22
+
+Nine fictional Leads in one bulk batch, plus one stock Account designated Strategic. Stock data
+supplied the ambiguous match (`uos.com` on three Accounts) and the unsupported geography (`FR`), so
+no fixture was created for either.
+
+| Fixture | Geography | Match | Segment | Territory | Exception | Owner |
+|---|---|---|---|---|---|---|
+| Match Customer NA-East | US/TX | Matched | Enterprise | NA-East | — | Account owner |
+| **Strategic Override** | US/NC | Matched | **Strategic** | NA-East | — | Account owner |
+| **Ambiguous Match** | US/NY | **Review** | Enterprise | NA-East | Ambiguous Match | Exception queue |
+| No Match NA-West | US/**CA** | No Match | SMB | **NA-West** | — | NA coverage |
+| **UK-IE Owner Preserved** | GB | No Match | Mid-Market | UK-IE | **Non-Routing Intake** | **unchanged** |
+| DACH Coverage | DE | No Match | Enterprise | DACH | — | EMEA coverage |
+| Unsupported Geography | **FR** | No Match | Mid-Market | — | Unsupported Geography | Exception queue |
+| Missing Geography | *(none)* | No Match | SMB | — | Missing Geography | Exception queue |
+| US No State Default | US | No Match | Mid-Market | NA-East | — | NA coverage |
+
+**Result: 9 of 9 passed.** The three ownership states are all proven: governed intake + routable →
+automated ownership · governed intake + unresolvable → exception queue · non-governed intake →
+**owner preserved**.
+
+### Defect found by testing
+
+> **Territory resolution depended on Custom Metadata record order.** US/California resolved to
+> NA-East instead of NA-West, because the country-default rule was evaluated before the
+> state-specific one. Fixed by capturing specific and default matches into separate variables and
+> resolving by **specificity** after the loop. Correctness no longer depends on query order.
+>
+> This is exactly what the boundary fixtures exist to catch — the happy paths all passed.
+
+### Regression
+
+Increment 2: **8 of 8 fixtures unchanged** — `Territory__c` and `Match_Status__c` correctly remain
+blank on them, since they were not modified and the Flow only runs on create or a relevant change.
+Increment 1: 4 segment bands intact, Lead history still capturing, OWD unchanged.
+
+---
+
 ## 3. Dataset Specification
 
 | Object | Count | Purpose |

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Match_Status__c</fullName>
+    <description>BR-03. Outcome of Lead-to-Account identity matching. Matched = exactly one Account shares the normalized domain; Review = two or more (ambiguous); No Match = none, or no domain available.</description>
+    <inlineHelpText>Whether this Lead was matched to an existing Account.</inlineHelpText>
+    <label>Match Status</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value><fullName>Matched</fullName><default>false</default><label>Matched</label></value>
+            <value><fullName>Review</fullName><default>false</default><label>Review</label></value>
+            <value><fullName>No Match</fullName><default>false</default><label>No Match</label></value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

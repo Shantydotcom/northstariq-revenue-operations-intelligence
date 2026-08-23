@@ -94,7 +94,15 @@
                 <behavior>Readonly</behavior>
                 <field>Data_Quality_Detail__c</field>
             </layoutItems>
-        </layoutColumns>
+                    <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>Match_Status__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>Matched_Account__c</field>
+            </layoutItems>
+</layoutColumns>
         <layoutColumns>
             <layoutItems>
                 <behavior>Readonly</behavior>
@@ -108,7 +116,15 @@
                 <behavior>Readonly</behavior>
                 <field>Territory__c</field>
             </layoutItems>
-        </layoutColumns>
+                    <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>Routing_Reason__c</field>
+            </layoutItems>
+            <layoutItems>
+                <behavior>Readonly</behavior>
+                <field>Exception_Type__c</field>
+            </layoutItems>
+</layoutColumns>
         <style>TwoColumnsTopToBottom</style>
     </layoutSections>
     <layoutSections>

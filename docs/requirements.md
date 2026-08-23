@@ -119,9 +119,16 @@ buildable inside a small, maintainable footprint.
 | **Problem** | `PROB-005` — three assignment bases (named/strategic designation, existing ownership, territory) can each claim the same record, and no precedence has ever been agreed. |
 | **Requirement** | A single ownership precedence must be defined and applied to every assignment. Strategic and named accounts must not be routed away from their owner silently. |
 | **Rationale** | This is the project's clearest example of a problem that is not technical. Any precedence is implementable; the failure is that none was chosen. Choosing one — and recording it — is the fix. |
-| **Acceptance** | 1. When two or more bases claim a record, the outcome follows the recorded precedence.<br>2. A record belonging to a strategic or named Account is not assigned elsewhere without that being visible.<br>3. The precedence applied is recorded on the record.<br>4. The precedence is configuration, not embedded logic. |
+| **Acceptance** | 1. When two or more bases claim a record, the outcome follows the recorded precedence.<br>2. A record belonging to a strategic or named Account is not assigned elsewhere without that being visible.<br>3. The precedence applied is recorded on the record.<br>4. **Routing precedence must be explicit, deterministic, documented, testable, and administratively maintainable. Territory-to-destination mappings must be configuration-driven.** |
 | **Decision** | `PD-03` |
 | **Build intent** | **P0** |
+
+> **AC4 refined 2026-08-22.** The original wording required precedence itself to be configuration.
+> Implementation showed the four tiers consume structurally different business signals — an Account
+> flag, an Account type, a territory map, and a fallback — so expressing them as uniform rule rows
+> would require a rule interpreter: abstraction without administrative benefit. Precedence is
+> therefore explicit in Flow, while the territory-to-coverage mapping remains configuration-driven
+> in `Routing_Rule__mdt`. This is a deliberate refinement of the requirement, not an unmet one.
 
 #### `BR-08` — Every routing decision records why it was made
 
