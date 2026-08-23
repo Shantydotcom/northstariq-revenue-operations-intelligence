@@ -576,6 +576,59 @@ the org was re-read, and so was the UI service on top of it.**
 **Resolution for the reviewer:** open the record in a private window to confirm, then hard-refresh
 the normal session. Increment 3 remains **NOT human-accepted** pending that re-check.
 
+### 2026-08-22 — Seller enablement + BR-08 AC5 defect fix
+
+```
+Requirement:   BR-08 AC5 (explainability survives edits) - BR-18/BR-20 (seller access)
+Metadata:      NIQ_Revenue_Seller (+2 object perms, +LightningExperienceUser),
+               Security.settings (Login As), Flow authority gate restructured.
+               1 user, 1 permission-set assignment, 1 queue membership. 0 Apex.
+Deployment:    0Afaj00000hboUwCAI (4/4) and 0Afaj00000hc8DVCAY (4/4), 0 errors
+Validation:    Repository validator 47 passed, 0 failed
+Test result:   Seller tests A-G pass. BR-08 regression tests 1-6 pass.
+               Increment 1-2 regression intact.
+Commit:        this commit - `fix: complete seller access and preserve routing explainability`
+Deferred:      Account record visibility for the Seller - deliberately not remediated
+```
+
+**Defect 1 — Seller opened in Salesforce Classic.** Root cause: `Minimum Access - Salesforce` has
+`PermissionsLightningExperienceUser = false`; `NIQ_Revenue_Seller` did not grant it either. Standard
+User and System Administrator both do, which is why only the admin saw Lightning. Fixed
+**permission-set-first**: added `LightningExperienceUser` to `NIQ_Revenue_Seller`. The profile was not
+changed, no custom profile created, and object/FLS access is unchanged.
+
+**Defect 2 — BR-08 AC5 violated.** `fxRoutingEligible = ISNEW() AND LeadSource = "NorthstarIQ Inbound"`
+meant every *update* failed the test and fell into the non-routing branch, overwriting a correctly
+routed Lead's `Routing_Reason__c` with the ownership-preserved message and stamping
+`Exception_Type__c = Non-Routing Intake`. Ownership stayed correct, so this destroyed explainability
+rather than routing.
+
+**Fix — a CREATE / UPDATE seam, not another condition.** The authority gate is now three-way:
+
+| Path | Behaviour |
+|---|---|
+| Create + governed intake | Route, write reason and exception |
+| Create + other source | Preserve owner, stamp `Non-Routing Intake` |
+| **Update — any Lead** | **The flow ends at the gate.** No ownership, no classification, reason and exception untouched. |
+
+The update path has **no connector at all** — preservation by structure rather than by a guard that a
+later change could bypass.
+
+**Coherence.** Routing is creation-time, so every routed reason is now prefixed **`At intake:`**. A
+Lead created in California and later moved to New York shows `Territory__c = NA-East` beside
+`At intake: ... NA-West ...`. Both are true and the prefix stops them reading as a contradiction.
+**No rerouting capability was invented.**
+
+**Damaged fixture restored by replay, not by editing.** All 9 Increment 3 fixtures were deleted and
+re-inserted through the corrected creation path, so their state was produced by the automation rather
+than typed over it. `NIQ R3 - No Match NA-West` verified fully restored.
+
+**Account visibility deferred.** The Seller has Account object Read but 0 of 13 record access under
+Private OWD, so `Matched_Account__c` may render blank. **No sharing rule, role, View All, OWD change,
+or Account team was added.** `Routing_Reason__c` remains the seller-facing explainability mechanism.
+
+**Not yet human-accepted.** Runtime Seller validation in the UI is still outstanding.
+
 ---
 
 ## Implementation Status
@@ -600,7 +653,8 @@ acceptance.** SLA does not exist yet and is not claimed.
 | Standard value sets | ✅ **VALIDATED** — `AccountType` = 8 values, 7 originals intact + `Churned` |
 | Lead field history | ✅ **VALIDATED** — `Status` and `OwnerId` capture verified and reverted |
 | OWD | ✅ **VALIDATED** — 5 objects confirmed by metadata retrieve |
-| Permission sets | 🟡 **DEPLOYED** — `NIQ_Revenue_Operations` assigned to the admin for verification. **Seller and Rule_Configuration unassigned and untested**; `BR-20` access testing needs seller users. |
+| Permission sets | ✅ **`NIQ_Revenue_Seller` VALIDATED** — assigned to a real non-admin principal; effective FLS read-only on all 10 derived fields; `UserRecordAccess` 3/42. `NIQ_Rule_Configuration` still unassigned. |
+| Representative Seller | ✅ **DEPLOYED** — 1 user, Minimum Access + `NIQ_Revenue_Seller`, no role, 1 queue. Awaiting human UI acceptance. |
 | Business Hours + Holidays | 🟡 **Moved to the SLA increment** — nothing in Foundation consumes them |
 | Flows | 🟡 3 candidates — **0 implemented** |
 | Apex | 🟢 **1 approved** (business-hours seam + test class) — 0 implemented |

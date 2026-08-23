@@ -60,6 +60,7 @@ prompts/**
 # repository an honest record of what was actually designed and built.
 # -----------------------------------------------------------------------------
 **/settings/**
+!**/settings/Security.settings-meta.xml
 **/appMenus/**
 **/*.profile-meta.xml
 

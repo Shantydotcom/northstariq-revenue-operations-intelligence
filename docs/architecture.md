@@ -266,9 +266,16 @@ Metadata record, not a new queue.
 
 | State | Behaviour |
 |---|---|
-| Governed intake + routable | Deterministic owner or coverage queue |
-| Governed intake + unresolvable | `NIQ_Routing_Exception` + categorical `Exception_Type__c` |
-| **Not governed intake** | **`OwnerId` preserved exactly.** `Exception_Type__c = Non-Routing Intake` — an authority boundary, *not* a routing exception. Identity, data quality, segmentation, and territory still derive. |
+| **CREATE** + governed intake + routable | Deterministic owner or coverage queue |
+| **CREATE** + governed intake + unresolvable | `NIQ_Routing_Exception` + categorical `Exception_Type__c` |
+| **CREATE** + not governed intake | **`OwnerId` preserved exactly.** `Exception_Type__c = Non-Routing Intake` — an authority boundary, *not* a routing exception. |
+| **UPDATE** — any Lead | **The flow ends at the authority gate.** No ownership assignment, no intake classification, and `Routing_Reason__c` / `Exception_Type__c` are left exactly as creation set them (`BR-08` AC5). Identity, data quality, segmentation, and territory still recalculate. |
+
+> **Routing is a creation-time decision, so `Routing_Reason__c` is a historical record.** Every routed
+> reason is prefixed **`At intake:`** to say so on the record itself. A Lead created in California and
+> later moved to New York shows `Territory__c = NA-East` (current) alongside
+> `At intake: Territory Coverage: NA-West -> ...` (historical). Both are true, and the prefix stops
+> the pair reading as a contradiction. **There is no automatic rerouting capability.**
 
 > **Platform limitation, stated plainly.** Before-save automation cannot distinguish default
 > ownership from explicit self-assignment when both resolve to the running user — `CreatedById` is

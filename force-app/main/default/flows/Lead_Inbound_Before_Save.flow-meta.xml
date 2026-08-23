@@ -519,16 +519,15 @@
             <label>Country Default Applied</label>
         </rules>
     </decisions>
-    <decisions>
-        <description>THE AUTOMATION-AUTHORITY BOUNDARY. Automated ownership is authorized only for Leads entering through the governed NorthstarIQ Inbound intake path. Owner state is never used to infer authorization: before-save automation cannot distinguish a defaulted owner from deliberate self-assignment.</description>
+        <decisions>
+        <description>THE AUTOMATION-AUTHORITY BOUNDARY, and the CREATE / UPDATE seam. Automated ownership is authorized only for Leads entering through the governed NorthstarIQ Inbound intake path, and only at creation. On UPDATE the flow simply ends here: ownership and the original routing explanation are left untouched, which is what BR-08 AC5 requires. Owner state is never used to infer authorization - before-save automation cannot distinguish a defaulted owner from deliberate self-assignment.</description>
         <name>decRoutingEligible</name>
-        <label>Routing Eligible? (Governed Intake)</label>
+        <label>Routing Authority (Create Only)</label>
         <locationX>578</locationX>
         <locationY>2402</locationY>
-        <defaultConnector><targetReference>asgnNonRoutingIntake</targetReference></defaultConnector>
-        <defaultConnectorLabel>No - Preserve Ownership</defaultConnectorLabel>
+        <defaultConnectorLabel>Update - Preserve Routing History</defaultConnectorLabel>
         <rules>
-            <name>RoutingEligible_Yes</name>
+            <name>RoutingEligible_GovernedCreate</name>
             <conditionLogic>and</conditionLogic>
             <conditions>
                 <leftValueReference>fxRoutingEligible</leftValueReference>
@@ -536,7 +535,18 @@
                 <rightValue><booleanValue>true</booleanValue></rightValue>
             </conditions>
             <connector><targetReference>decRoutingTier</targetReference></connector>
-            <label>Yes</label>
+            <label>Create via Governed Intake</label>
+        </rules>
+        <rules>
+            <name>RoutingEligible_NonGovernedCreate</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxIsNew</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue><booleanValue>true</booleanValue></rightValue>
+            </conditions>
+            <connector><targetReference>asgnNonRoutingIntake</targetReference></connector>
+            <label>Create outside Governed Intake</label>
         </rules>
     </decisions>
     <decisions>
@@ -693,6 +703,12 @@
         <expression>BEGINS({!varAccountType}, "Customer")</expression>
     </formulas>
     <formulas>
+        <description>Creation test used by the routing authority gate. Only a create may set ownership or stamp an intake classification.</description>
+        <name>fxIsNew</name>
+        <dataType>Boolean</dataType>
+        <expression>ISNEW()</expression>
+    </formulas>
+    <formulas>
         <description>THE AUTOMATION-AUTHORITY TEST. Governed intake signal only. Never owner-state inference.</description>
         <name>fxRoutingEligible</name>
         <dataType>Boolean</dataType>
@@ -714,12 +730,12 @@
     <formulas>
         <name>fxReasonStrategic</name>
         <dataType>String</dataType>
-        <expression>"Strategic Account Owner: " &amp; {!varAccountName} &amp; " | Territory " &amp; {!fxTerritoryLabel} &amp; " | Rule v1.0"</expression>
+        <expression>"At intake: Strategic Account Owner: " &amp; {!varAccountName} &amp; " | Territory " &amp; {!fxTerritoryLabel} &amp; " | Rule v1.0"</expression>
     </formulas>
     <formulas>
         <name>fxReasonCustomer</name>
         <dataType>String</dataType>
-        <expression>"Existing Customer Owner: " &amp; {!varAccountName} &amp; " | Territory " &amp; {!fxTerritoryLabel} &amp; " | Rule v1.0"</expression>
+        <expression>"At intake: Existing Customer Owner: " &amp; {!varAccountName} &amp; " | Territory " &amp; {!fxTerritoryLabel} &amp; " | Rule v1.0"</expression>
     </formulas>
     <formulas>
         <name>fxBasisTerritoryCoverage</name>
@@ -730,7 +746,7 @@
         <description>BR-08. Serves both the territory and the exception queue paths.</description>
         <name>fxReasonQueue</name>
         <dataType>String</dataType>
-        <expression>{!varRoutingBasis} &amp; " -&gt; " &amp; {!varTargetQueueName} &amp;
+        <expression>"At intake: " &amp; {!varRoutingBasis} &amp; " -&gt; " &amp; {!varTargetQueueName} &amp;
 IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.Exception_Type__c})) &amp;
 " | Rule v1.0"</expression>
     </formulas>

@@ -119,7 +119,7 @@ persona-based, so capabilities compose without duplication.
 
 | Permission set | Grants | Personas |
 |---|---|---|
-| `NIQ_Revenue_Seller` | Read/write on owned Leads, Accounts, Contacts, Opportunities; activity logging; lead conversion | `PER-03`, `PER-04` |
+| `NIQ_Revenue_Seller` | **Lead** Read + Edit · **Account** Read · `LightningExperienceUser` · read-only FLS on all derived fields | `PER-03`, `PER-04` |
 | `NIQ_Revenue_Operations` | Cross-team record write; reassignment; exception and duplicate review resolution; queue work | `PER-01` |
 | `NIQ_Rule_Configuration` | **Write to governed rule configuration** (Custom Metadata) | `PER-01` — **separately assigned** |
 | ~~`NIQ_Analytics_Read`~~ | Broad read; no operational write | **DEFERRED to the analytics stage.** Not created now — future integration security must not be built before the integration exists. A `Salesforce Integration` licence (1 free, 0 used) is reserved for it. |
@@ -205,6 +205,36 @@ Access is proven by execution, never by inspection (`BR-20`, `SP-5`).
 
 **Negative assertions are the primary evidence.** The full matrix is in
 [`testing-strategy.md`](testing-strategy.md) §5.
+
+---
+
+## 8b. Representative Seller — implemented
+
+One user, `NIQ Seller`, on **Minimum Access - Salesforce** plus `NIQ_Revenue_Seller`. No role. Member
+of `NIQ_North_America` only. Consumes 1 of 4 Salesforce licences (3 used, 1 free).
+
+| Grant | Justification |
+|---|---|
+| Lead **Read** | View records routed to their coverage queue (`BR-08`) |
+| Lead **Edit** | Maintain seller-owned business inputs (`BR-18`) |
+| Account **Read** | So `Matched_Account__c` can resolve |
+| `LightningExperienceUser` | `Minimum Access - Salesforce` does not grant it, so the user opened in Classic. Added to the permission set, **not** by changing profile. |
+| **Create / Delete — withheld everywhere** | No requirement or test calls for them |
+| Contact / Opportunity — **not granted** | No Increment 3 test needs them |
+
+**Verified:** the seller's effective FLS is read-only on all 10 derived fields from **every** grantor,
+and neither grantor holds `Modify All Data` or `View All Data` — so FLS **is** enforced for them.
+Platform-computed `UserRecordAccess`: **3 of 42 Leads readable**, exactly the `NIQ_North_America`
+queue records.
+
+> ### Known limitation — Account visibility
+> Under `Account` OWD = **Private**, the Seller holds Account **object** Read but has **no
+> record-level access** to Accounts they do not own — 0 of 13. `Matched_Account__c` may therefore
+> render blank rather than a resolvable Account name.
+>
+> **Deliberately not remediated.** No sharing rule, role, View All, wider OWD, or Account team was
+> added. For Increment 3, `Routing_Reason__c` is the primary seller-facing explainability mechanism.
+> Revisit only if the demo shows this materially damages usability.
 
 ---
 

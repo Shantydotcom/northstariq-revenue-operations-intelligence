@@ -170,6 +170,45 @@ Increment 1: 4 segment bands intact, Lead history still capturing, OWD unchanged
 
 ---
 
+## 2d. Seller security + BR-08 regression — executed 2026-08-22
+
+### Negative-security tests (representative Seller)
+
+| Test | Result | Evidence |
+|---|---|---|
+| **A** Field visibility | ✅ | All 10 derived fields `read = true` in effective FLS |
+| **B** Edit restriction | ✅ | `edit = false` on all 10 from **every** grantor; neither grantor holds Modify All / View All, so FLS is enforced |
+| **C** Business fields editable | ✅ | Lead Edit granted; no restrictive FLS on `Company`, `Website`, `NumberOfEmployees`, geography |
+| **D** Automation authority | ✅ | Employees 40 → 1500 ⇒ Segment SMB → Enterprise, on a field no user may edit |
+| **E** Territory recalculation | ✅ | State CA → NY ⇒ Territory NA-West → NA-East; owner unchanged |
+| **F** Record access | ✅ | `UserRecordAccess`: **3 of 42** Leads readable — exactly the `NIQ_North_America` queue records |
+| **G** Admin comparison | ✅ | Admin editability comes from **`Modify All Data` bypassing FLS** — by design, not a failure |
+
+**B–E were executed with admin credentials** via effective-permission computation and the platform's
+own access engine. The runtime rejected-update *as the Seller* is a UI step, deliberately left to
+human validation. No password was set and no credential was handled.
+
+### BR-08 AC5 regression — all 6 pass
+
+| Test | Result |
+|---|---|
+| **1** Governed creation | ✅ 9/9 routed with correct `At intake:` explanation |
+| **2** Governed employee update | ✅ Segment recalculated; **owner, reason and exception all survived unchanged** |
+| **3** Governed geography update | ✅ Territory NA-West → NA-East; **not** reclassified Non-Routing Intake; original explanation preserved |
+| **4** Non-governed creation | ✅ Owner preserved, `Non-Routing Intake`, territory still derived |
+| **5** Non-governed update | ✅ Segment recalculated; ownership and reason still preserved |
+| **6** Bulk update, 9 records (8 governed + 1 non-governed) | ✅ **0** ownership changes, **0** reasons altered, **0** exception types altered, **0** reclassified |
+
+### Current vs historical — stated so it cannot mislead
+
+After TEST 3 the record reads `Territory__c = NA-East` (current classification) and
+`At intake: Territory Coverage: NA-West -> NIQ_North_America | Rule v1.0` (the routing decision as
+made). **Both are true.** The `At intake:` prefix marks the reason as historical, which is what
+`BR-08` AC5 preserves. Ownership stayed correct throughout, since `NA-West` and `NA-East` both map
+to the same coverage queue.
+
+---
+
 ## 3. Dataset Specification
 
 | Object | Count | Purpose |
