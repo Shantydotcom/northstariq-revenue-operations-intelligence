@@ -258,3 +258,19 @@ docs/architecture/render/
 .vercel/
 next-env.d.ts
 *.tsbuildinfo
+
+# -----------------------------------------------------------------------------
+# Impeccable design-tooling state
+# Matches .impeccable/ at any depth, so it covers both the repository root and
+# web/. Two kinds of file live there and neither belongs in version control:
+# critique snapshots, which are regenerable tool output that accumulates per
+# run, and web/.impeccable/live/server.json, which holds a local live-server
+# PID and session token. The `*token*` rule above matches file NAMES, not file
+# CONTENTS, so it never caught that one - and the governing rule at the top of
+# this file puts anything that authenticates out of scope for a public
+# repository.
+#
+# PRODUCT.md is deliberately NOT ignored: it is durable product context and is
+# version controlled alongside docs/.
+# -----------------------------------------------------------------------------
+.impeccable/

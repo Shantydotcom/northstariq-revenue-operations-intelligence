@@ -226,12 +226,31 @@ Assert-That -Name "No Salesforce auth / secret artifacts on disk" `
 # 4a-ii. The web application reads Salesforce credentials from environment
 #        variables, so a stray .env can now appear below the root as well as at
 #        it. .env.example holds placeholders only and is expected to be present.
+#
+#        The question is NOT "does a .env file exist" - the documented local
+#        setup requires web\.env.local to exist and hold real credentials. The
+#        question is "can git see it". A file git ignores cannot be staged,
+#        committed or pushed; a file git can see is the actual exposure. A file
+#        whose ignored status cannot be proven counts as visible, not as safe.
 $envFiles = Get-ChildItem $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notmatch $script:GeneratedPaths } |
             Where-Object { $_.Name -match '^\.env' -and $_.Name -ne '.env.example' }
-Assert-That -Name "No .env file anywhere in the repository" `
-            -Condition ($envFiles.Count -eq 0) `
-            -Detail ("Found: " + (($envFiles | Select-Object -ExpandProperty Name) -join ', '))
+
+$exposedEnv = @()
+foreach ($envFile in $envFiles) {
+    $rel = $envFile.FullName.Substring($RepoRoot.Length).TrimStart('\')
+    $isIgnored = $false
+    try {
+        & git -C $RepoRoot check-ignore -q -- $rel
+        $isIgnored = ($LASTEXITCODE -eq 0)
+    } catch {
+        $isIgnored = $false
+    }
+    if (-not $isIgnored) { $exposedEnv += $rel }
+}
+Assert-That -Name "No .env file is visible to git" `
+            -Condition ($exposedEnv.Count -eq 0) `
+            -Detail ("Visible to git: " + ($exposedEnv -join ', '))
 
 # 4b. Credential-bearing file extensions anywhere in the tree
 $credExt = Get-ChildItem $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
