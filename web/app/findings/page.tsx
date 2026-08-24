@@ -1,18 +1,30 @@
 import { getStatus, toSafeError } from '@/lib/salesforce';
 import { runAssessment } from '@/lib/assessment';
-import FindingCard from '@/components/FindingCard';
+import FindingRow from '@/components/FindingRow';
 import Notice, { DisconnectedNotice } from '@/components/Notice';
 import type { AssessmentResult } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
+/**
+ * The investigation queue.
+ *
+ * Triage only. It answers what needs attention, how serious it is, where in
+ * the revenue process it sits and how large the affected population is — then
+ * hands off. The control architecture, the evidence and the Salesforce records
+ * belong on the finding itself, so nothing here duplicates the Overview or the
+ * detail page.
+ */
 export default async function FindingsPage() {
   const status = await getStatus();
   if (!status.connected) {
     return (
       <>
         <h1>Findings</h1>
-        <p className="lede">Checks that failed, most severe first.</p>
+        <p className="lede">
+          Revenue operations conditions detected in the latest Salesforce assessment, ordered by
+          priority.
+        </p>
         <DisconnectedNotice status={status} />
       </>
     );
@@ -32,27 +44,56 @@ export default async function FindingsPage() {
     );
   }
 
+  const high = result.findings.filter((f) => f.severity === 'High').length;
+  const medium = result.findings.filter((f) => f.severity === 'Medium').length;
+  const low = result.findings.filter((f) => f.severity === 'Low').length;
+
   return (
     <>
       <h1>Findings</h1>
       <p className="lede">
-        {result.findingCount === 0
-          ? 'Every check passed against the current org.'
-          : `${result.findingCount} of 6 checks found records that need attention, ordered by severity then volume. Each finding opens the records behind it.`}
+        Revenue operations conditions detected in the latest Salesforce assessment, ordered by
+        priority. Each one opens the records behind it.
       </p>
 
       {result.findings.length === 0 ? (
-        <Notice tone="ok" title="No findings">
-          A check that finds nothing is not reported as a finding. The suite also carries a check
-          that is expected to return zero, so a clean result is evidence the engine is reporting
-          rather than manufacturing work.
+        <Notice tone="ok" title="No findings detected">
+          No assessed records failed the current controls. That is a statement about the six checks
+          NorthstarIQ runs, not about the whole org.
         </Notice>
       ) : (
-        <div className="stack">
-          {result.findings.map((f) => (
-            <FindingCard key={f.id} finding={f} />
-          ))}
-        </div>
+        <>
+          <dl className="queue-summary">
+            <div>
+              <dt>Findings</dt>
+              <dd>{result.findings.length}</dd>
+            </div>
+            {high > 0 ? (
+              <div>
+                <dt>High priority</dt>
+                <dd className="bad">{high}</dd>
+              </div>
+            ) : null}
+            {medium > 0 ? (
+              <div>
+                <dt>Medium priority</dt>
+                <dd>{medium}</dd>
+              </div>
+            ) : null}
+            {low > 0 ? (
+              <div>
+                <dt>Low priority</dt>
+                <dd>{low}</dd>
+              </div>
+            ) : null}
+          </dl>
+
+          <div className="queue">
+            {result.findings.map((f) => (
+              <FindingRow key={f.id} finding={f} />
+            ))}
+          </div>
+        </>
       )}
     </>
   );

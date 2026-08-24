@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getStatus, toSafeError } from '@/lib/salesforce';
 import { runCheck } from '@/lib/assessment';
 import { isCheckId } from '@/lib/checks';
+import { PRESENTATION, evidenceUrl } from '@/lib/presentation';
 import EvidenceTable from '@/components/EvidenceTable';
 import Notice, { DisconnectedNotice } from '@/components/Notice';
 import type { CheckResult } from '@/lib/types';
@@ -10,6 +11,14 @@ import type { CheckResult } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 /**
+ * INVESTIGATE, read top to bottom.
+ *
+ * The page answers one question per section, in the order an operator would
+ * ask them: why does this control exist, what should the system do, what did
+ * it actually find, which records, what was built to hold the line, and how do
+ * we know that works. Everything after the evidence table comes from the
+ * repository rather than from the org.
+ *
  * Deliberately no loading.tsx under /findings.
  *
  * A loading boundary flushes the response shell before this component runs, so
@@ -54,61 +63,68 @@ export default async function FindingDetailPage({
 
   if (!check) notFound();
 
+  const p = PRESENTATION[check.id];
+  const github = evidenceUrl(p);
+  const priority = check.severity === 'High' ? 'High priority' : `${check.severity} priority`;
+
   return (
     <>
       <Link className="link-back" href="/findings">
         ← All findings
       </Link>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-        <span className={`badge ${check.severity}`}>{check.severity}</span>
-        <span className="stat-label">{check.category}</span>
+      <div className="finding-head">
+        <h1>{p.label}</h1>
+        <p className="finding-context">
+          {check.category} · <span className={`sev ${check.severity}`}>{priority}</span>
+        </p>
+        <p className="finding-result">
+          {check.failing === 0
+            ? 'No records failed this check.'
+            : p.finding(check.failing, check.evaluated)}
+        </p>
       </div>
-      <h1>{check.title}</h1>
-      <p className="lede">{check.businessQuestion}</p>
 
-      <div className="stack">
-        <div className="card">
-          <div className="grid-meta">
+      <div className="detail">
+        <section>
+          <h2>Why this control exists</h2>
+          <p>{p.why}</p>
+        </section>
+
+        <section>
+          <h2>Expected control</h2>
+          <p>{p.expected}</p>
+        </section>
+
+        <section>
+          <h2>What NorthstarIQ found</h2>
+          <dl className="metrics">
             <div>
-              <div className="stat-label">Records affected</div>
-              <div
-                className="stat-value"
-                style={check.failing > 0 ? { color: 'var(--high)' } : undefined}
-              >
-                {check.failing}
-              </div>
+              <dt>Records affected</dt>
+              <dd className={check.failing > 0 ? 'bad' : undefined}>{check.failing}</dd>
             </div>
             <div>
-              <div className="stat-label">Records evaluated</div>
-              <div className="stat-value">{check.evaluated}</div>
+              <dt>Records evaluated</dt>
+              <dd>{check.evaluated}</dd>
             </div>
             <div>
-              <div className="stat-label">Check score</div>
-              <div className="stat-value">{check.score}</div>
+              <dt>Check score</dt>
+              <dd>{check.score}</dd>
             </div>
-          </div>
+          </dl>
           <p className="footnote">
-            Population: {check.population}. The score is{' '}
+            Measured over {check.population} —{' '}
             <span className="mono">
               100 × (1 − {check.failing}/{check.evaluated || 1})
-            </span>{' '}
-            — measured over what this check could judge, not over the whole org.
+            </span>
+            . Records outside this population are excluded from the score rather than counted as
+            healthy.
           </p>
-        </div>
+        </section>
 
-        <div className="card">
-          <dl className="definitions">
-            <dt>Why it matters</dt>
-            <dd>{check.businessImpact}</dd>
-            <dt>What to do</dt>
-            <dd>{check.recommendation}</dd>
-          </dl>
-        </div>
-
-        <div>
-          <div className="row-between" style={{ marginBottom: 12 }}>
-            <h2 style={{ margin: 0 }}>Evidence</h2>
+        <section>
+          <div className="section-head">
+            <h2>Evidence</h2>
             <span className="muted" style={{ fontSize: 13 }}>
               {check.failing === 0
                 ? 'No records failed this check'
@@ -121,11 +137,62 @@ export default async function FindingDetailPage({
             instanceHost={status.instanceHost}
           />
           <p className="footnote">
-            Field values are shown exactly as Salesforce returned them. Record Ids link to the
-            connected org. Only the fields this check reasons over are displayed.
+            Field values are shown exactly as Salesforce returned them. Each record name opens that
+            record in the connected org. Only the fields this check reasons over are displayed.
           </p>
-        </div>
+        </section>
+
+        <section>
+          <h2>Implemented safeguard</h2>
+          <div className="safeguard">
+            <h3>{p.safeguard.title}</h3>
+            <p>{p.safeguard.body}</p>
+            {p.safeguard.tech ? (
+              <div className="tech">
+                {p.safeguard.tech.map((t) => (
+                  <span className="tech-tag" key={t}>
+                    {t}
+                  </span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+          <p className="footnote">
+            {p.safeguard.kind === 'preventive'
+              ? 'Preventive control: Salesforce configuration stops or safely redirects the unsafe outcome before it happens.'
+              : 'Detective control: NorthstarIQ reports the condition for review. Nothing in Salesforce prevents it.'}
+          </p>
+        </section>
+
+        <section>
+          <h2>Verification</h2>
+          <ul className="verification">
+            {p.verification.map((v) => (
+              <li key={v}>
+                <span className="tick" aria-hidden="true">
+                  ✓
+                </span>
+                {v}
+              </li>
+            ))}
+          </ul>
+          <p className="footnote">{p.verificationSource}</p>
+        </section>
+
+        {github ? (
+          <p className="evidence-link">
+            <a href={github} target="_blank" rel="noreferrer">
+              View implementation evidence
+              <span aria-hidden="true"> ↗</span>
+              <span className="sr-only"> (opens GitHub in a new tab)</span>
+            </a>
+          </p>
+        ) : null}
       </div>
+
+      <p className="footnote canonical">
+        Canonical check <span className="mono">{check.id}</span> — {check.title}. {check.recommendation}
+      </p>
     </>
   );
 }

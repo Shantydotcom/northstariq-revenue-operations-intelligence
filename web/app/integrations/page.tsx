@@ -1,4 +1,4 @@
-import { getStatus, query } from '@/lib/salesforce';
+import { getStatus, listViewUrl, query } from '@/lib/salesforce';
 import { ACCOUNT_COUNT_SOQL, CONTACT_COUNT_SOQL, LEAD_SOQL, OPPORTUNITY_SOQL } from '@/lib/soql';
 import ConnectionPill from '@/components/ConnectionPill';
 import Notice, { DisconnectedNotice } from '@/components/Notice';
@@ -16,7 +16,7 @@ const READS = [
 export default async function IntegrationsPage() {
   const status = await getStatus();
 
-  let counts: { label: string; value: number | null }[] = [];
+  let counts: { label: string; object: string; value: number | null }[] = [];
   if (status.connected) {
     const safeCount = async (soql: string) => {
       try {
@@ -32,10 +32,10 @@ export default async function IntegrationsPage() {
       safeCount(CONTACT_COUNT_SOQL),
     ]);
     counts = [
-      { label: 'Leads', value: leads },
-      { label: 'Opportunities', value: opps },
-      { label: 'Accounts', value: accounts },
-      { label: 'Contacts', value: contacts },
+      { label: 'Leads', object: 'Lead', value: leads },
+      { label: 'Opportunities', object: 'Opportunity', value: opps },
+      { label: 'Accounts', object: 'Account', value: accounts },
+      { label: 'Contacts', object: 'Contact', value: contacts },
     ];
   }
 
@@ -82,15 +82,32 @@ export default async function IntegrationsPage() {
           <div className="card">
             <p className="eyebrow">Records visible to this connection</p>
             <div className="grid-meta">
-              {counts.map((c) => (
-                <div key={c.label}>
-                  <div className="stat-label">{c.label}</div>
-                  <div className="stat-value">{c.value === null ? '—' : c.value}</div>
-                </div>
-              ))}
+              {counts.map((c) => {
+                // Built from the instance host the token returned, not from
+                // anything the browser sent, and only for objects this
+                // application reads.
+                const href = listViewUrl(status.instanceHost, c.object);
+                return (
+                  <div key={c.label}>
+                    <div className="stat-label">
+                      {href ? (
+                        <a className="object-link" href={href} target="_blank" rel="noreferrer">
+                          {c.label}
+                          <span aria-hidden="true"> ↗</span>
+                          <span className="sr-only"> (opens the list view in Salesforce)</span>
+                        </a>
+                      ) : (
+                        c.label
+                      )}
+                    </div>
+                    <div className="stat-value">{c.value === null ? '—' : c.value}</div>
+                  </div>
+                );
+              })}
             </div>
             <p className="footnote">
-              Counts are capped at the 500-row query limit. This is a Developer Edition org holding
+              Each label opens that object&rsquo;s list view in the connected org. Counts are
+              capped at the 500-row query limit. This is a Developer Edition org holding
               a small, deliberately shaped synthetic dataset — volume is not the point.
             </p>
           </div>

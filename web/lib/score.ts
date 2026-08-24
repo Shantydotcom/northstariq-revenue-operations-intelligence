@@ -60,6 +60,7 @@ export function toFindings(results: CheckResult[]): FindingSummary[] {
       category: r.category,
       severity: r.severity,
       affected: r.failing,
+      evaluated: r.evaluated,
       businessImpact: r.businessImpact,
     }))
     .sort((a, b) => rank[a.severity] - rank[b.severity] || b.affected - a.affected);

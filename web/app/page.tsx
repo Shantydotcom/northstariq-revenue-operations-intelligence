@@ -11,18 +11,17 @@ export default async function OverviewPage() {
 
   return (
     <>
-      <div className="row-between" style={{ marginBottom: 18 }}>
+      <div className="page-head">
         <div>
-          <h1>Revenue Operations Overview</h1>
+          <h1>Revenue Operations Health</h1>
+          <p className="lede">
+            Live Salesforce intelligence across the processes that determine data quality, account
+            matching, routing, response performance and pipeline reliability. Every score is read
+            from the connected org at the moment you run it.
+          </p>
         </div>
         <ConnectionPill status={status} />
       </div>
-
-      <p className="lede">
-        NorthstarIQ assesses a governed Salesforce inbound process — data quality, identity,
-        segmentation, territory, routing and SLA — and shows the records behind every number. It
-        reads the org and nothing else: there is no write path in this application.
-      </p>
 
       {status.connected ? <AssessmentPanel /> : <DisconnectedNotice status={status} />}
     </>

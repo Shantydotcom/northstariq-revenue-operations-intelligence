@@ -75,6 +75,12 @@ export interface FindingSummary {
   category: Category;
   severity: Severity;
   affected: number;
+  /**
+   * The population this check judged. Carried alongside `affected` so a summary
+   * can be read as "2 of 5" rather than a bare count - the denominator is the
+   * part that keeps a finding honest.
+   */
+  evaluated: number;
   businessImpact: string;
 }
 

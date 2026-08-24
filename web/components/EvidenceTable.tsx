@@ -15,7 +15,7 @@ export default function EvidenceTable({
 }: {
   columns: EvidenceColumn[];
   rows: EvidenceRow[];
-  /** When known, the Record Id becomes a deep link into the connected org. */
+  /** When known, the record's name becomes a deep link into the connected org. */
   instanceHost?: string;
 }) {
   if (rows.length === 0) {
@@ -33,26 +33,34 @@ export default function EvidenceTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, i) => (
-            <tr key={String(row.Id ?? i)}>
-              {columns.map((c) => {
-                const value = row[c.key];
-                const display = value === null || value === '' ? '—' : String(value);
-                const href = c.key === 'Id' ? recordUrl(instanceHost, display) : null;
-                return (
-                  <td key={c.key} className={c.mono ? 'mono' : undefined}>
-                    {href ? (
-                      <a href={href} target="_blank" rel="noreferrer">
-                        {display}
-                      </a>
-                    ) : (
-                      display
-                    )}
-                  </td>
-                );
-              })}
-            </tr>
-          ))}
+          {rows.map((row, i) => {
+            // One link per row, on the name a reader recognises. The Id stays
+            // visible as text because it is the value Salesforce actually holds,
+            // but an 18-character key is not something to ask anyone to click.
+            const href = recordUrl(instanceHost, String(row.Id ?? ''));
+            return (
+              <tr key={String(row.Id ?? i)}>
+                {columns.map((c) => {
+                  const value = row[c.key];
+                  const display = value === null || value === '' ? '—' : String(value);
+                  const linked = href !== null && c.key === 'Name';
+                  return (
+                    <td key={c.key} className={c.mono ? 'mono' : undefined}>
+                      {linked ? (
+                        <a className="record-link" href={href} target="_blank" rel="noreferrer">
+                          {display}
+                          <span aria-hidden="true"> ↗</span>
+                          <span className="sr-only"> (opens in Salesforce)</span>
+                        </a>
+                      ) : (
+                        display
+                      )}
+                    </td>
+                  );
+                })}
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

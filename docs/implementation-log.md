@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Purpose** | The running record of what was actually built, deployed, and validated |
-| **Status** | Open — Salesforce Increments 1-4 human-accepted · Web MVP implemented and verified locally · **no live Salesforce connection** |
+| **Status** | Open — Salesforce Increments 1-4 human-accepted · Web MVP implemented · **connected read path exercised against the org 2026-08-24; no control behaviour validated by it, and not deployed** |
 
 ---
 
@@ -1024,6 +1024,101 @@ work, targeting the Vercel Hobby free plan.
 
 ---
 
+### 2026-08-24 — Web: first live org run · assessment UI rework · design-system passes
+
+```
+Requirement:   BR-22 BR-23 - reliability class stated per measure, recorded
+               reasons read back without write. The accessibility and design
+               work traces to the WCAG 2.2 AA commitment in PRODUCT.md, NOT to
+               a numbered BR. That gap is recorded, not papered over.
+Component:     web/ - assessment UI rework (lib/presentation.ts; FindingRow
+               replaces FindingCard; assessment areas and a scoring disclosure
+               on the Overview) and design-system passes over app/globals.css.
+               0 Salesforce metadata changed. 0 scoring logic changed.
+Deployment:    None. No Vercel project exists. Not deployed.
+Validation:    First live read against the Developer Edition org · 20/20 unit
+               tests · tsc --noEmit clean · repository validator 51 passed /
+               0 warnings / 0 failed · design detector 0 findings on markup,
+               CSS and type scope · in-browser measurement at 1366x599 on
+               /, /findings and /integrations
+Test result:   Live assessment returned HTTP 200 at 2026-08-24T06:32:09Z -
+               81 records assessed, overall health 68, 6 findings, 3 high.
+               Areas: Data Quality 94 · Routing 90 · Identity & Matching 96 ·
+               SLA Performance 60 · Pipeline Hygiene 0.
+Commit:        this commit - `feat(web): rework assessment experience and design system`
+Deferred:      Vercel deployment · viewports below 720px · real-keyboard
+               traversal · screen-reader pass · synthetic dataset
+```
+
+> **The connected read path is now exercised. Nothing about Salesforce control behaviour is.**
+> The application authenticated to the org and read live `Lead` and `Opportunity` records. That
+> validates the **read path and nothing beyond it**. A finding of "4 Leads in the routing exception
+> queue" is a **report of org state**, not evidence that routing, segmentation, SLA or matching
+> behaved correctly. No control was exercised by this run, no remediation occurred, and the
+> application still has no write path at all.
+
+**What the live run proves, precisely.**
+
+| Now exercised | Evidence |
+|---|---|
+| OAuth 2.0 Client Credentials authentication against the Developer Edition org | `getStatus()` returned connected; the Overview rendered `Salesforce connected · Developer Edition` |
+| SOQL read of `Lead` and `Opportunity` | `objectsAssessed: ["Lead","Opportunity"]`, 81 records assessed |
+| Six checks executing over live records | Six findings returned with live populations — 4/50, 2/5, 1/17, 13/13, 2/50, 2/17 |
+| Scoring computed from live records | `overallHealth` 68 = mean(94, 90, 96, 60, 0), reproduced by hand from the returned payload |
+
+**What the live run does NOT prove.** Stated because a successful read is the easiest result in this
+repository to overstate.
+
+| Still unproven | Why |
+|---|---|
+| Routing · segmentation · SLA · matching **behaviour** | The application reads what the org already recorded. It exercises no control and asserts no control outcome. **A finding is a symptom report, not a control test.** |
+| Remediation of any finding | No write path exists. Nothing in the org was changed, and nothing was fixed. |
+| That the judged population is the designed dataset | The documented ~190-record synthetic dataset **has still not been generated**. This run judged whatever records the org already held from Increments 1-4. |
+| Salesforce error handling at the boundary | The failure path was exercised by intercepting the browser `fetch`, **not** by forcing a real Salesforce error. The five safe error codes remain unproven against the org. |
+| Bulk or scale behaviour | 81 records. No scale claim is made. |
+| Vercel deployment | No project, no environment variables, no URL. |
+
+**Assessment UI rework — `Implemented`.**
+
+| Change | Detail |
+|---|---|
+| `lib/presentation.ts` (new) | Operator-facing labels, blurbs, populations and verification strings held separately from check ids |
+| `components/FindingRow.tsx` (new) · `FindingCard.tsx` (removed) | The findings queue is rows separated by a rule, not cards |
+| Overview | Assessment areas with per-area population sub-lines, and a scoring disclosure carrying a worked example computed from the run in view |
+| `EvidenceTable` · `ConnectionPill` · `lib/salesforce.ts` · `lib/score.ts` · `lib/types.ts` | Modified in support of the above |
+
+**Design-system passes over `app/globals.css` — `Implemented`, measured where measurable.**
+
+| Change | Measured outcome |
+|---|---|
+| Type roles | 19 ad-hoc font sizes → 10 role tokens; 6 weights → 3; expressed in `rem` so reader font-size settings scale the interface. 9 sizes and 3 weights render on the Overview. |
+| `--ink-faint` `#8b93a1` → `#67707f` | 2.89:1 → **4.66:1** on `--bg`. Cleared 12 failing text nodes. |
+| Focus indicators | 0 of 10 focusables had an author-defined indicator; now **10 of 10**. |
+| `aria-live` status region | One `role="status"` region, rendered in every phase so it outlives its content. Announces the completed result. WCAG 2.2 4.1.3. |
+| Result preserved across a failed re-run | The last completed assessment is no longer discarded when a re-run fails. |
+| Zero-score meter | A score of 0 draws no fill; the boundary measures **4.66:1** against a **3:1** requirement (WCAG 2.2 1.4.11). The prior treatment measured 1.49:1 and did not meet it. |
+| Severity | One treatment across Overview and Findings; the second chassis was removed. |
+| Dead CSS | 7 orphaned selectors and a duplicated media rule removed; 0 unused class selectors remain. |
+| CSS comments | 7 comments corrected where they asserted an unverified outcome or a false count — including one claiming the zero meter was legible when it measured 1.49:1. |
+
+**Accessibility conformance — scope of the claim.** WCAG 2.2 AA is asserted **only** for what was
+measured: text contrast on `/`, `/findings` and `/integrations` (0 failures across 101 text nodes),
+focus visibility on all 10 focusables, heading order, and the zero-meter graphical boundary. **Not**
+claimed: a full WCAG audit, a screen-reader pass, or keyboard traversal by real key input —
+synthetic `Tab` could not be delivered through the automation channel, so focus was confirmed from
+the CSSOM and from `focus({focusVisible:true})` instead, and both channels agreed.
+
+**Viewport coverage — stated.** All measurement was taken at **1366x599**, the physical maximum of
+the machine used. Viewports below 720px were **reasoned from the media queries, not rendered and
+measured.** No claim is made about narrow-screen behaviour.
+
+**Repository hygiene.** `.gitignore` now excludes `.impeccable/` at any depth. It held regenerable
+critique snapshots and `web/.impeccable/live/server.json`, which carries a local live-server PID and
+session token; the existing `*token*` rule matches file **names**, not contents, so it never caught
+that file. Verified with `git check-ignore -v`; neither directory was ever tracked.
+
+---
+
 ## Implementation Status
 
 **Increments 1, 2 and 3 are deployed, runtime-validated, and human-accepted.** Increment 3 was
@@ -1071,9 +1166,14 @@ folded into rows about org metadata.
 | Negative control (governed without segment) | ✅ **VALIDATED against fixtures** — returns zero, never rendered |
 | SLA measurable-population rule (`M-07`) | ✅ **VALIDATED against fixtures** — unmeasurable Leads excluded from the denominator |
 | Disconnected / not-configured path | ✅ **VERIFIED locally** — every page renders, no results are invented |
-| Salesforce integration boundary (`lib/salesforce.ts`) | ✅ **IMPLEMENTED** — 🟡 **UNEXERCISED**. Typed, guarded by `server-only`, never once run against the org. |
-| Connected path (auth, SOQL, live assessment) | ⬜ **NOT VALIDATED** — no Connected App exists |
-| Salesforce Connected App / OAuth credentials | ⬜ **NOT CONFIGURED** |
+| Salesforce integration boundary (`lib/salesforce.ts`) | ✅ **VALIDATED — read path only (2026-08-24)**. Authenticated and read `Lead` and `Opportunity`. Write path absent, not disabled. |
+| Connected path (auth, SOQL, live assessment) | ✅ **VALIDATED — read only (2026-08-24)** — 81 records, overall health 68, 6 findings returned |
+| Salesforce Connected App / OAuth credentials | ✅ **CONFIGURED** — Client Credentials Flow reaches the org. Org-side configuration **not inspected** in this repository. |
+| **Salesforce control behaviour judged by those findings** | ⬜ **NOT VALIDATED BY THE WEB APP.** The application reports org state; it exercises no control. Control validation remains the Increment 1-4 evidence above and nothing else. |
+| Salesforce error classification at the boundary | 🟡 **UNEXERCISED against the org** — the failure path was exercised by intercepting the browser fetch, not by a real Salesforce error |
+| Assessment UI rework + design-system passes | ✅ **IMPLEMENTED (2026-08-24)** — detector clean; contrast, focus and heading order measured at 1366x599 |
+| Accessibility (WCAG 2.2 AA) | 🟡 **PARTIAL** — text contrast, focus visibility, heading order and the zero-meter boundary measured and passing. No screen-reader pass, no real-keyboard traversal, no viewport below 720px measured. |
+| Synthetic dataset (~190 records) | ⬜ **NOT GENERATED** — the live run judged records the org already held, not the designed dataset |
 | Vercel deployment | ⬜ **NOT DEPLOYED** — no project exists |
 
 ### Developer Edition constraint — recorded
@@ -1097,12 +1197,23 @@ configuration increment is planned.
 committed in this repository under `web/`. Writes remain deliberately held back; there is no write
 path in the application at all.
 
-**The next step is the single smallest thing that would change what this project can claim:**
-create the Salesforce Connected App in the Developer Edition org, configure the Client Credentials
-Flow, and run one assessment against real org data. Until that happens the connected path is
-implemented and **unexercised**, and no claim about live behaviour may be made. Vercel deployment
-comes after that, not before - deploying an integration that has never once connected would put an
-unproven claim on a public URL.
+**That step has now been taken.** The Connected App exists, the Client Credentials Flow reaches the
+Developer Edition org, and one assessment ran against real org data on 2026-08-24 — 81 records,
+overall health 68, six findings. The connected path is no longer unexercised, and the entry for that
+date states exactly how far the result reaches.
+
+**It reaches less far than it looks.** The run proves the application can authenticate and read. It
+proves nothing about routing, segmentation, SLA or matching behaviour, because reading a record that
+sits in an exception queue is not a test of the automation that put it there. Control evidence
+remains what Increments 1-4 recorded, and nothing in the web application adds to it.
+
+**The next step is the generation and load of the ~190-record synthetic dataset** described in
+[`testing-strategy.md`](testing-strategy.md). Until it exists, every live figure the application
+displays is a reading of whatever records the org happened to hold from increment testing — real,
+but not the purposeful population the scenarios were written against, and therefore not a basis for
+any claim about the designed defect profile.
+
+Vercel deployment still comes after that, not before.
 
 **Deferred, and deliberately not resolved during closeout:**
 

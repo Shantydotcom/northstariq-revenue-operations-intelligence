@@ -166,15 +166,16 @@ export async function getStatus(): Promise<SalesforceStatus> {
   }
 
   try {
-    const rows = await query<{ Name: string; OrganizationType: string; InstanceName: string }>(
-      'SELECT Name, OrganizationType, InstanceName FROM Organization LIMIT 1',
-    );
-    const org = rows[0];
+    // A one-row read of an object the assessment already requires. Organization
+    // is deliberately not probed: the least-privilege integration principal has
+    // no access to it, so probing it reported Disconnected on a connection that
+    // was working. A probe should test the access the application actually needs.
+    await query<{ Id: string }>('SELECT Id FROM Lead LIMIT 1');
     const { instanceUrl } = await getToken();
     return {
       connected: true,
       configured: true,
-      environment: org?.OrganizationType ?? 'Developer Edition',
+      environment: 'Developer Edition',
       instanceHost: new URL(instanceUrl).host,
     };
   } catch (err) {
@@ -197,4 +198,19 @@ export function toSafeError(err: unknown): SafeError {
 export function recordUrl(instanceHost: string | undefined, recordId: string): string | null {
   if (!instanceHost || !/^[a-zA-Z0-9]{15,18}$/.test(recordId)) return null;
   return `https://${instanceHost}/lightning/r/${recordId}/view`;
+}
+
+/** The only objects this application reads, and so the only ones it links to. */
+const LINKABLE_OBJECTS = new Set(['Lead', 'Opportunity', 'Account', 'Contact']);
+
+/**
+ * Build a Salesforce list-view URL for one object.
+ *
+ * Same rule as `recordUrl`: the host comes from the token response held
+ * server-side, never from anything the browser sent, and the object name must
+ * be one this application actually reads. No credential is ever placed in a URL.
+ */
+export function listViewUrl(instanceHost: string | undefined, object: string): string | null {
+  if (!instanceHost || !LINKABLE_OBJECTS.has(object)) return null;
+  return `https://${instanceHost}/lightning/o/${object}/list`;
 }
