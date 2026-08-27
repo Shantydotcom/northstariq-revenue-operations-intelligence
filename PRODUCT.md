@@ -33,9 +33,9 @@ distinct access. Analytics and capture integration principals are non-human and 
 
 ## Product Purpose
 
-NorthstarIQ is a governed Revenue Operations architecture built on Salesforce Sales Cloud and
-Microsoft Power BI for a fictional $42M-ARR B2B SaaS company, plus a read-only Next.js assessment
-application over the org.
+NorthstarIQ is a governed Revenue Operations architecture built on **Salesforce Sales Cloud** for a
+fictional $42M-ARR B2B SaaS company, plus a **read-only assessment application over the org**.
+Power BI analytics is deferred future work and is not part of the implemented portfolio scope.
 
 The application demonstrates one loop: **CONNECT → ASSESS → FIND → INVESTIGATE.** Connect to a
 Salesforce org, run an assessment of the governed inbound revenue process, see which checks failed,
@@ -144,16 +144,16 @@ configurable rather than inventing the rule. See `docs/assumptions.md`.
 
 **Real and usable**
 
-- Nine consolidated documents in `docs/`: business case, 23 business requirements with 6 personas
-  and 12 Portfolio Decisions, architecture, data model, an 8-metric dictionary with reliability
-  classes, security model, 17 test scenarios, 14 assumptions with 8 risks and 5 open decisions, and
-  the implementation log.
-- `docs/implementation-log.md` — the sole authority on what exists. Salesforce Increments 1–4 are
-  deployed and human-accepted, 46 metadata components deployed with a recorded deploy id.
-- The implemented `web/` application: four routes, six checks, scoring, 20 unit tests over checks
+- A deployed and human-accepted Salesforce implementation — configuration-driven segmentation,
+  matching, territory and routing, with SLA and explainability captured on the record. **Zero Apex.**
+  `docs/implementation-log.md` is the sole authority on what exists.
+- The implemented `web/` application: six checks, deterministic scoring, 20 unit tests over checks
   and scoring, running with no network against fixtures in `web/test/fixtures.ts`.
+- Nine consolidated documents in `docs/` covering business case, requirements, architecture, data
+  model, metrics, security, testing, assumptions and the implementation log.
 - A working disconnected state that renders honestly without credentials.
-- ~190-record synthetic dataset spec in `data/`, deterministic and scenario-purposeful.
+- A ~190-record synthetic dataset **specification** in `docs/testing-strategy.md` §3 — deterministic
+  and scenario-purposeful. **The dataset itself has not been generated;** `data/` is empty.
 - `CLAUDE.md` — the engineering contract governing how work is done.
 
 **Absences future work must not fabricate**
@@ -163,9 +163,13 @@ configurable rather than inventing the rule. See `docs/assumptions.md`.
 - **Every baseline figure is synthetic** — 48% incomplete data, 6.4h median and 41h P90 time to
   assignment, 21% unassigned beyond 24 business hours, 34% SLA attainment, 27% first touch
   undeterminable, 18.6% 30-day reassignment. Label them as such wherever they surface.
-- **No Salesforce Connected App exists**, so the application has never connected to the org and is
-  not deployed. No claim may be made about its behaviour with real data.
-- No screenshots of live org data, no measured outcomes, no performance-at-scale claims.
+- **The application is not deployed.** No hosting project, no environment variables, no URL. The
+  Connected App exists and the connected **read path** has been exercised — that validates
+  authentication and SOQL read, and **nothing about Salesforce control behaviour.** A finding is a
+  **symptom report, not a control test**, and no claim may imply otherwise.
+- No screenshots of live org data. No performance-at-scale claims. Measured outcomes exist **only**
+  where a measurement was taken and its scope stated — accessibility contrast and focus at 1366×599,
+  and one recorded live assessment run.
 
 ## Product Principles
 

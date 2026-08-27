@@ -3,6 +3,7 @@ import type {
   Category,
   CategoryScore,
   CheckResult,
+  ControlSummary,
   FindingSummary,
 } from './types.ts';
 
@@ -66,6 +67,27 @@ export function toFindings(results: CheckResult[]): FindingSummary[] {
     .sort((a, b) => rank[a.severity] - rank[b.severity] || b.affected - a.affected);
 }
 
+/**
+ * Population facts for every control, healthy or not.
+ *
+ * `findings` holds failures only, so the Overview could previously only infer a
+ * healthy control's numbers. These are the real ones, carried for all six, so
+ * every count a reader sees came from the check that produced it.
+ */
+export function toControls(results: CheckResult[]): ControlSummary[] {
+  return results.map((r) => ({
+    id: r.id,
+    category: r.category,
+    orgPopulation: r.orgPopulation,
+    orgPopulationNoun: r.orgPopulationNoun,
+    evaluated: r.evaluated,
+    failing: r.failing,
+    notEvaluatedCount: r.notEvaluatedCount,
+    unmeasurableCount: r.unmeasurableCount,
+    score: r.score,
+  }));
+}
+
 export function buildAssessment(
   results: CheckResult[],
   recordsAssessed: number,
@@ -80,6 +102,7 @@ export function buildAssessment(
     overallHealth: overallHealth(categories),
     categoryScores: categories,
     findings,
+    controls: toControls(results),
     findingCount: findings.length,
     highSeverityCount: findings.filter((f) => f.severity === 'High').length,
     objectsAssessed,

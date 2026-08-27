@@ -12,8 +12,10 @@
 **This is the only place in the repository where a component becomes real.**
 
 Everything in [`architecture.md`](architecture.md), [`data-model.md`](data-model.md), and
-[`security-model.md`](security-model.md) is a candidate. A component moves from candidate to
-implemented by appearing here, with evidence.
+[`security-model.md`](security-model.md) **begins** as a candidate. A component moves from candidate
+to implemented by appearing here, with evidence. Those documents now hold a mix of implemented,
+superseded and still-candidate material — **this log, not their section headings, is the authority
+on which is which.**
 
 It is a log, not a governance framework. Entries are short and factual.
 
@@ -1119,11 +1121,443 @@ that file. Verified with `git check-ignore -v`; neither directory was ever track
 
 ---
 
+### Reconciled 2026-08-26 — Salesforce: SLA exception semantics · routing-readiness governance
+
+```
+Requirement:   BR-02, BR-11, BR-12, BR-13, BR-21
+Metadata:      MODIFIED  Lead.SLA_Status__c (formula + description)
+               NEW       Routing_Readiness_Source__mdt (2 fields)
+               NEW       Routing_Readiness_Source.{NorthstarIQ_Inbound, Web,
+                         Phone_Inquiry} - 3 records, all Is_Active__c = true
+               NEW       NIQ_Integration_Read permission set
+Deployment:    Confirmed present in northstariq-dev by read-only query on
+               2026-08-26 (below). The deployment EVENT was not logged when it
+               happened; only its present effect is evidenced.
+Validation:    Read-only SOQL against northstariq-dev, 2026-08-26
+Test result:   See "What the org returns today", below - 7 of 7 Leads behave
+               as the corrected formula predicts and as the superseded one
+               would not.
+Commit:        NOT COMMITTED - present in the working tree only
+Dating:        RECONCILED FROM REPOSITORY AND CURRENT-ORG EVIDENCE ON
+               2026-08-26. The original implementation date, sequence and
+               deployment command are NOT independently established and are
+               deliberately not asserted.
+```
+
+> **This is a reconciliation entry, not a contemporaneous one.** It was written on 2026-08-26 from
+> the working-tree diff and from read-only queries executed that day. It records **what the
+> repository and the org can be shown to contain now.** It does not claim to record what happened on
+> the day the work was done, because that evidence was not captured.
+
+**The SLA correction, shown by the diff.** `Lead.SLA_Status__c` decided its `Excluded` state from
+the wrong field:
+
+```
+- IF( NOT(ISBLANK(TEXT(Exception_Type__c))), "Excluded", "Unmeasurable" )
++ IF( CONTAINS(Routing_Reason__c, "NIQ_Routing_Exception"), "Excluded", "Unmeasurable" )
+```
+
+`Exception_Type__c` is a **condition classification**, and its own field description — unchanged,
+predating this correction — already said so: *"Non-Routing Intake means ownership was intentionally
+preserved - it does NOT mean the Lead was placed in the routing exception queue."* Treating every
+non-blank value as an SLA exclusion therefore excluded Leads whose ownership was merely preserved,
+alongside the Leads that genuinely reached the exception queue. The corrected formula reads the
+routing **outcome** instead.
+
+**What the org returns today.** Read-only query, 2026-08-26 — all 7 Leads carrying an
+`Exception_Type__c` with no SLA target:
+
+| `Routing_Reason__c` contains `NIQ_Routing_Exception` | `Exception_Type__c` | `SLA_Status__c` | Count |
+|---|---|---|---:|
+| yes | Ambiguous Match · Missing Geography · Unsupported Geography | `Excluded` | 4 |
+| **no** | **Non-Routing Intake** | **`Unmeasurable`** | **3** |
+
+**The three `Unmeasurable` rows are the evidence.** Under the superseded formula every one of the
+seven would have read `Excluded`. That they do not is what shows the corrected formula is the one
+deployed. This is a negative assertion, which `security-model.md` `SP-5` and
+[`testing-strategy.md`](testing-strategy.md) §7 both treat as the primary form of access and
+behaviour evidence.
+
+**Routing-readiness governance — what the artifact says it is.** `Routing_Readiness_Source__mdt`
+carries two fields, `Lead_Source__c` and `Is_Active__c`, and its object description states the scope
+directly: *"A membership list, not a rules engine, and deliberately NOT ownership-routing authority:
+that stays in `Lead_Inbound_Before_Save` (`fxRoutingEligible`). Editable without deployment."*
+
+Three active records exist — `NorthstarIQ Inbound`, `Web`, `Phone Inquiry` — confirmed by read-only
+query on 2026-08-26. **What it replaced is evidenced in the application, not here** — see the web
+reconciliation entry below, where the superseded hard-coded list is visible in the diff.
+
+**Least-privilege consequence.** Consuming this type at runtime required exactly one grant:
+`NIQ_Integration_Read` carries a single `customMetadataTypeAccesses` entry, for
+`Routing_Readiness_Source__mdt` and nothing else. The scoping is provable in both directions — see
+[`security-model.md`](security-model.md) §4b.
+
+**Not established by this entry:** when the metadata was authored or deployed · which `sf` command
+performed it · whether a deployment failed first · any test executed at the time. **No org-side test
+result is claimed** beyond the read-only observation recorded above and dated to the day it ran.
+
+---
+
+### Reconciled 2026-08-26 — Web: assessment population and explainability correction
+
+```
+Requirement:   BR-22, BR-23
+Metadata:      NONE. Application only.
+Component:     web/lib/checks/index.ts - web/lib/types.ts -
+               web/lib/presentation.ts - web/lib/assessment.ts -
+               web/lib/soql.ts - web/test/checks.test.ts
+Deployment:    None.
+Validation:    The test suite in the working tree, executed 2026-08-26
+Test result:   50/50 pass. ~25 of those tests exist specifically to pin the
+               populations and the reconciliation identities described below.
+Commit:        NOT COMMITTED - present in the working tree only
+Dating:        RECONCILED FROM THE WORKING-TREE DIFF ON 2026-08-26. Original
+               implementation date not independently established.
+```
+
+**Four control populations changed. The diff against the last commit shows each one.**
+
+| Control | Committed at `088ba9c` | Working tree |
+|---|---|---|
+| Missing Routing Data | `leads.filter(isGoverned)` — one hard-coded Lead Source | `leads.filter(isReadinessSource)` — the active list read from `Routing_Readiness_Source__mdt` each run |
+| Routing Exceptions | **`evaluated = leads.length`** — every Lead in the org was the denominator | `leads.filter(isGoverned)` — only Leads submitted to ownership routing |
+| Ambiguous Account Match | **`evaluated = leads.length`** | `leads.filter((l) => l.Match_Status__c !== null)` — only Leads carrying a recorded match decision |
+| Missing Territory | `leads.filter(isGoverned)` | `leads.filter(wasProcessedAtIntake)` — the Leads the coverage model actually ran against |
+
+**Why the two `leads.length` rows mattered most.** A control whose denominator is the whole org
+scores itself against records it never judged. Both were reporting a rate over a population that
+included Leads the relevant automation had never touched.
+
+**The records-not-evaluated model is new, not a rename.** `git show HEAD:web/lib/types.ts` contains
+**zero** occurrences of `notEvaluated`, `unmeasurable`, `orgPopulation`, `NotEvaluatedRecord` or
+`BreakdownLine`. The committed contract had no way to express a record a control declined; it also
+carried a `recommendation` field per check that no longer exists. The working tree replaces advice
+with accounting: `orgPopulation = evaluated + notEvaluatedCount` holds for every control, each
+excluded record carries a reason built from its **own** Salesforce values, and `unmeasurable`
+separates *"this control applies but nothing recorded a result"* from *"this control does not apply"*.
+
+**Tests that pin it,** by name, in `web/test/checks.test.ts`: *routing readiness sources come from
+Salesforce configuration, not a built-in list* · *account-matching status no longer decides
+routing-readiness eligibility* · *routing exceptions evaluates only Leads submitted to ownership
+routing* · *a Lead the matching process never assessed is not counted as a pass* · *missing routing
+data reconciles: total = evaluated + excluded, evaluated = passing + failing* · *every check accounts
+for its whole starting population* · *a not-evaluated reason names that record's own Lead Source and
+Owner*.
+
+**Not established by this entry:** the order in which the four populations were corrected · whether
+they were one increment or several · what the scores were before and after at the time · any
+in-browser verification performed on the day. The tests prove the definitions; they do not date them.
+
+---
+
+### Reconciled 2026-08-26 — Web: evidence exports · record tables · Salesforce Setup deep links
+
+```
+Requirement:   BR-23 - recorded reasons and bases are read back out without
+               operational write.
+Metadata:      NONE. Application only.
+Component:     NEW  web/lib/export.ts - web/lib/export-model.ts -
+                    web/lib/setup-links.ts - web/lib/traceability.ts -
+                    web/components/RecordTable.tsx -
+                    web/components/ExportLinks.tsx -
+                    web/app/api/export/{findings, evidence/[checkId],
+                    not-evaluated/[checkId]}/route.ts
+               MOD  web/components/EvidenceTable.tsx - web/lib/soql.ts
+Deployment:    None.
+Validation:    Source inspection and the working-tree test suite, 2026-08-26
+Commit:        NOT COMMITTED - present in the working tree only
+Dating:        RECONCILED FROM REPOSITORY EVIDENCE ON 2026-08-26. Original
+               implementation date not independently established.
+```
+
+**Exports — CSV and XLSX, with no dependency added.** `web/package.json` is **byte-identical to the
+last commit**: the same four runtime dependencies (`next`, `react`, `react-dom`, `server-only`).
+`lib/export.ts` writes both formats on the Node standard library — an `.xlsx` is assembled as a ZIP
+of five XML parts using `node:zlib`, and the CSV carries a UTF-8 BOM so Excel reads the non-ASCII
+characters the application uses in field values. Three `GET` routes serve them; each validates its
+check id against the `CheckId` union before use, so an unknown id is a 404 rather than an empty file.
+
+**Displayed rows and exported rows are deliberately different populations,** and the source says so
+at the boundary where it matters. `RecordTable.tsx` holds the visible slice; its own comment records
+that exports *"go to the server against the full dataset, so a collapsed or filtered view never"*
+limits the file. A reader sees 5 rows; the export carries the full set.
+
+**Record table behaviour, from source.** `DEFAULT_ROWS = 5` · per-column filtering, where multiple
+active filters **narrow together rather than compete** · filter chips outside the header popovers,
+with per-filter and `Clear all` clearing · View all / Show less · Salesforce record links · the
+Actions menu carrying both export formats. One component, reused by every table.
+
+**Setup deep links — three types link, and the restraint is the point.** `lib/setup-links.ts`
+resolves identifiers live rather than storing them, because a record id is org-specific and belongs
+nowhere in source control. Its own header records that the URL shapes **were verified by loading
+them against the connected org** rather than taken from documentation. Resolution uses
+`Promise.allSettled`, not `Promise.all`, so one type being unreadable by the least-privilege
+identity cannot remove the links for a type that is readable — an all-or-nothing failure caused by
+permissions rather than by evidence.
+
+**A Queue and a Custom Metadata type deliberately do not link.** The module states the reason: no
+Setup URL shape could be confirmed to resolve for them, and *"an unlinked name is honest; a link
+that might 404 in front of an evaluator is not."* That decision was re-tested on 2026-08-26 for
+Custom Metadata during the Segment Assignment Consistency increment and upheld. **It is preserved,
+not revisited.**
+
+**Not established by this entry:** when exports, tables or deep links were built, in what order, or
+against which application state · which URL shapes were tried and rejected during the original
+verification · any browser session performed on the day.
+
+---
+
+### 2026-08-26 — Web: Segment Assignment Consistency (seventh assessment control)
+
+```
+Requirement:   BR-05, BR-21 - segmentation derives from governed configuration
+               and records its basis. BR-22 - a measure carries a stated
+               reliability class. BR-23 - recorded reasons and bases are read
+               back out without operational write.
+Metadata:      NONE. 0 Salesforce metadata created, modified or deployed.
+               0 Salesforce records mutated. 0 permission changes.
+Component:     web/ only. New: lib/checks/segment-basis.ts. Modified:
+               lib/checks/index.ts, lib/types.ts, lib/presentation.ts,
+               lib/traceability.ts, lib/export-model.ts, lib/soql.ts,
+               lib/assessment.ts, app/findings/[checkId]/page.tsx,
+               components/AssessmentPanel.tsx, test/checks.test.ts,
+               test/fixtures.ts
+Deployment:    None. No Vercel project exists. Not deployed.
+Validation:    50/50 application unit tests (17 new) - tsc --noEmit clean -
+               repository validator 49 passed / 0 warnings / 2 failed
+               (pre-existing: local .sf and .sfdx CLI state, git-ignored) -
+               git diff --check clean - one live read against
+               northstariq-dev - in-browser regression across Overview,
+               Findings, Finding Detail, column filtering, View all / Show
+               less, CSV and XLSX export, record and configuration links,
+               state persistence across navigation, browser console
+Test result:   Live assessment 2026-08-26T21:37:14Z - 49 Leads read,
+               27 evaluated, 22 not evaluated, 26 passing, 1 failing,
+               score 96. Reconciles exactly: 49 = 27 + 22 and 27 = 26 + 1.
+               The one failure is the deliberately retained fixture
+               UI Test Web (00Qaj00000u50QXEAY) - employee count 500,
+               recorded segmentation result Mid-Market under Rule v1.0,
+               current Segment SMB.
+Commit:        NOT COMMITTED - held for human review
+Deferred:      Runtime reconciliation of a recorded rule version against live
+               Segment_Band__mdt - a Setup deep link for a Custom Metadata
+               type - a re-runnable SOQL artifact under scripts/soql/
+```
+
+> **This entry followed an unlogged gap.** The three **reconciliation entries immediately above**
+> were added on 2026-08-26 to close what could be closed from repository and current-org evidence:
+> the SLA exception-semantics correction and routing-readiness governance, the assessment population
+> and explainability correction, and exports, record tables and Setup deep links. Each states plainly
+> that its **original implementation date is not independently established**, because that evidence
+> was never captured. Nothing was reconstructed from memory. **What those entries recover is the
+> record of what exists, not a claim about the day it was made.**
+
+**What the control asks.** *Does the Segment stored on a Lead still match the segmentation result
+Salesforce recorded for it?* Assessment name **Segment Assignment Consistency**; the finding an
+operator sees is **Segment Assignment Mismatch**, in the **Inbound Lead Data Integrity** area.
+
+**Population and eligibility.** The starting population is every `Lead` the run reads. A Lead is
+evaluated when `Segment_Basis__c` holds a segmentation result the application can interpret. It is
+**not** evaluated when no basis is recorded, or when the recorded basis is not one of the forms the
+Flow writes. `Match_Status__c` is deliberately **not** consulted — account matching is a separate
+capability on a separate timeline and says nothing about whether segmentation ran. Every Lead is
+accounted for as evaluated or not evaluated, with a per-record reason built from its own values.
+
+**Failure and pass.**
+
+| | |
+|---|---|
+| **Fails** | The Segment named by the recorded segmentation result ≠ `Segment__c` |
+| **Passes** | The current Segment agrees with the recorded segmentation result — **and nothing further** |
+
+A pass does not establish that the employee count is right, that the band is commercially
+appropriate, or that territory, ownership or matching are correct.
+
+**Scoring.** The existing methodology, unchanged: `round(100 × (1 − failing / evaluated))`. No
+special model, no weighting, no separate path.
+
+**Source Evidence — the model.** *Source Evidence* is the evaluator-facing term throughout the
+application; **provenance** does not appear in any rendered surface, and a unit test asserts it
+cannot. The expected Segment is read from what Salesforce recorded in `Segment_Basis__c` at the
+moment segmentation ran. Four forms are supported, taken from the Flow's own formula and assignment
+elements rather than inferred from data:
+
+| Flow element | Recorded form | Expected Segment |
+|---|---|---|
+| `fxBasisResolved` | `Employee Count: 500 -> Mid-Market \| Rule v1.0` | the Segment named |
+| `fxStrategicBasis` | `Strategic Account: <name> \| Rule v1.0` | `Strategic` |
+| `fxBasisNoBand` | `Not segmentable: no active band matches employee count <n>` | none |
+| `asgnNoEmployeeCount` | `Not segmentable: employee count missing` | none |
+
+Anything else is classified uninterpretable and excluded. **Honest exclusion over false precision** —
+a guessed expected Segment would either manufacture a failure or conceal one.
+
+**Historical safety — the reason this control is safe to run at all.** NorthstarIQ compares the
+**recorded segmentation result** with the **current Segment**. It does **not** re-run today's
+`Segment_Band__mdt` bands over a historical Lead to decide what that Lead's Segment "should" have
+been. A Lead segmented under an earlier rule version is therefore judged on the rule that actually
+decided it, and a legitimate configuration change cannot be reported as record drift. A unit test
+pins this: two Leads with the same employee count recorded under different rule versions that
+resolved differently both pass.
+
+**Salesforce configuration relationship.** The expected Segment on the employee-count path is
+supported by Custom Metadata — `Segment_Band__mdt`, evaluator-facing **Segment Band**. The Flow's
+`asgnCaptureBand` assigns `varRuleVersion` from `loopBands.Rule_Version__c`, so a version string
+appearing in a recorded basis came from that Custom Metadata and from nowhere else. Configured
+bands: SMB 0–100 · Mid-Market 100–1000 · Enterprise 1000+ · Strategic. `Rule_Version__c = v1.0` on
+all four. Input `Lead.NumberOfEmployees`; result `Segment_Name__c → Lead.Segment__c`, with the basis
+written alongside.
+
+**The Strategic path is not Custom Metadata-driven, and is not described as though it were.**
+Strategic is an **Account designation** (`Account.Strategic_Account__c`) that overrides the
+size-derived Segment. The application credits it to the Account, and a unit test asserts its Source
+Evidence does **not** claim Custom Metadata.
+
+**Integration limitation — validated, not worked around.** The least-privilege integration identity
+**cannot query `Segment_Band__mdt`**; the runtime query returns `INVALID_TYPE`. NorthstarIQ therefore
+**cannot** reconcile a recorded rule version against the live Custom Metadata records during an
+assessment run, and **no permission change was made to obtain that ability.** The application
+reports the rule version **Salesforce recorded on the Lead**. It does not independently confirm that
+version against the live configuration, and nothing in the UI implies that it does.
+
+**A Custom Metadata Setup link was tested and not shipped.** The candidate URL shape was loaded
+against the org in a logged-in Setup session and resolved to the Custom Metadata Types index rather
+than to the Segment Band type. The name renders as plain text instead. An unlinked name is honest; a
+link that 404s in front of an evaluator is not.
+
+**Terminology reconciliation — Inbound Lead Data Integrity.** The Data Quality area previously
+presented as *Inbound Lead Readiness*, scoped to "required routing data on governed inbound Leads".
+With a second control inside it that judgement, that label described only half the area, so the
+area's presentation name, scope and question were corrected. **No new area was created, and no
+grouping or scoring architecture changed** — `Category` remains the key everywhere in scoring. One
+consequential side effect: the Overview's scoring disclosure picks the first area holding more than
+one control, which is now this one, and its sentence hard-coded the word "routing controls". That
+word was removed.
+
+**Existing controls protected by test, not by assertion.** A unit test pins all six pre-existing
+controls as a tuple of `(id, orgPopulation, evaluated, failing, score)` over shared fixtures, and a
+second test re-proves that Missing Routing Data still reads its sources from
+`Routing_Readiness_Source__mdt` rather than a built-in list. `Segment_Basis__c` is read by no other
+check, so the new control has no path to reach them.
+
+**Tests — 17 added, 50 total, 50 pass.** Coverage: pass and fail; a UI-Test-Web-*shaped* record fails
+without that record being hard-coded anywhere; `Match_Status__c` has no effect on eligibility;
+missing evidence is excluded honestly; uninterpretable evidence is never guessed at; an older rule
+version is judged on what was recorded; the Strategic path is credited to the Account; both
+reconciliations hold; the six existing controls are unchanged; and no evaluator-facing string
+requires the word "provenance".
+
+**Observed run — not an acceptance target.**
+
+| | |
+|---|---:|
+| Leads read | 49 |
+| Evaluated | 27 |
+| Not evaluated | 22 (all unmeasurable) |
+| Passing | 26 |
+| Failing | 1 |
+| Score | **96** |
+
+These are the numbers **this run produced against the records the org currently holds**. They are
+evidence, not a threshold, and no test asserts them. The designed ~190-record dataset still does not
+exist.
+
+**Salesforce safety.** 0 metadata deployed · 0 permissions changed · 0 records mutated. Lead count 49
+before and after; `UI Test Web` re-queried after implementation and unchanged
+(`LastModifiedDate 2026-08-23T01:57:09Z`). The deliberately failing record was preserved, not
+corrected.
+
+---
+
+### 2026-08-27 — Integration write boundary established without a write · configuration docs reconciled
+
+```
+Requirement:   BR-20, SP-1, SP-3, SP-5 - access verified by testing behaviour,
+               and a non-human principal scoped rather than assumed.
+Metadata:      NONE. 0 Salesforce metadata created, modified or deployed.
+               0 permissions changed. 0 records inserted, updated or deleted.
+Component:     Documentation only - docs/architecture.md, docs/data-model.md,
+               docs/security-model.md, docs/implementation-log.md
+Deployment:    None.
+Validation:    sObject Describe (HTTP GET) against northstariq-dev as the
+               integration principal, 2026-08-27T02:58:28Z and 02:59:23Z
+Test result:   Lead, Opportunity, Account and Contact all report
+               createable=false, updateable=false, deletable=false,
+               mergeable=false, undeletable=false. Lead: 56 fields visible,
+               0 createable, 0 updateable. Global describe over 413 visible
+               sObjects: 102 createable, 94 updateable, 105 deletable -
+               133 distinct objects writable in at least one respect.
+Commit:        NOT COMMITTED - held for human review
+Deferred:      A real DML rejection against an assessed object - it needs
+               explicit approval and a target that cannot be mutated if the
+               permission assumption is wrong. Narrowing the integration
+               principal's writable surface - a profile change, its own
+               approval.
+```
+
+**Why a describe was executable without approval, and a write was not.** The standing rule is that no
+Salesforce mutation happens without explicit human approval, and that a rollback plan is not a
+substitute for one. The requirement for any negative-access test was therefore that it be
+**guaranteed non-mutating even if the assumption under test is wrong** — if the principal
+unexpectedly held write access, the test still must not change anything.
+
+`GET /services/data/v67.0/sobjects/{Object}/describe` meets that bar by construction. It is an HTTP
+`GET`, carries no request body, and has no DML semantics; there is no permission configuration under
+which it writes a record. It also answers the exact question: Salesforce computes `createable`,
+`updateable` and `deletable` **for the calling principal**, over the composed profile-plus-permission-set
+stack. **No `POST`, `PATCH` or `DELETE` was issued to any sObject endpoint.**
+
+An intentionally malformed DML call was considered and **rejected**: Salesforce may process part of a
+request before returning an error, so "it will fail anyway" is an assumption about the outcome, not a
+guarantee about the mechanism. Using a real record and restoring it afterwards was rejected for the
+same reason.
+
+**What this closes.** Salesforce access is additive, and the API-only profile is not in this
+repository, so the permission-set artifact alone could never establish the **effective** boundary.
+The describe result does, for the objects the assessment reads: the principal cannot create, update
+or delete `Lead`, `Opportunity`, `Account` or `Contact`, and not one of the 56 visible `Lead` fields
+is writable.
+
+**What it does not close, stated because a positive result is the easiest thing here to overstate.**
+
+| Not established | Why |
+|---|---|
+| That an attempted write was rejected | Describe reports **computed permission**, not enforcement observed in flight. No DML was attempted. |
+| That the principal cannot write anything | **Contradicted.** See below. |
+| Apex, Flow invocation, Metadata or Tooling boundaries | Only sObject CRUD was probed. |
+| Which grant produces the outcome | The composed answer is visible; its composition is not. The principal cannot read `PermissionSetAssignment`, and the profile is not in `force-app`. |
+
+**A finding that runs against the design intent, recorded rather than smoothed over.** The global
+describe shows the integration principal **is** writable on 133 objects — including `LeadShare`,
+`OpportunityShare` and `AccountShare` (create, update **and** delete), `Note`, `Attachment`,
+`ContentVersion` and `User`. Sharing rows are the material item: the principal cannot edit a Lead,
+but the platform reports it could write a sharing row for one, and sharing rows are how record access
+widens.
+
+**None of this is granted by `NIQ_Integration_Read`,** which carries object permissions on four
+objects, 23 read-only field permissions, one Custom Metadata type and **zero `<userPermissions>`**. It
+is licence and profile baseline. **No permission was changed to narrow it** — that is a profile change
+on the integration identity and needs its own approval. It is open in
+[`security-model.md`](security-model.md) §10.
+
+**Configuration documentation reconciled in the same pass.** `Routing_Readiness_Source__mdt` now
+appears in [`architecture.md`](architecture.md) §4 — including the fact, verified against the Flow
+metadata, that `Lead_Inbound_Before_Save` holds **zero references to it**: it is read by the
+assessment application, not by Salesforce automation, which is what separates it from
+`Segment_Band__mdt` and `Routing_Rule__mdt`. [`data-model.md`](data-model.md) gains §2b, which states
+that Custom Metadata is configuration rather than CRM data and that **no Custom Metadata Type here
+has a relationship to `Lead`** — the association is made by value at read time, not by a foreign key.
+
+**No application, test or Salesforce artifact was modified by this increment.**
+
+---
+
 ## Implementation Status
 
-**Increments 1, 2 and 3 are deployed, runtime-validated, and human-accepted.** Increment 3 was
-accepted as the **Seller persona**, not as an administrator. SLA does not exist yet and is not
-claimed.
+**Increments 1-4 are deployed, runtime-validated, and human-accepted.** Increments 3 and 4 were
+accepted as the **Seller persona**, not as an administrator. The web application's connected **read
+path** was exercised against the org on 2026-08-24; **no Salesforce control behaviour was validated
+by that run.**
 
 | Area | Status |
 |---|---|
@@ -1134,23 +1568,22 @@ claimed.
 | `Territory__c` · `Match_Status__c` · `Matched_Account__c` · `Routing_Reason__c` · `Exception_Type__c` | ✅ **VALIDATED (Inc 3)** |
 | `Account.Normalized_Domain__c` | ✅ **VALIDATED (Inc 3)** — reproduces Lead normalization on all 13 stock Accounts |
 | Queues — 3 | ✅ **VALIDATED** — coverage pools and fail-safe exception destination |
-| Routing config — 9 `Routing_Rule__mdt` records | ✅ **VALIDATED** — 4 territories → 2 coverage queues |
-| Custom fields — SLA (2 remaining) | ✅ **DEPLOYED — ACCESS VERIFIED** — blank until Increment 4 |
-| Custom Metadata records | ✅ **VALIDATED** — 4 records match source field-by-field |
-| Custom Metadata Types | ✅ **DEPLOYED** — 2 types, 13 fields; `Routing_Rule__mdt` holds 0 records by design |
+| Custom fields — SLA (4) | ✅ **VALIDATED (Inc 4)** — write-once target, basis and first touch; `SLA_Status__c` formula, zero mutation |
+| Custom Metadata records — 16 | ✅ **VALIDATED** — 4 `Segment_Band__mdt` (Inc 1, match source field-by-field) · 9 `Routing_Rule__mdt` (Inc 3, 4 territories → 2 coverage queues) · 3 `Routing_Readiness_Source__mdt` (reconciled 2026-08-26, read back from the org) |
+| Custom Metadata Types | ✅ **DEPLOYED** — 3 types, 18 fields (`Segment_Band__mdt` 7 · `Routing_Rule__mdt` 9 · `Routing_Readiness_Source__mdt` 2) |
 | Global value sets | ✅ **VALIDATED** — enforced `restricted=true` on all 5 consuming fields |
 | Standard value sets | ✅ **VALIDATED** — `AccountType` = 8 values, 7 originals intact + `Churned` |
 | Lead field history | ✅ **VALIDATED** — `Status` and `OwnerId` capture verified and reverted |
 | OWD | ✅ **VALIDATED** — 5 objects confirmed by metadata retrieve |
-| Permission sets | ✅ **`NIQ_Revenue_Seller` VALIDATED** — assigned to a real non-admin principal; effective FLS read-only on all 10 derived fields; `UserRecordAccess` 3/42. `NIQ_Rule_Configuration` still unassigned. |
+| Permission sets — 4 | ✅ **`NIQ_Revenue_Seller` VALIDATED** — assigned to a real non-admin principal; effective FLS read-only on all 10 derived fields; `UserRecordAccess` 3/42. `NIQ_Rule_Configuration` still unassigned. ✅ **`NIQ_Integration_Read`** — read access probed 2026-08-26; **no write boundary executed against it** (`security-model.md` §4b). |
 | Representative Seller | ✅ **VALIDATED + HUMAN ACCEPTED** — 1 user, Minimum Access + `NIQ_Revenue_Seller`, no role, 1 queue. Field authority proven by a principal FLS actually constrains. |
 | Business Hours + Holidays | 🟡 **Moved to the SLA increment** — nothing in Foundation consumes them |
-| Flows | 🟡 3 candidates — **0 implemented** |
-| Apex | 🟢 **1 approved** (business-hours seam + test class) — 0 implemented |
-| Queues | 🟡 2 candidates — **0 implemented** |
-| Reports · dashboards | 🟡 7 · 1 candidates — **0 implemented** |
+| Reports · dashboards | ✅ **DEPLOYED** — `NIQ Open SLA Risk`, `NIQ SLA Attainment by Segment`. **0 dashboards built.** |
+| `User` routing fields — 3 | 🟡 **DEPLOYED, UNCONSUMED** — `Territory__c`, `Routing_Eligible__c`, `Last_Assigned_DateTime__c`. Round robin (`BR-09`, `PD-07`) deferred at Increment 3; `Lead_Inbound_Before_Save` holds **0 references** to them. Territory coverage routes to a queue, not to a seller. |
+| Role hierarchy | 🟡 **CANDIDATE — not built.** The representative Seller holds no role; queue membership carries visibility. |
+| Apex | 🟢 **1 seam approved, 0 implemented** — holiday-aware SLA (`ASM-13` falsified at org inspection). Increment 4 shipped a documented weekend-aware declarative approximation instead. |
 | Dataset | ⬜ Not generated, not loaded |
-| Tests | ⬜ **No test has been executed. No results exist.** |
+| Tests | ✅ **EXECUTED** — 8/8 Inc 2 · 9/9 Inc 3 · 6/6 Seller security + `BR-08` regression · 15/15 Inc 4 · 50/50 web unit. **No scenario has run against the designed dataset**, which does not exist. |
 | Power BI | ⬜ Not started |
 
 ### Web MVP status — separate from the Salesforce table above
@@ -1162,19 +1595,39 @@ folded into rows about org metadata.
 | Area | Status |
 |---|---|
 | Next.js application under `web/` | ✅ **IMPLEMENTED** — 4 pages, 3 API routes, in source control |
-| Six assessment checks + scoring | ✅ **VALIDATED against fixtures** — 20/20 unit tests, no network, no org |
+| Seven assessment checks + scoring | ✅ **VALIDATED against fixtures** — 50/50 unit tests, no network, no org. The seventh, **Segment Assignment Consistency**, was added 2026-08-26. |
 | Negative control (governed without segment) | ✅ **VALIDATED against fixtures** — returns zero, never rendered |
 | SLA measurable-population rule (`M-07`) | ✅ **VALIDATED against fixtures** — unmeasurable Leads excluded from the denominator |
 | Disconnected / not-configured path | ✅ **VERIFIED locally** — every page renders, no results are invented |
 | Salesforce integration boundary (`lib/salesforce.ts`) | ✅ **VALIDATED — read path only (2026-08-24)**. Authenticated and read `Lead` and `Opportunity`. Write path absent, not disabled. |
 | Connected path (auth, SOQL, live assessment) | ✅ **VALIDATED — read only (2026-08-24)** — 81 records, overall health 68, 6 findings returned |
-| Salesforce Connected App / OAuth credentials | ✅ **CONFIGURED** — Client Credentials Flow reaches the org. Org-side configuration **not inspected** in this repository. |
+| Salesforce Connected App / OAuth credentials | ✅ **CONFIGURED** — Client Credentials Flow reaches the org. Credentials are held in `web/.env.local`, which is git-ignored; org-side configuration is **not inspected** in this repository. |
 | **Salesforce control behaviour judged by those findings** | ⬜ **NOT VALIDATED BY THE WEB APP.** The application reports org state; it exercises no control. Control validation remains the Increment 1-4 evidence above and nothing else. |
 | Salesforce error classification at the boundary | 🟡 **UNEXERCISED against the org** — the failure path was exercised by intercepting the browser fetch, not by a real Salesforce error |
 | Assessment UI rework + design-system passes | ✅ **IMPLEMENTED (2026-08-24)** — detector clean; contrast, focus and heading order measured at 1366x599 |
 | Accessibility (WCAG 2.2 AA) | 🟡 **PARTIAL** — text contrast, focus visibility, heading order and the zero-meter boundary measured and passing. No screen-reader pass, no real-keyboard traversal, no viewport below 720px measured. |
 | Synthetic dataset (~190 records) | ⬜ **NOT GENERATED** — the live run judged records the org already held, not the designed dataset |
 | Vercel deployment | ⬜ **NOT DEPLOYED** — no project exists |
+
+### Evidence-standard gap — recorded, not resolved
+
+[`testing-strategy.md`](testing-strategy.md) §7 requires five conditions for **Validated**, including
+**(4) a re-runnable SOQL query or report supports the claim**. **`scripts/soql/` is empty.**
+
+Validation queries for Increments 1-4 **were executed** against the org and their **outcomes** are
+recorded in the dated entries above. The **queries themselves were not committed**, so a reader
+cannot re-run them from this repository today.
+
+**The standard is not being broadened to accommodate this, and no result is being downgraded to
+conceal it.** The executed verification evidence is real: field-by-field CMDT comparison, Tooling API
+and metadata-retrieve confirmation, `UserRecordAccess` counts, effective-FLS checks, and the recorded
+scenario outcomes above including failures. What is missing is the **re-runnable artifact**, not the
+execution.
+
+Two rows already satisfy criterion 4 by report rather than by query: `NIQ Open SLA Risk` and
+`NIQ SLA Attainment by Segment`.
+
+**Closing this gap means committing the queries. It is not closed by editing this document.**
 
 ### Developer Edition constraint — recorded
 

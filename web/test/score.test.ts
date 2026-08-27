@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 
 import { buildAssessment, categoryScores, overallHealth, toFindings } from '../lib/score.ts';
 import { runAllChecks } from '../lib/checks/index.ts';
-import { lead, opportunity, TODAY } from './fixtures.ts';
+import { lead, opportunity, TODAY, READINESS_SOURCES } from './fixtures.ts';
 import type { CheckResult } from '../lib/types.ts';
 
 function stub(over: Partial<CheckResult>): CheckResult {
@@ -14,9 +14,17 @@ function stub(over: Partial<CheckResult>): CheckResult {
     severity: 'Medium',
     businessQuestion: '',
     businessImpact: '',
-    recommendation: '',
+    failureDetail: '',
+    failureBreakdown: [],
+    exclusionBreakdown: [],
+    orgPopulation: 10,
+    orgPopulationNoun: 'Leads',
     evaluated: 10,
     failing: 0,
+    notEvaluatedCount: 0,
+    unmeasurableCount: 0,
+    notEvaluatedColumns: [],
+    notEvaluatedRows: [],
     score: 100,
     population: '',
     evidenceColumns: [],
@@ -90,7 +98,7 @@ test('findings sort by severity, then by how many records are affected', () => {
 });
 
 test('an assessment over a clean org reports full health and no findings', () => {
-  const results = runAllChecks([lead(), lead()], [opportunity()], TODAY);
+  const results = runAllChecks([lead(), lead()], [opportunity()], TODAY, READINESS_SOURCES);
   const assessment = buildAssessment(results, 3, ['Lead', 'Opportunity'], TODAY.toISOString());
 
   assert.equal(assessment.overallHealth, 100);
@@ -111,7 +119,7 @@ test('the assessment total is traceable from records to overall health', () => {
   ];
 
   const assessment = buildAssessment(
-    runAllChecks(leads, [], TODAY),
+    runAllChecks(leads, [], TODAY, READINESS_SOURCES),
     2,
     ['Lead', 'Opportunity'],
     TODAY.toISOString(),

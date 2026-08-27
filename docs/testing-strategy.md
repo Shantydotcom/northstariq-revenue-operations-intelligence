@@ -3,15 +3,26 @@
 | | |
 |---|---|
 | **Purpose** | How this project proves that what it built actually works |
-| **Status** | 🟡 **CANDIDATE** — no test has been executed. **No results exist.** |
+| **Status** | 🟢 **Strategy defined · Increments 1-4 executed with recorded results** — 8/8 · 9/9 · 6/6 · 15/15 Salesforce, 50/50 application unit tests. **The ~190-record synthetic dataset is not generated**, so no scenario has run against the designed population. |
 | **Related** | [`requirements.md`](requirements.md) · [`architecture.md`](architecture.md) · [`security-model.md`](security-model.md) |
 
 ---
 
-## ⚠️ No Test Results Exist
+## ⚠️ What Has and Has Not Been Executed
 
-**Nothing in this document has been run.** No scenario has been executed, no dataset loaded, no
-assertion evaluated.
+**Executed, with results recorded in [`implementation-log.md`](implementation-log.md):** Increment 2
+fixtures (8/8) · Increment 3 routing (9/9) · Seller negative-security and `BR-08` regression (6/6) ·
+Increment 4 SLA (15/15, including 8 negative and guardrail tests) · web application unit tests
+(50/50, fixtures only) · the connected read path (§2g) · Segment Assignment Consistency (§2h).
+
+**Not executed:** every scenario in §2 against the **designed ~190-record dataset**, which has not
+been generated. The results above came from purpose-built fixtures and from records the org already
+held. **Scenarios 3 and 11 (round robin, ineligible seller) cannot be executed against the current
+build at all** — round robin is deferred and territory coverage routes to a queue rather than to an
+individual seller.
+
+**A re-runnable query does not yet exist for most of this.** See §4 and §7: outcomes were recorded,
+the queries were not committed. That is an open evidence gap, stated rather than closed by wording.
 
 **Fabricating a test result is the most damaging thing this project could do.** A documented
 architecture that turns out to be wrong is a design error. A documented *test result* that never
@@ -299,10 +310,87 @@ the connection is not configured, and **shows no results**.
 
 ### What these results do not prove
 
-**No test here touched Salesforce.** These are fixture results. The Connected App does not exist, so
-the connected path — authentication, live SOQL, an assessment over real org records — has **never
-been executed**. A passing suite proves the logic is correct given records. It proves nothing about
-what the org returns.
+**No test in §2f touched Salesforce.** These are fixture results. A passing suite proves the logic is
+correct given records; it proves nothing about what the org returns.
+
+*As of 2026-08-24 the connected read path has since been exercised — see §2g. That run validated
+authentication and SOQL read, and nothing beyond it.*
+
+---
+
+## 2g. Web MVP connected read path — executed 2026-08-24
+
+First live assessment against the Developer Edition org. **HTTP 200 at `2026-08-24T06:32:09Z`** —
+81 records assessed, overall health 68, 6 findings, 3 high. Areas: Data Quality 94 · Routing 90 ·
+Identity & Matching 96 · SLA Performance 60 · Pipeline Hygiene 0. `overallHealth` was reproduced by
+hand from the returned payload.
+
+| Now exercised | Evidence |
+|---|---|
+| OAuth 2.0 Client Credentials against the org | `getStatus()` returned connected |
+| SOQL read of `Lead` and `Opportunity` | `objectsAssessed: ["Lead","Opportunity"]`, 81 records |
+| Six checks over live records | Live populations 4/50 · 2/5 · 1/17 · 13/13 · 2/50 · 2/17 |
+
+### What this does not test
+
+The application reads what the org already recorded. **A finding is a symptom report, not a control
+test.** No control was exercised, nothing was remediated, and there is no write path in the
+application at all. The judged population was whatever records increment testing left in the org —
+**not** the designed dataset. The five safe error codes remain unexercised against a real Salesforce
+error; the failure path was tested by intercepting the browser `fetch`. 81 records: no scale claim.
+
+---
+
+## 2h. Segment Assignment Consistency — executed 2026-08-26
+
+**17 new tests, 50 total, 50 pass, 0 fail.** Fixtures only — no network, no org. Executed alongside
+one live read against `northstariq-dev`, recorded separately below.
+
+**`web/test/checks.test.ts` — the tests added for this control**
+
+| Test as executed | What it protects |
+|---|---|
+| a Segment matching the recorded segmentation result passes | The comparison is the whole control — nothing more is claimed |
+| a Segment differing from the recorded result fails | The mismatch is the finding |
+| the failing evidence names Salesforce Custom Metadata as the source | An evaluator seeing "Segment Band v1.0" alone would have to already know what that is |
+| nothing an evaluator reads uses the word provenance | **Source Evidence** is the evaluator-facing term; the retired one cannot return through a code path |
+| a Lead *shaped* like the retained mismatch fails, with no record hard-coded | Correcting or deleting `UI Test Web` cannot quietly turn the control off |
+| `Match_Status__c` has no effect on eligibility | Account matching is a different capability and says nothing about segmentation |
+| a Lead with no recorded result is not evaluated, and never passes | An unassessed record is never credited as a pass |
+| an uninterpretable recorded result is excluded rather than guessed at | **Honest exclusion over false precision** |
+| **a Lead segmented under an older rule version is judged on what was recorded** | **Historical safety. Re-running today's bands over an older Lead would report a legitimate configuration change as drift** |
+| the Strategic Account path is credited to the Account, not to a band | Strategic is an Account designation; claiming Custom Metadata decided it would be false |
+| a recorded "not segmentable" result expects no Segment, and says so | "No Segment" is a result, not an absence of one |
+| an employee count matching no active band expects no Segment | The fourth recorded form, exercised |
+| an empty Segment picklist reads as no Segment, not a different one | Blank and null are the same outcome |
+| evaluated = passing + failing, and total = evaluated + not evaluated | Both reconciliations, asserted rather than assumed |
+| adding segment consistency leaves the other six definitions untouched | All six pinned as a tuple of id, population, evaluated, failing, score |
+| missing routing data still reads its sources from Salesforce configuration | A built-in source list cannot return through a shared code path |
+| segment consistency is unaffected by the routing readiness configuration | The two controls cannot reach each other |
+
+**Live read — `2026-08-26T21:37:14Z`, HTTP 200.** 49 Leads · 27 evaluated · 22 not evaluated ·
+26 passing · 1 failing · score **96**. Reconciles exactly. The one failure is the deliberately
+retained fixture `UI Test Web` (`00Qaj00000u50QXEAY`) — employee count 500, recorded segmentation
+result Mid-Market under Rule v1.0, current Segment SMB.
+
+**Also verified, not by unit test:** `tsc --noEmit` clean · repository validator 49 passed /
+0 warnings / 2 pre-existing failures · in-browser regression over Overview, Findings, Finding Detail,
+column filtering, View all / Show less, CSV and XLSX export, Salesforce record links, configuration
+links, assessment state persisting across navigation with no re-run, and a clean browser console.
+
+### What these results do not prove
+
+Same limit as §2f, and one more specific to this control. **The application cannot confirm the rule
+version it displays.** The least-privilege integration identity cannot query `Segment_Band__mdt` —
+the runtime query returns `INVALID_TYPE` — so NorthstarIQ reports the rule version **Salesforce
+recorded on the Lead** and does **not** reconcile it against the live Custom Metadata during an
+assessment run. No permission was added to obtain that reconciliation.
+
+The 49 Leads judged are whatever records increment testing left in the org, **not** the designed
+~190-record dataset. **No re-runnable SOQL artifact exists for this control** — see §7. A candidate
+for the later evidence-hardening phase is a query returning `Id, Name, NumberOfEmployees,
+Segment__c, Segment_Basis__c` for Leads where `Segment_Basis__c != null`, which is the exact input
+this control reasons over. It is noted, **not created here.**
 
 ---
 
@@ -352,7 +440,7 @@ found.
 | **Bulk safety** | Load records in a single batch, not one at a time | No governor limit errors; identical per-record outcomes |
 | **Explainability** | For every routed record, assert a reason exists and names the precedence basis | **An empty `Routing_Reason__c` is a test failure** |
 | **Reporting** | Report figure reconciles to a SOQL query on the same population | Both numbers recorded |
-| **Analytics** | Power BI figure reconciles to the same SOQL query | Both numbers recorded |
+| **Analytics** | Power BI figure reconciles to the same SOQL query | **Deferred — Power BI not started** |
 | **Access** | Execute as each persona — positive and negative | §5 matrix |
 
 ### Bulk safety
@@ -363,12 +451,18 @@ and single-record testing cannot detect it. Fixtures load in batch for exactly t
 
 ### SOQL validation
 
-Validation queries live in `scripts/soql/`, versioned alongside the metadata they check. Each query
-answers one question and is named for it — for example: every assigned Lead has a routing reason;
-no Lead sits unassigned and unclassified; segment distribution matches the fixture expectation.
-
 **The SOQL query is the evidence.** A screenshot is an illustration; a query anyone can re-run is a
-result.
+result. That standard stands.
+
+**`scripts/soql/` is currently empty.** Validation queries for Increments 1-4 were executed ad hoc
+against the org and their **outcomes** are recorded in
+[`implementation-log.md`](implementation-log.md). The **queries themselves were not committed**, so
+they are **not re-runnable by a reader of this repository today.** This is a stated gap in the
+evidence standard below — not a claim of coverage, and not a reason to weaken the standard.
+
+Committed queries would live in `scripts/soql/`, versioned alongside the metadata they check, each
+answering one question and named for it — every assigned Lead has a routing reason; no Lead sits
+unassigned and unclassified; segment distribution matches the fixture expectation.
 
 ---
 
@@ -423,6 +517,15 @@ A capability may be described as **Validated** only when all of the following ex
 3. The actual outcome was recorded — **including failures**
 4. A re-runnable SOQL query or report supports the claim
 5. The date and org state are recorded in [`implementation-log.md`](implementation-log.md)
+
+> **Criterion 4 is currently unmet for most Salesforce increments, and the standard is not being
+> relaxed to hide that.** Verification for Increments 1-4 **was executed** and its outcomes recorded
+> — including failures — but the queries were not committed, so criterion 4 has no artifact. Two
+> reports do satisfy it: `NIQ Open SLA Risk` and `NIQ SLA Attainment by Segment`.
+>
+> Executed verification and a re-runnable artifact are **different things**, and this repository
+> distinguishes them rather than merging them. Results are not downgraded — they happened — and the
+> gap is not closed by editing this page. It closes when the queries are committed.
 
 | Prohibited | Why |
 |---|---|

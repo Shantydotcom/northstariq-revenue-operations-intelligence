@@ -5,7 +5,7 @@
 | **Project** | NorthstarIQ — Revenue Operations Intelligence Platform |
 | **Purpose** | Why this work exists, what is wrong today, and what is in scope to fix |
 | **Data provenance** | Fictional company · synthetic baselines · no real data |
-| **Status** | Current State documented · Target State designed · nothing implemented |
+| **Status** | Current State documented · Target State designed · **Salesforce Increments 1-4 implemented and human-accepted** · analytics, dashboards and the synthetic dataset **not delivered** — see [`implementation-log.md`](implementation-log.md) |
 
 ---
 
@@ -225,8 +225,12 @@ Decisions** and labelled as such. See [`requirements.md`](requirements.md) §4.
 | Security | Permission-set-first access model, verified by negative testing |
 | Reporting | Operational Salesforce reports and one dashboard |
 | Analytics | Power BI model over the operational decision data |
-| Testing | Deterministic scenario fixtures and SOQL validation |
+| Testing | Deterministic scenario fixtures; validation outcomes recorded in the implementation log |
 | Data | A small, deliberate synthetic dataset |
+
+**In scope is not delivered.** This table states the release boundary. Reporting is partially
+delivered (2 reports, 0 dashboards); **Power BI analytics and the synthetic dataset are not
+started.** [`implementation-log.md`](implementation-log.md) is the authority on what exists.
 
 ### Out of scope
 
@@ -248,7 +252,7 @@ intended architecture is prohibited.**
 | Capability | Enterprise design | Portfolio implementation |
 |---|---|---|
 | Data volume | Hundreds of thousands of records | ~190 records, deterministic scenarios |
-| Users | 64 revenue users across 4 markets | 8–10, enough to demonstrate access and round robin |
+| Users | 64 revenue users across 4 markets | **1 representative non-admin Seller** — Developer Edition provides 4 Salesforce licences, 2 consumed by administrators. Round robin is deferred and untested. |
 | Territory management | Enterprise Territory Management may be appropriate | Configuration-driven model within Developer Edition |
 | Bulk processing | Proven under production load | Bulk-safe **design**; scale **not** claimed |
 | SLA calendars | Four market calendars with holiday tables | Representative subset demonstrating the mechanism |

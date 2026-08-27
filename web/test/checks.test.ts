@@ -8,38 +8,146 @@ import {
   missingTerritory,
   routingExceptions,
   runAllChecks,
+  segmentConsistency,
   slaRisk,
   staleOpportunities,
 } from '../lib/checks/index.ts';
-import { lead, opportunity, TODAY } from './fixtures.ts';
+import { lead, opportunity, TODAY, READINESS_SOURCES } from './fixtures.ts';
 
 const EXCEPTION_QUEUE = { Name: 'NIQ Routing Exception', Type: 'Queue' };
 
-test('missing firmographics is scoped to the governed intake population', () => {
-  const leads = [
-    lead(),
-    lead({ NumberOfEmployees: null }),
-    // Ungoverned: this process makes no promise about it, so it is not judged.
-    lead({ LeadSource: 'Web', NumberOfEmployees: null }),
-  ];
+test('routing readiness sources come from Salesforce configuration, not a built-in list', () => {
+  /**
+   * The rule this guards: Salesforce owns which Lead Sources carry the
+   * requirement. Passing a different configuration must change the population,
+   * or the application is still deciding it.
+   */
+  const leads = [lead({ LeadSource: 'Web' }), lead({ LeadSource: 'Trade Show' })];
 
-  const result = missingFirmographics(leads);
-
-  assert.equal(result.evaluated, 2, 'only governed Leads are evaluated');
-  assert.equal(result.failing, 1);
-  assert.equal(result.score, 50);
-  assert.equal(result.healthy, false);
+  assert.equal(missingFirmographics(leads, ['Web']).evaluated, 1);
+  assert.equal(missingFirmographics(leads, ['Trade Show']).evaluated, 1);
+  assert.equal(missingFirmographics(leads, ['Web', 'Trade Show']).evaluated, 2);
+  assert.equal(missingFirmographics(leads, []).evaluated, 0);
 });
 
-test('missing firmographics flags either missing attribute', () => {
-  const result = missingFirmographics([
-    lead({ NumberOfEmployees: null }),
-    lead({ CountryCode: null }),
-    lead(),
-  ]);
+test('account-matching status no longer decides routing-readiness eligibility', () => {
+  /**
+   * Match_Status__c records whether account matching reached a decision - a
+   * different capability on a different timeline. Two Leads identical but for
+   * that field must be treated identically here.
+   */
+  const withMatch = lead({ LeadSource: 'Web', Match_Status__c: 'Matched' });
+  const withoutMatch = lead({ LeadSource: 'Web', Match_Status__c: null });
 
-  assert.equal(result.failing, 2, 'employee count and country each fail on their own');
-  assert.equal(result.evidence.length, 2);
+  const result = missingFirmographics([withMatch, withoutMatch], READINESS_SOURCES);
+
+  assert.equal(result.evaluated, 2, 'both evaluated regardless of match status');
+  assert.equal(result.notEvaluatedCount, 0);
+});
+
+test('a Web Lead with no match decision is still evaluated', () => {
+  const result = missingFirmographics(
+    [lead({ LeadSource: 'Web', Match_Status__c: null })],
+    READINESS_SOURCES,
+  );
+
+  assert.equal(result.evaluated, 1);
+  assert.equal(result.failing, 0);
+});
+
+test('a Phone Inquiry Lead is evaluated when that source is configured', () => {
+  const result = missingFirmographics(
+    [lead({ LeadSource: 'Phone Inquiry', Match_Status__c: null })],
+    READINESS_SOURCES,
+  );
+
+  assert.equal(result.evaluated, 1);
+});
+
+test('sources absent from configuration are excluded, with the value as the reason', () => {
+  const leads = [
+    lead({ LeadSource: 'Purchased List' }),
+    lead({ LeadSource: 'Partner Referral' }),
+    lead({ LeadSource: null }),
+  ];
+
+  const result = missingFirmographics(leads, READINESS_SOURCES);
+
+  assert.equal(result.evaluated, 0);
+  assert.equal(result.notEvaluatedCount, 3);
+
+  const reasons = result.notEvaluatedRows.map((r) => String(r.Reason));
+  assert.ok(reasons.some((r) => r.includes('Purchased List is not configured')));
+  assert.ok(reasons.some((r) => r.includes('Partner Referral is not configured')));
+  assert.ok(reasons.some((r) => r.includes('No Lead Source recorded')));
+  // The retired vocabulary must not come back with it.
+  assert.ok(!reasons.some((r) => /governed|predate|capture-time/i.test(r)));
+});
+
+test('failures are classified by the attribute actually missing', () => {
+  const result = missingFirmographics(
+    [
+      lead({ LeadSource: 'Web', CountryCode: null }),
+      lead({ LeadSource: 'Web', NumberOfEmployees: null }),
+      lead({ LeadSource: 'Web', NumberOfEmployees: null, CountryCode: null }),
+      lead({ LeadSource: 'Web' }),
+    ],
+    READINESS_SOURCES,
+  );
+
+  assert.equal(result.evaluated, 4);
+  assert.equal(result.failing, 3);
+
+  const by = Object.fromEntries(result.failureBreakdown.map((b) => [b.label, b.count]));
+  assert.equal(by['Missing Country'], 1);
+  assert.equal(by['Missing Employee Count'], 1);
+  assert.equal(by['Missing Country and Employee Count'], 1);
+});
+
+test('a pass means both routing inputs are present, and nothing more', () => {
+  const result = missingFirmographics(
+    [lead({ LeadSource: 'Web', Match_Status__c: null, Territory__c: null, Segment__c: null })],
+    READINESS_SOURCES,
+  );
+
+  // Territory, segment and match are all absent, and it still passes: this
+  // check establishes the presence of two inputs, not any downstream outcome.
+  assert.equal(result.failing, 0);
+  assert.equal(result.evaluated, 1);
+});
+
+test('the exclusion breakdown counts by the Lead Source that excluded them', () => {
+  const leads = [
+    lead({ LeadSource: 'Purchased List' }),
+    lead({ LeadSource: 'Purchased List' }),
+    lead({ LeadSource: null }),
+    lead({ LeadSource: 'Web' }),
+  ];
+
+  const result = missingFirmographics(leads, READINESS_SOURCES);
+  const by = Object.fromEntries(result.exclusionBreakdown.map((b) => [b.label, b.count]));
+
+  assert.equal(by['Purchased List'], 2);
+  assert.equal(by['No Lead Source recorded'], 1);
+  assert.equal(
+    result.exclusionBreakdown.reduce((n, b) => n + b.count, 0),
+    result.notEvaluatedCount,
+  );
+});
+
+test('missing routing data reconciles: total = evaluated + excluded, evaluated = passing + failing', () => {
+  const leads = [
+    lead({ LeadSource: 'Web', CountryCode: null }),
+    lead({ LeadSource: 'Phone Inquiry' }),
+    lead({ LeadSource: 'Purchased List' }),
+    lead({ LeadSource: null }),
+  ];
+
+  const result = missingFirmographics(leads, READINESS_SOURCES);
+
+  assert.equal(result.orgPopulation, result.evaluated + result.notEvaluatedCount);
+  assert.equal(result.evaluated - result.failing, 1, 'passing');
+  assert.equal(result.failing, 1);
 });
 
 test('routing exceptions counts only Leads held by the exception queue', () => {
@@ -109,16 +217,25 @@ test('ambiguous match reports Leads automation refused to attach', () => {
   );
 });
 
-test('missing territory is scoped to the governed intake population', () => {
+test('missing territory evaluates every Lead the coverage model ran against', () => {
+  /**
+   * Territory classification is not bounded by routing authority: the intake
+   * automation derives a territory even where it leaves ownership alone. A Lead
+   * it never ran against has no territory because none was computed, which is
+   * not the same as an uncovered geography - so it is unmeasurable, not a fail.
+   */
   const result = missingTerritory([
     lead({ Territory__c: null, CountryCode: 'BR', Exception_Type__c: 'Unmapped Geography' }),
     lead(),
     lead({ LeadSource: 'Web', Territory__c: null }),
+    lead({ LeadSource: 'Web', Match_Status__c: null, Territory__c: null }),
   ]);
 
-  assert.equal(result.evaluated, 2);
-  assert.equal(result.failing, 1);
-  assert.equal(result.score, 50);
+  assert.equal(result.evaluated, 3, 'non-governed Leads still receive a territory');
+  assert.equal(result.failing, 2);
+  assert.equal(result.score, 33);
+  assert.equal(result.notEvaluatedCount, 1);
+  assert.equal(result.unmeasurableCount, 1, 'never classified is not uncovered geography');
 });
 
 test('stale opportunities are open deals whose close date has passed', () => {
@@ -153,20 +270,101 @@ test('the negative control finds nothing on a clean governed population', () => 
 
 test('a check with nothing to evaluate scores 100 rather than 0', () => {
   // Absence of data is not evidence of failure.
-  const result = missingFirmographics([lead({ LeadSource: 'Web' })]);
+  const result = missingFirmographics([lead({ LeadSource: 'Purchased List' })], READINESS_SOURCES);
 
   assert.equal(result.evaluated, 0);
   assert.equal(result.score, 100);
   assert.equal(result.healthy, true);
+  assert.equal(result.notEvaluatedCount, 1, 'the record is still accounted for');
 });
 
-test('runAllChecks runs exactly the six implemented checks', () => {
-  const results = runAllChecks([lead()], [opportunity()], TODAY);
+test('routing exceptions evaluates only Leads submitted to ownership routing', () => {
+  /**
+   * A Lead outside the routing flow's entry criteria never reaches the routing
+   * decision, so it could not have landed in the exception queue. Counting it
+   * would measure nothing about routing and only dilute the rate.
+   */
+  const result = routingExceptions([
+    lead({ Owner: EXCEPTION_QUEUE, Exception_Type__c: 'Ambiguous Account Match' }),
+    lead(),
+    lead({ LeadSource: 'Web', Owner: { Name: 'Dana Okoro', Type: 'User' } }),
+    lead({ LeadSource: 'Purchased List', Owner: { Name: 'Dana Okoro', Type: 'User' } }),
+  ]);
+
+  assert.equal(result.evaluated, 2);
+  assert.equal(result.failing, 1);
+  assert.equal(result.score, 50);
+  assert.equal(result.notEvaluatedCount, 2);
+  assert.equal(result.unmeasurableCount, 0, 'these are outside the control, not unmeasured');
+});
+
+test('a not-evaluated reason names that record’s own Lead Source and Owner', () => {
+  // One shared message across every record would not survive being challenged.
+  const result = routingExceptions([
+    lead(),
+    lead({ LeadSource: 'Web', Owner: { Name: 'Dana Okoro', Type: 'User' } }),
+  ]);
+
+  const [row] = result.notEvaluatedRows;
+  assert.equal(row.LeadSource, 'Web');
+  assert.equal(row.Owner, 'Dana Okoro');
+  assert.match(String(row.Reason), /Not submitted to NorthstarIQ ownership routing/);
+  assert.match(String(row.Reason), /Lead Source "Web"/);
+  assert.match(String(row.Reason), /Dana Okoro/);
+});
+
+test('a Lead the matching process never assessed is not counted as a pass', () => {
+  /**
+   * The defect this exists to prevent: a blank match decision satisfying "not
+   * Review" and silently crediting the matching process for work it never did.
+   */
+  const result = ambiguousMatch([
+    lead({ Match_Status__c: 'Review', Matched_Account__c: null }),
+    lead({ Match_Status__c: 'No Match' }),
+    lead({ Match_Status__c: null }),
+    lead({ Match_Status__c: null }),
+  ]);
+
+  assert.equal(result.evaluated, 2, 'only Leads carrying a recorded decision');
+  assert.equal(result.failing, 1);
+  assert.equal(result.score, 50, 'not 75, which counting the blanks as passes would give');
+  assert.equal(result.unmeasurableCount, 2);
+});
+
+test('every check accounts for its whole starting population', () => {
+  const leads = [
+    lead(),
+    lead({ LeadSource: 'Web', Match_Status__c: null }),
+    lead({ LeadSource: 'Purchased List' }),
+    lead({ Owner: EXCEPTION_QUEUE, Exception_Type__c: 'Ambiguous Account Match' }),
+    lead({ SLA_Target_DateTime__c: null, SLA_Status__c: 'Unmeasurable', SLA_Basis__c: null }),
+  ];
+  const opps = [opportunity(), opportunity({ IsClosed: true, StageName: 'Closed Won' })];
+
+  for (const result of runAllChecks(leads, opps, TODAY, READINESS_SOURCES)) {
+    assert.equal(
+      result.evaluated + result.notEvaluatedCount,
+      result.orgPopulation,
+      `${result.id} leaves records unaccounted for`,
+    );
+    assert.ok(
+      result.unmeasurableCount <= result.notEvaluatedCount,
+      `${result.id} reports more unmeasurable than not-evaluated`,
+    );
+    for (const row of result.notEvaluatedRows) {
+      assert.ok(String(row.Reason ?? '').length > 0, `${result.id} has a row with no reason`);
+    }
+  }
+});
+
+test('runAllChecks runs exactly the seven implemented checks', () => {
+  const results = runAllChecks([lead()], [opportunity()], TODAY, READINESS_SOURCES);
 
   assert.deepEqual(
     results.map((r) => r.id),
     [
       'missing-firmographics',
+      'segment-consistency',
       'routing-exceptions',
       'sla-risk',
       'ambiguous-match',
@@ -179,8 +377,383 @@ test('runAllChecks runs exactly the six implemented checks', () => {
 test('evidence is capped for display while the count stays complete', () => {
   const leads = Array.from({ length: 14 }, () => lead({ NumberOfEmployees: null }));
 
-  const result = missingFirmographics(leads);
+  const result = missingFirmographics(leads, READINESS_SOURCES);
 
   assert.equal(result.failing, 14, 'the count is the full failing total');
   assert.equal(result.evidence.length, 10, 'the table shows a bounded sample');
+});
+
+test('missing territory is unchanged by the routing-readiness correction', () => {
+  /**
+   * Its eligibility marker is the account-matching capability boundary, which
+   * was separately investigated and supported. Configuration passed for
+   * Missing Routing Data must not reach it.
+   */
+  const leads = [
+    lead({ Territory__c: null, CountryCode: 'BR' }),
+    lead(),
+    lead({ LeadSource: 'Web', Territory__c: null }),
+    lead({ LeadSource: 'Web', Match_Status__c: null, Territory__c: null }),
+  ];
+
+  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES).find((r) => r.id === 'missing-territory');
+  const b = runAllChecks(leads, [], TODAY, ['Purchased List']).find((r) => r.id === 'missing-territory');
+
+  assert.equal(a?.evaluated, 3);
+  assert.equal(a?.failing, 2);
+  assert.equal(a?.evaluated, b?.evaluated, 'configuration must not reach this check');
+  assert.equal(a?.score, b?.score);
+});
+
+test('ambiguous account match is unchanged by the routing-readiness correction', () => {
+  const leads = [
+    lead({ Match_Status__c: 'Review', Matched_Account__c: null }),
+    lead({ Match_Status__c: 'No Match' }),
+    lead({ Match_Status__c: null }),
+  ];
+
+  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES).find((r) => r.id === 'ambiguous-match');
+  const b = runAllChecks(leads, [], TODAY, ['Purchased List']).find((r) => r.id === 'ambiguous-match');
+
+  assert.equal(a?.evaluated, 2);
+  assert.equal(a?.failing, 1);
+  assert.equal(a?.evaluated, b?.evaluated, 'configuration must not reach this check');
+  assert.equal(a?.score, b?.score);
+});
+
+/* ------------------------------------------- Segment Assignment Consistency */
+
+/** The form Lead_Inbound_Before_Save writes when a band matches. */
+const bandBasis = (employees: number, segment: string, version = 'v1.0') =>
+  `Employee Count: ${employees} -> ${segment} | Rule ${version}`;
+
+const segmented = (employees: number, recorded: string, current: string | null, over = {}) =>
+  lead({
+    NumberOfEmployees: employees,
+    Segment_Basis__c: bandBasis(employees, recorded),
+    Segment__c: current,
+    ...over,
+  });
+
+test('a Segment matching the recorded segmentation result passes', () => {
+  const result = segmentConsistency([segmented(500, 'Mid-Market', 'Mid-Market')]);
+
+  assert.equal(result.evaluated, 1);
+  assert.equal(result.failing, 0);
+  assert.equal(result.score, 100);
+  assert.equal(result.healthy, true);
+});
+
+test('a Segment differing from the recorded segmentation result fails', () => {
+  const result = segmentConsistency([segmented(500, 'Mid-Market', 'SMB')]);
+
+  assert.equal(result.evaluated, 1);
+  assert.equal(result.failing, 1);
+  assert.equal(result.score, 0);
+
+  const row = result.evidence[0];
+  assert.equal(row.Expected_Segment, 'Mid-Market');
+  assert.equal(row.Current_Segment, 'SMB');
+  assert.equal(row.NumberOfEmployees, 500);
+  assert.equal(row.Result, 'Mismatch');
+});
+
+test('the failing evidence names Salesforce Custom Metadata as the source of the expected Segment', () => {
+  /**
+   * The evaluator-facing requirement: "Segment Band v1.0" alone assumes the
+   * reader already knows what that is. The cell has to say where the expected
+   * value came from, which Salesforce configuration type it is, which rule
+   * version applies, and what input produced what result.
+   */
+  const result = segmentConsistency([segmented(500, 'Mid-Market', 'SMB')]);
+  const cell = String(result.evidence[0].Source_Evidence);
+
+  assert.match(cell, /Salesforce Custom Metadata/);
+  assert.match(cell, /Segment Band/);
+  assert.match(cell, /v1\.0/);
+  assert.match(cell, /Employee Count 500/);
+  assert.match(cell, /Mid-Market/);
+});
+
+test('nothing an evaluator reads uses the word provenance', () => {
+  const result = segmentConsistency([
+    segmented(500, 'Mid-Market', 'SMB'),
+    lead({ Segment_Basis__c: null, Segment__c: null }),
+  ]);
+
+  const surfaces = [
+    result.title,
+    result.businessQuestion,
+    result.businessImpact,
+    result.failureDetail,
+    result.population,
+    ...result.evidenceColumns.map((c) => c.label),
+    ...result.notEvaluatedColumns.map((c) => c.label),
+    ...result.evidence.flatMap((r) => Object.values(r).map(String)),
+    ...result.notEvaluatedRows.flatMap((r) => Object.values(r).map(String)),
+    ...result.failureBreakdown.map((b) => `${b.label} ${b.detail ?? ''}`),
+    ...result.exclusionBreakdown.map((b) => `${b.label} ${b.detail ?? ''}`),
+  ];
+
+  for (const text of surfaces) {
+    assert.ok(!/provenance/i.test(text), `evaluator-facing text says provenance: ${text}`);
+  }
+  assert.ok(
+    surfaces.some((t) => /Source Evidence/i.test(t)),
+    'the evaluator-facing term is used instead',
+  );
+});
+
+test('a Lead shaped like the retained mismatch fixture fails, with no record hard-coded', () => {
+  /**
+   * The org holds one deliberately retained mismatch. This asserts the SHAPE
+   * that makes it a mismatch - not its name, its id, or its employee count -
+   * so correcting or deleting that record cannot quietly turn the check off.
+   */
+  const shaped = lead({
+    Name: 'Any Name At All',
+    NumberOfEmployees: 500,
+    Segment_Basis__c: 'Employee Count: 500 -> Mid-Market | Rule v1.0',
+    Segment__c: 'SMB',
+  });
+
+  const result = segmentConsistency([shaped]);
+
+  assert.equal(result.failing, 1);
+  assert.equal(result.failureBreakdown[0].label, 'Mid-Market recorded as SMB');
+  assert.equal(result.failureBreakdown[0].count, 1);
+});
+
+test('account-matching status has no effect on segment-consistency eligibility', () => {
+  /** Matching is a different capability. It says nothing about segmentation. */
+  const withMatch = segmented(500, 'Mid-Market', 'SMB', { Match_Status__c: 'Matched' });
+  const withoutMatch = segmented(500, 'Mid-Market', 'SMB', { Match_Status__c: null });
+
+  const a = segmentConsistency([withMatch]);
+  const b = segmentConsistency([withoutMatch]);
+
+  assert.equal(a.evaluated, b.evaluated);
+  assert.equal(a.failing, b.failing);
+  assert.equal(a.score, b.score);
+});
+
+test('a Lead with no recorded segmentation result is not evaluated, and never passes', () => {
+  const result = segmentConsistency([
+    lead({ Segment_Basis__c: null, Segment__c: 'Enterprise' }),
+    segmented(500, 'Mid-Market', 'Mid-Market'),
+  ]);
+
+  assert.equal(result.evaluated, 1);
+  assert.equal(result.notEvaluatedCount, 1);
+  assert.equal(result.unmeasurableCount, 1, 'segmentation applies; the result is what is absent');
+  assert.equal(result.failing, 0);
+  assert.equal(result.score, 100, 'the excluded Lead is neither a pass nor a failure');
+  assert.match(
+    String(result.notEvaluatedRows[0].Reason),
+    /no segmentation source evidence is recorded/,
+  );
+});
+
+test('an uninterpretable recorded result is excluded rather than guessed at', () => {
+  /**
+   * Honest exclusion over false precision. A guessed expected Segment would
+   * either manufacture a failure or hide one.
+   */
+  const result = segmentConsistency([
+    lead({ Segment_Basis__c: 'Employees 200-999', Segment__c: 'SMB' }),
+  ]);
+
+  assert.equal(result.evaluated, 0);
+  assert.equal(result.failing, 0);
+  assert.equal(result.notEvaluatedCount, 1);
+  assert.match(String(result.notEvaluatedRows[0].Reason), /not in a form NorthstarIQ can interpret/);
+  assert.equal(
+    result.exclusionBreakdown.find((b) => /could not be interpreted/.test(b.label))?.count,
+    1,
+  );
+});
+
+test('a Lead segmented under an older rule version is judged on what was recorded', () => {
+  /**
+   * THE HISTORICAL SAFETY GUARANTEE.
+   *
+   * Two Leads with the same employee count, recorded under different rule
+   * versions that resolved it differently. Both agree with their own recorded
+   * result, so both pass. Re-running one configuration over both would report
+   * a legitimate rule change as record drift.
+   */
+  const underV1 = lead({
+    NumberOfEmployees: 500,
+    Segment_Basis__c: bandBasis(500, 'Enterprise', 'v0.9'),
+    Segment__c: 'Enterprise',
+  });
+  const underV2 = lead({
+    NumberOfEmployees: 500,
+    Segment_Basis__c: bandBasis(500, 'Mid-Market', 'v1.0'),
+    Segment__c: 'Mid-Market',
+  });
+
+  const result = segmentConsistency([underV1, underV2]);
+
+  assert.equal(result.evaluated, 2);
+  assert.equal(result.failing, 0, 'a rule change is not drift');
+  assert.equal(result.score, 100);
+});
+
+test('the Strategic Account path is credited to the Account, not to a band', () => {
+  const strategic = lead({
+    Segment_Basis__c: 'Strategic Account: Fictional Group | Rule v1.0',
+    Segment__c: 'Strategic',
+  });
+  const drifted = lead({
+    Segment_Basis__c: 'Strategic Account: Fictional Group | Rule v1.0',
+    Segment__c: 'Enterprise',
+  });
+
+  const ok = segmentConsistency([strategic]);
+  assert.equal(ok.failing, 0);
+
+  const bad = segmentConsistency([drifted]);
+  assert.equal(bad.failing, 1);
+  assert.match(String(bad.evidence[0].Source_Evidence), /Salesforce Account designation/);
+  assert.doesNotMatch(
+    String(bad.evidence[0].Source_Evidence),
+    /Custom Metadata/,
+    'a band did not decide this one',
+  );
+});
+
+test('a recorded "not segmentable" result expects no Segment, and says so', () => {
+  const consistent = lead({
+    NumberOfEmployees: null,
+    Segment_Basis__c: 'Not segmentable: employee count missing',
+    Segment__c: null,
+  });
+  const inconsistent = lead({
+    NumberOfEmployees: null,
+    Segment_Basis__c: 'Not segmentable: employee count missing',
+    Segment__c: 'SMB',
+  });
+
+  assert.equal(segmentConsistency([consistent]).failing, 0);
+
+  const bad = segmentConsistency([inconsistent]);
+  assert.equal(bad.failing, 1);
+  assert.equal(bad.evidence[0].Expected_Segment, '\u2014 (none)');
+  assert.equal(bad.evidence[0].Current_Segment, 'SMB');
+});
+
+test('an employee count matching no active band expects no Segment', () => {
+  const result = segmentConsistency([
+    lead({
+      NumberOfEmployees: 7,
+      Segment_Basis__c: 'Not segmentable: no active band matches employee count 7',
+      Segment__c: 'SMB',
+    }),
+  ]);
+
+  assert.equal(result.evaluated, 1);
+  assert.equal(result.failing, 1);
+  assert.match(String(result.evidence[0].Source_Evidence), /matched no active band/);
+});
+
+test('an empty Segment picklist reads as no Segment, not as a different one', () => {
+  const result = segmentConsistency([
+    lead({
+      NumberOfEmployees: null,
+      Segment_Basis__c: 'Not segmentable: employee count missing',
+      Segment__c: '',
+    }),
+  ]);
+
+  assert.equal(result.failing, 0, 'blank and null are the same outcome');
+});
+
+test('segment consistency reconciles: evaluated = passing + failing, total = evaluated + not evaluated', () => {
+  const leads = [
+    segmented(500, 'Mid-Market', 'Mid-Market'),
+    segmented(500, 'Mid-Market', 'SMB'),
+    segmented(2500, 'Enterprise', 'Enterprise'),
+    lead({ Segment_Basis__c: null, Segment__c: null }),
+    lead({ Segment_Basis__c: 'something else entirely', Segment__c: 'SMB' }),
+  ];
+
+  const result = segmentConsistency(leads);
+
+  assert.equal(result.orgPopulation, 5);
+  assert.equal(result.evaluated, 3);
+  assert.equal(result.notEvaluatedCount, 2);
+  assert.equal(result.evaluated + result.notEvaluatedCount, result.orgPopulation);
+  assert.equal(result.failing, 1);
+  assert.equal(result.evaluated - result.failing, 2, 'passing');
+  assert.equal(result.score, 67, 'round(100 x (1 - 1/3))');
+
+  const excluded = result.exclusionBreakdown.reduce((sum, b) => sum + b.count, 0);
+  assert.equal(excluded, result.notEvaluatedCount, 'every exclusion is accounted for');
+});
+
+test('adding segment consistency leaves the other six definitions untouched', () => {
+  /**
+   * Same records, same six results. The new check reads Segment_Basis__c,
+   * which no other check consults, so nothing it does can move them.
+   */
+  const leads = [
+    lead(),
+    lead({ LeadSource: 'Web', NumberOfEmployees: null }),
+    lead({ Segment_Basis__c: null, Segment__c: null, Match_Status__c: null }),
+    lead({ Segment__c: 'SMB' }),
+    lead({ Owner: EXCEPTION_QUEUE, Exception_Type__c: 'Ambiguous Match' }),
+    lead({ Match_Status__c: 'Review' }),
+    lead({ Territory__c: null, CountryCode: 'BR' }),
+    lead({ SLA_Status__c: 'Breached' }),
+  ];
+  const opps = [opportunity(), opportunity({ IsClosed: true })];
+
+  const results = runAllChecks(leads, opps, TODAY, READINESS_SOURCES);
+  const others = results.filter((r) => r.id !== 'segment-consistency');
+
+  assert.equal(others.length, 6);
+  assert.deepEqual(
+    others.map((r) => [r.id, r.orgPopulation, r.evaluated, r.failing, r.score]),
+    [
+      ['missing-firmographics', 8, 8, 1, 88],
+      ['routing-exceptions', 8, 7, 1, 86],
+      ['sla-risk', 8, 8, 1, 88],
+      ['ambiguous-match', 8, 7, 1, 86],
+      ['missing-territory', 8, 7, 1, 86],
+      ['stale-opportunities', 2, 1, 0, 100],
+    ],
+  );
+});
+
+test('missing routing data still reads its sources from Salesforce configuration', () => {
+  /**
+   * Guarded here as well as in its own test: the seventh check must not have
+   * reintroduced a built-in source list through a shared code path.
+   */
+  const leads = [lead({ LeadSource: 'Web' }), lead({ LeadSource: 'Trade Show' })];
+  const byId = (sources: string[]) =>
+    runAllChecks(leads, [], TODAY, sources).find((r) => r.id === 'missing-firmographics');
+
+  assert.equal(byId(['Web'])?.evaluated, 1);
+  assert.equal(byId(['Trade Show'])?.evaluated, 1);
+  assert.equal(byId(['Web', 'Trade Show'])?.evaluated, 2);
+  assert.equal(byId([])?.evaluated, 0);
+});
+
+test('segment consistency is unaffected by the routing readiness configuration', () => {
+  const leads = [segmented(500, 'Mid-Market', 'SMB', { LeadSource: 'Purchased List' })];
+
+  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES).find(
+    (r) => r.id === 'segment-consistency',
+  );
+  const b = runAllChecks(leads, [], TODAY, ['Trade Show']).find(
+    (r) => r.id === 'segment-consistency',
+  );
+
+  assert.equal(a?.evaluated, 1);
+  assert.deepEqual(
+    [a?.evaluated, a?.failing, a?.score],
+    [b?.evaluated, b?.failing, b?.score],
+  );
 });

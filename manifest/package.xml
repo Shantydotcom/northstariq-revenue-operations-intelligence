@@ -1,44 +1,13 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <!--
-    NorthstarIQ - Revenue Operations Intelligence Platform
-    Deployment manifest
+  Intentionally empty.
 
-    STATUS: Phase 0A - intentionally EMPTY.
+  NorthstarIQ uses source-directory deployment from force-app; this
+  manifest is not the deployment inventory. Do not populate it merely
+  because metadata exists.
 
-    No Salesforce business metadata has been designed, created, or deployed.
-    This manifest is populated in Phase 1 (Salesforce Foundation & Security)
-    and grows as each capability is implemented.
-
-    The Salesforce CLI default template ships this file pre-populated with
-    wildcard <members>*</members> entries for ApexClass, ApexComponent, ApexPage,
-    ApexTestSuite, ApexTrigger, AuraDefinitionBundle, LightningComponentBundle and
-    StaticResource. Those have been removed deliberately:
-
-      - This is a declarative, Flow-first architecture. Apex requires justification
-        recorded in an ADR (see CLAUDE.md 16). Listing Apex types by default would
-        misrepresent the intended design.
-      - No Aura or Lightning Web Components are planned.
-      - Wildcard manifests retrieve whatever happens to exist in the org, which
-        conflicts with treating source control - not the org - as the source of truth.
-
-    Expected metadata types once implementation begins (Phase 1+):
-
-        CustomObject          custom fields, validation rules, record types
-        Flow                  record-triggered and screen automation
-        CustomMetadata        metadata-driven business rules (routing, segmentation,
-                              scoring weights, SLA configuration)
-        PermissionSet         least-privilege access model
-        PermissionSetGroup    persona-level access composition
-        SharingRules          record visibility beyond OWD
-        Role                  role hierarchy
-        Group                 public groups
-        Queue                 routing and exception queues
-        DuplicateRule         duplicate management
-        MatchingRule          identity matching
-        Report / Dashboard    operational reporting
-        GlobalValueSet        governed picklist taxonomies
-
-    Add entries explicitly and deliberately. Do not reintroduce wildcards.
+  Add members only if the project explicitly adopts a manifest-driven
+  retrieve or partial-deploy workflow. force-app remains the source of truth.
 -->
 <Package xmlns="http://soap.sforce.com/2006/04/metadata">
     <version>67.0</version>

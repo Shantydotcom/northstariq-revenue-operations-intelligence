@@ -2,6 +2,8 @@ import { getStatus, toSafeError } from '@/lib/salesforce';
 import { runAssessment } from '@/lib/assessment';
 import FindingRow from '@/components/FindingRow';
 import Notice, { DisconnectedNotice } from '@/components/Notice';
+import { formatObservedAt } from '@/lib/presentation';
+import ExportLinks from '@/components/ExportLinks';
 import type { AssessmentResult } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -54,6 +56,18 @@ export default async function FindingsPage() {
       <p className="lede">
         Revenue operations conditions detected in the latest Salesforce assessment, ordered by
         priority. Each one opens the records behind it.
+      </p>
+      {/*
+       * This page reads the org itself, so it states its own moment rather
+       * than implying it shares one snapshot with the Overview.
+       */}
+      <p className="findings-meta">
+        <span className="footnote">
+          Observed from Salesforce at {formatObservedAt(result.ranAt)}.
+        </span>
+        {result.findings.length > 0 ? (
+          <ExportLinks base="/api/export/findings" label="all findings" />
+        ) : null}
       </p>
 
       {result.findings.length === 0 ? (

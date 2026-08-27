@@ -1,11 +1,24 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { AssessmentResult, FindingSummary, SafeError } from '@/lib/types';
-import { AREAS, PRESENTATION, areaPopulation } from '@/lib/presentation';
+import type {
+  AssessmentResult,
+  CategoryScore,
+  ControlSummary,
+  SafeError,
+  SalesforceStatus,
+} from '@/lib/types';
+import {
+  AREAS,
+  PRESENTATION,
+  formatObservedAt,
+  leadFinding,
+  mostAffectedArea,
+  objectPhrase,
+} from '@/lib/presentation';
 import ScoreMeter, { healthLabel, meterClass } from './ScoreMeter';
-import Notice from './Notice';
+import Notice, { DisconnectedNotice } from './Notice';
 
 interface State {
   phase: 'idle' | 'running' | 'error' | 'done';
@@ -13,8 +26,8 @@ interface State {
    * The last assessment that actually completed, kept across a re-run and
    * across a failure. A result that was true a moment ago is not made false by
    * a later request failing, and discarding it costs the reader the evidence
-   * they were in the middle of reading. The timestamp beneath it always says
-   * which moment it describes.
+   * they were in the middle of reading. Nothing persists beyond this instance:
+   * there is no store, and the rail never implies otherwise.
    */
   result: AssessmentResult | null;
   error: SafeError | null;
@@ -24,26 +37,99 @@ interface State {
 const NUM = new Intl.NumberFormat('en-US');
 
 /**
- * ASSESS, as an explicit act.
+ * Where the last completed assessment is held so it survives navigation.
+ *
+ * Opening a finding unmounts this component, and without this the reader
+ * returned to an Overview that had forgotten the assessment they were reading
+ * and had to run it again. `sessionStorage` keeps it for the life of the tab:
+ * no database, no account, no server-side store, and nothing shared between
+ * visitors.
+ *
+ * Restoring is honest because the result carries its own observation time and
+ * the Overview displays it — a restored assessment states the moment it was
+ * read, exactly as a fresh one does. Nothing is recomputed and no number is
+ * invented; this is the same payload the org returned.
+ */
+/*
+ * Versioned: v2 carries per-control populations, which v1 did not. An old entry
+ * left in a tab from before that change must not be restored into a UI that now
+ * reads them, so the key moves with the payload shape.
+ */
+const RESULT_KEY = 'northstariq.assessment.v3';
+
+function readStoredResult(): AssessmentResult | null {
+  try {
+    const raw = sessionStorage.getItem(RESULT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as AssessmentResult;
+    // Shape guard: a stale or hand-edited entry must not render as a result.
+    if (
+      typeof parsed?.ranAt !== 'string' ||
+      typeof parsed?.overallHealth !== 'number' ||
+      !Array.isArray(parsed?.categoryScores) ||
+      !Array.isArray(parsed?.findings) ||
+      // Every field the Overview reads has to be guarded, not just most of
+      // them: a payload missing one renders as a client-side crash, not as a
+      // missing number.
+      !Array.isArray(parsed?.controls)
+    ) {
+      return null;
+    }
+    return parsed;
+  } catch {
+    // Private mode, disabled storage, or malformed JSON: start unassessed.
+    return null;
+  }
+}
+
+function storeResult(result: AssessmentResult): void {
+  try {
+    sessionStorage.setItem(RESULT_KEY, JSON.stringify(result));
+  } catch {
+    // Storage being unavailable must never break an assessment that succeeded.
+  }
+}
+
+/**
+ * The Overview.
+ *
+ * Reading order is the thesis: what the assessment concluded, the strongest
+ * traceable evidence for it, then the composite as context, then the five areas
+ * in their canonical order. The composite is not the headline - it is the
+ * number furthest from any record, and it earns a supporting position rather
+ * than the largest type on the page.
  *
  * The run is deliberately user-initiated rather than automatic: an assessment
  * is a claim about the org at a moment in time, so the moment should be one
  * the reader chose. Every run reads live - nothing is cached between runs.
  */
-export default function AssessmentPanel() {
+export default function AssessmentPanel({ status }: { status: SalesforceStatus }) {
   const [state, setState] = useState<State>({ phase: 'idle', result: null, error: null });
   const [live, setLive] = useState('');
 
   const running = state.phase === 'running';
+  const { result, error } = state;
+
+  /*
+   * Restore after mount, never during render: the server has no session
+   * storage, so reading it while rendering would produce markup the client
+   * could not match. Starting empty and filling in on the client keeps
+   * hydration clean.
+   */
+  useEffect(() => {
+    if (!status.connected) return;
+    const stored = readStoredResult();
+    if (stored) setState({ phase: 'done', result: stored, error: null });
+  }, [status.connected]);
 
   async function run() {
     if (running) return; // guards a double submit while a request is in flight
     setState((s) => ({ ...s, phase: 'running', error: null }));
     setLive('Running the assessment.');
 
-    const fail = (error: SafeError) => {
-      setState((s) => ({ ...s, phase: 'error', error }));
-      setLive(`The assessment could not be completed. ${error.message}`);
+    const fail = (e: SafeError) => {
+      setState((s) => ({ ...s, phase: 'error', error: e }));
+      setLive(`The assessment could not be completed. ${e.message}`);
     };
 
     try {
@@ -53,20 +139,17 @@ export default function AssessmentPanel() {
         fail(body.error as SafeError);
         return;
       }
-      const result = body as AssessmentResult;
-      setState({ phase: 'done', result, error: null });
+      const next = body as AssessmentResult;
+      setState({ phase: 'done', result: next, error: null });
+      storeResult(next);
       setLive(
-        `Assessment complete. Overall health ${result.overallHealth} out of 100, ` +
-          `${healthLabel(result.overallHealth)}. ` +
-          `${NUM.format(result.recordsAssessed)} records assessed, ` +
-          `${NUM.format(result.findingCount)} findings, ` +
-          `${NUM.format(result.highSeverityCount)} high priority.`,
+        `Assessment complete. Overall health ${next.overallHealth} out of 100, ` +
+          `${healthLabel(next.overallHealth)}. ` +
+          `${NUM.format(next.recordsAssessed)} records assessed, ` +
+          `${NUM.format(next.findingCount)} findings.`,
       );
     } catch {
-      fail({
-        code: 'NETWORK_ERROR',
-        message: 'The assessment request could not be sent.',
-      });
+      fail({ code: 'NETWORK_ERROR', message: 'The assessment request could not be sent.' });
     }
   }
 
@@ -81,273 +164,427 @@ export default function AssessmentPanel() {
     </p>
   );
 
-  const { result, error } = state;
-
-  // Nothing has completed yet: the run card is the whole panel.
-  if (!result) {
-    return (
-      <>
-        {liveRegion}
-        {error ? (
-          <div className="stack">
-            <Notice tone="error" title="The assessment could not be completed">
-              {error.message} No partial or estimated result is shown — an assessment either read
-              the org or it did not.
-            </Notice>
-            <div>
-              <button className="primary" onClick={run} disabled={running}>
-                {running ? 'Assessing…' : 'Try again'}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="card">
-            <div className="row-between">
-              <div>
-                <h2>Run an assessment</h2>
-                <p className="muted" style={{ margin: 0, maxWidth: '62ch' }}>
-                  Reads Leads and Opportunities from the connected org, applies six checks and
-                  scores five areas. Read-only: no record is created, updated or deleted.
-                </p>
-              </div>
-              <button className="primary" onClick={run} disabled={running}>
-                {running ? 'Assessing…' : 'Run assessment'}
-              </button>
-            </div>
-            {running ? (
-              <p className="footnote">Querying Salesforce and evaluating checks…</p>
-            ) : null}
-          </div>
-        )}
-      </>
-    );
-  }
-
-  const sla = result.findings.find((f) => f.id === 'sla-risk');
-  const routing = result.categoryScores.find((c) => c.checkIds.length > 1);
-
   return (
     <>
       {liveRegion}
-      <div className="assessment">
-        {error ? (
-          <Notice tone="error" title="The re-run could not be completed">
-            {error.message} The assessment below is the last one that completed — it has not been
-            replaced with a partial or estimated result.
-          </Notice>
-        ) : null}
 
-        <section className="overall">
-          <div className="overall-head">
-            <div>
-              {/*
-               * The section's own heading, not a label above one, so heading
-               * navigation can reach the score block. It takes the same
-               * treatment as the other section headings: a peer section should
-               * not be set as a micro-label.
-               */}
-              <h2>Overall assessment</h2>
-              <div className="overall-score">
-                <span className={`overall-value ${meterClass(result.overallHealth)}`}>
-                  {result.overallHealth}
-                </span>
-                <span className="overall-scale">/ 100</span>
-                <span className={`overall-state ${meterClass(result.overallHealth)}`}>
-                  {healthLabel(result.overallHealth)}
-                </span>
-              </div>
-            </div>
-            <button className="primary" onClick={run} disabled={running}>
-              {running ? 'Assessing…' : 'Re-run assessment'}
-            </button>
-          </div>
-
-          <dl className="metrics">
-            <div>
-              <dt>Records assessed</dt>
-              <dd>{NUM.format(result.recordsAssessed)}</dd>
-            </div>
-            <div>
-              <dt>Findings</dt>
-              <dd>{NUM.format(result.findingCount)}</dd>
-            </div>
-            <div>
-              <dt>High priority</dt>
-              <dd className={result.highSeverityCount > 0 ? 'bad' : undefined}>
-                {NUM.format(result.highSeverityCount)}
-              </dd>
-            </div>
-          </dl>
-
-          <p className="footnote">
-            {running ? (
-              <>Re-reading {result.objectsAssessed.join(' and ')} from the connected org…</>
-            ) : (
-              <>
-                Read from {result.objectsAssessed.join(' and ')} in the connected org at{' '}
-                {formatTime(result.ranAt)}.
-              </>
-            )}
+      <div className="overview-head">
+        <div className="overview-intro">
+          <h1>Revenue Operations Health</h1>
+          <p className="lede">
+            Assessment of operational controls across the Salesforce revenue lifecycle.
           </p>
-        </section>
+          {result ? (
+            <p className="head-figures">
+              <span>
+                {NUM.format(result.recordsAssessed)} Salesforce records assessed across{' '}
+                {objectPhrase(result.objectsAssessed)}
+              </span>
+              <span className="head-figures-sub">
+                {NUM.format(result.findingCount)}{' '}
+                {result.findingCount === 1 ? 'finding' : 'findings'} ·{' '}
+                {result.categoryScores.length} assessment areas
+              </span>
+            </p>
+          ) : null}
+          {/* What the application does, stated once, beside what it assessed. */}
+          <p className="head-readonly">
+            Read-only assessment. No record is created, updated or deleted.
+          </p>
+        </div>
 
-        <section>
-          <div className="section-head">
-            <h2>Assessment Areas</h2>
-          </div>
-
-          {/*
-           * In flow, not floating. As an overlay this panel covered all five
-           * rows it was describing, and it anchored to the viewport rather than
-           * to its own summary because no ancestor was positioned.
-           */}
-          <details className="scoring">
-            <summary>How scoring works</summary>
-            <div className="scoring-body">
-              <dl>
-                <dt>What records are counted?</dt>
-                <dd>
-                  Each control is scored against the Salesforce records eligible for that check.
-                  Records outside that population are excluded rather than counted as passing.
-                </dd>
-
-                <dt>How is a control scored?</dt>
-                <dd>
-                  A control score is the percentage of evaluated records that pass the check,
-                  rounded to a whole number. A control with nothing to evaluate scores 100 —
-                  absence of data is not evidence of failure.
-                </dd>
-
-                <dt>How is an assessment-area score calculated?</dt>
-                <dd>
-                  An area is the <strong>unweighted mean</strong> of the scores of the controls
-                  inside it — every control counts equally, regardless of how many records it
-                  judged. Overall health is the unweighted mean of the five area scores.
-                  {routing && routing.checkIds.length > 1 ? (
-                    <>
-                      {' '}
-                      {AREAS[routing.category].label} combines {routing.checkIds.length} routing
-                      controls scored {routing.checkIds
-                        .map((id) => checkScoreOf(result, id))
-                        .join(' and ')}
-                      , so the area scores ({routing.checkIds
-                        .map((id) => checkScoreOf(result, id))
-                        .join(' + ')}
-                      ) ÷ {routing.checkIds.length} = {routing.score}. Their populations overlap and
-                      answer different questions, so they are not added into one denominator.
-                    </>
-                  ) : null}
-                </dd>
-
-                {sla ? (
-                  <>
-                    <dt>Worked example — {AREAS['SLA Performance'].label}</dt>
-                    <dd>
-                      {sla.evaluated} Leads have a measurable SLA commitment. {sla.affected} are at
-                      risk or breached, so {sla.evaluated - sla.affected} pass:{' '}
-                      <span className="mono">
-                        {sla.evaluated - sla.affected} ÷ {sla.evaluated} = {' '}
-                        {Math.round(100 * (1 - sla.affected / (sla.evaluated || 1)))}
-                      </span>
-                      . The other Leads in the org carry no SLA target and are{' '}
-                      <strong>not counted as passing</strong> — they sit outside this check&rsquo;s
-                      measurable population. This score does not measure every Lead.
-                    </dd>
-                  </>
-                ) : null}
-              </dl>
-            </div>
-          </details>
-
-          <div className="areas">
-            {result.categoryScores.map((c) => {
-              const area = AREAS[c.category];
-              return (
-                <div className="area" key={c.category}>
-                  <div className="area-main">
-                    <div className="area-name">{area.label}</div>
-                    <div className="area-scope">{area.scope}</div>
-                    <div className="area-population">
-                      {areaPopulation(area, c.checkIds, result.findings)}
-                    </div>
-                  </div>
-                  <ScoreMeter score={c.score} />
-                  <div className={`area-score ${meterClass(c.score)}`}>
-                    {c.score}
-                    {/* The band the colour encodes, for a reader who cannot see it. */}
-                    <span className="sr-only"> out of 100, {healthLabel(c.score)}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        <section>
-          <div className="section-head">
-            <h2>Priority Findings</h2>
-            <Link className="section-link" href="/findings">
-              View all findings →
-            </Link>
-          </div>
-
-          {result.findings.length === 0 ? (
-            <Notice tone="ok" title="No findings">
-              Every check passed against the current org. Checks that find nothing are not reported
-              as findings — the engine reports what it finds rather than manufacturing work.
-            </Notice>
-          ) : (
-            <div className="priorities">
-              {result.findings.slice(0, 3).map((f) => (
-                <PriorityRow key={f.id} finding={f} />
-              ))}
-            </div>
-          )}
-        </section>
+        <SalesforceRail
+          status={status}
+          result={result}
+          running={running}
+          onRun={run}
+        />
       </div>
+
+      {!status.connected ? (
+        <DisconnectedNotice status={status} />
+      ) : (
+        <>
+          {error ? (
+            <Notice tone="error" title="The assessment could not be completed">
+              {error.message}{' '}
+              {result
+                ? 'The assessment below is the last one that completed — it has not been replaced with a partial or estimated result.'
+                : 'No partial or estimated result is shown — an assessment either read the org or it did not.'}
+            </Notice>
+          ) : null}
+
+          {result ? <Assessment result={result} /> : <FirstRun running={running} />}
+        </>
+      )}
     </>
   );
 }
 
-/** One finding, named for the operator. The row opens the records behind it. */
-function PriorityRow({ finding }: { finding: FindingSummary }) {
-  const p = PRESENTATION[finding.id];
-  const count = p.denominator
-    ? `${NUM.format(finding.affected)} of ${NUM.format(finding.evaluated)}`
-    : `${NUM.format(finding.affected)} ${p.unit}`;
+/**
+ * CONNECT, as supporting information.
+ *
+ * Every line is read from runtime state. Nothing here is stated unless the
+ * application currently knows it to be true: no environment without a
+ * connection, and no assessment time until an assessment has completed.
+ */
+function SalesforceRail({
+  status,
+  result,
+  running,
+  onRun,
+}: {
+  status: SalesforceStatus;
+  result: AssessmentResult | null;
+  running: boolean;
+  onRun: () => void;
+}) {
+  return (
+    <aside className="rail">
+      <h2>Salesforce</h2>
+
+      <p className={`rail-state ${status.connected ? 'connected' : 'disconnected'}`}>
+        <span className="status-dot" aria-hidden="true" />
+        {status.connected ? 'Connected' : status.configured ? 'Unavailable' : 'Not configured'}
+      </p>
+
+      {status.connected && status.environment ? (
+        <p className="rail-line">{status.environment}</p>
+      ) : null}
+
+      {status.connected ? (
+        <>
+          {/*
+           * Only once an observation exists. Before that the body already says
+           * the org has not been read, and repeating it here said it twice.
+           */}
+          {result ? (
+            <div className="rail-item">
+              <span className="rail-key">Last assessed</span>
+              <span className="rail-value">{formatObservedAt(result.ranAt)}</span>
+            </div>
+          ) : null}
+
+          {/* Current runtime state, not a historical validation claim. */}
+          <p className="rail-line rail-evidence">Connected for read-only assessment</p>
+
+          <button className="primary" onClick={onRun} disabled={running}>
+            {running ? 'Assessing…' : result ? 'Re-run assessment' : 'Run assessment'}
+          </button>
+        </>
+      ) : null}
+    </aside>
+  );
+}
+
+/** The first-run state: the page still says what it measures, rather than sitting empty. */
+function FirstRun({ running }: { running: boolean }) {
+  return (
+    <section className="conclusion">
+      <h2>Not yet assessed</h2>
+      <p className="conclusion-lead">
+        Nothing is shown until the org has been read. Running an assessment queries Leads and
+        Opportunities, applies six checks and scores five areas.
+      </p>
+      {running ? <p className="footnote">Querying Salesforce and evaluating checks…</p> : null}
+    </section>
+  );
+}
+
+function Assessment({ result }: { result: AssessmentResult }) {
+  const worst = mostAffectedArea(result.categoryScores, result.findings);
+  const headline = worst ? leadFinding(worst.checkIds, result.findings) : null;
 
   return (
-    <Link className="priority" href={`/findings/${finding.id}`}>
-      <div className="priority-main">
-        <div className="priority-title">
-          {/* Same severity treatment as the findings queue: a word first. */}
-          <span className={`queue-priority ${finding.severity}`}>{finding.severity}</span>
-          {p.label}
+    <>
+      {/*
+       * The conclusion. Its heading is the state of the overall assessment; the
+       * sentence beneath names the weakest area. Those can legitimately differ -
+       * an org can be Healthy overall and still have one area that needs work -
+       * and the most affected area never redefines the overall state.
+       */}
+      <section className="conclusion">
+        <h2 className={meterClass(result.overallHealth)}>{healthLabel(result.overallHealth)}</h2>
+
+        {worst && headline ? (
+          <>
+            {/*
+             * Says what was calculated: the lowest area score. It is not a
+             * priority judgement — severity is a property of an individual
+             * finding, and the findings queue is where priority is ordered.
+             */}
+            <p className="conclusion-lead">
+              {AREAS[worst.category].label} has the lowest assessment score.
+            </p>
+            <p className="conclusion-evidence">
+              <span className={`conclusion-count ${meterClass(worst.score)}`}>
+                {NUM.format(headline.affected)} of {NUM.format(headline.evaluated)}
+              </span>
+              <span className="conclusion-predicate">
+                {PRESENTATION[headline.id].headlinePredicate}
+              </span>
+            </p>
+            <Link className="conclusion-link" href={`/findings/${headline.id}`}>
+              View finding →
+            </Link>
+          </>
+        ) : (
+          <p className="conclusion-lead">
+            No check found a failing record. Every evaluated population passed.
+          </p>
+        )}
+      </section>
+
+      <section className="overall">
+        <h2>Overall assessment</h2>
+        <p className="overall-score">
+          <span className={`overall-value ${meterClass(result.overallHealth)}`}>
+            {result.overallHealth}
+          </span>
+          <span className="overall-scale">/ 100</span>
+        </p>
+        <p className="overall-method">
+          Equal-weight mean across {result.categoryScores.length} assessment areas. Every area counts
+          the same, however many records it judged.
+        </p>
+        <ScoringDisclosure result={result} />
+      </section>
+
+      <section>
+        <div className="section-head">
+          <h2>Assessment areas</h2>
+          <Link className="section-link" href="/findings">
+            View all findings →
+          </Link>
         </div>
-        <p>{p.blurb}</p>
+        <p className="section-intro">
+          Five operational areas, in a fixed order. Each score is the share of evaluated records that
+          passed the checks in that area.
+        </p>
+
+        <div className="areas">
+          {result.categoryScores.map((c) => (
+            <AreaRow key={c.category} area={c} result={result} />
+          ))}
+        </div>
+      </section>
+    </>
+  );
+}
+
+/** One area: the question it answers, what it judged, the score, and its findings. */
+function AreaRow({ area, result }: { area: CategoryScore; result: AssessmentResult }) {
+  const a = AREAS[area.category];
+  const tipId = `area-help-${area.category.replace(/[^a-z]+/gi, '-').toLowerCase()}`;
+
+  /*
+   * Every control in the area gets a row, whether or not it failed.
+   * `result.findings` holds failures only, so iterating the area's own check
+   * ids is what keeps a passing control visible instead of silently absent.
+   */
+  const controls = area.checkIds.map((id) => ({
+    id,
+    presentation: PRESENTATION[id],
+    control: result.controls.find((c) => c.id === id) ?? null,
+  }));
+
+  const slaControl = controls.find((c) => c.id === 'sla-risk')?.control ?? null;
+
+  return (
+    <div className="area">
+      <div className="area-head">
+        <h3 className="area-name">
+          {a.label}
+          {/*
+           * The plain-English question is supplemental, so it lives behind a
+           * help trigger rather than sitting permanently beneath the name where
+           * it competed with the control name for the same role.
+           *
+           * A real <button> is the trigger: it is focusable without a tabindex,
+           * reachable by keyboard, and announced. Showing the tip is pure CSS
+           * on :hover and :focus-visible, so no JavaScript and no library.
+           */}
+          <span className="area-help">
+            <button type="button" className="help-trigger" aria-describedby={tipId}>
+              <span aria-hidden="true">i</span>
+              <span className="sr-only">What {a.label} measures</span>
+            </button>
+            <span role="tooltip" id={tipId} className="help-tip">
+              {a.question}
+            </span>
+          </span>
+        </h3>
+
+        <div className="area-score-block">
+          <p className={`area-score ${meterClass(area.score)}`}>
+            {area.score} <span className="area-scale">/ 100</span>
+          </p>
+          <ScoreMeter score={area.score} />
+          <p className={`area-band ${meterClass(area.score)}`}>{healthLabel(area.score)}</p>
+        </div>
       </div>
-      <div className="priority-end">
-        <div className="priority-count">{count}</div>
-        <span className="priority-go" aria-hidden="true">
-          View finding →
-        </span>
+
+      {/*
+       * One row per control. Each carries its own population, so two controls
+       * in the same area keep two different denominators rather than being
+       * added into a combined one that would be precise-looking and false.
+       */}
+      <ul className="controls">
+        {controls.map(({ id, presentation, control }) => (
+          <li key={id} className="control">
+            <Link className="control-name" href={`/findings/${id}?from=overview`}>
+              {presentation.label}
+            </Link>
+            {control ? (
+              /*
+               * "20 of 50 Leads evaluated · 30 not evaluated" rather than a bare
+               * "20 evaluated". The denominator a control did not use is the
+               * number a reader asks about first, so it is not left to the
+               * detail page to answer.
+               */
+              <p className="control-metrics">
+                <span>
+                  {NUM.format(control.evaluated)} of {NUM.format(control.orgPopulation)}{' '}
+                  {control.orgPopulationNoun} evaluated
+                </span>
+                {control.notEvaluatedCount > 0 ? (
+                  <span>{NUM.format(control.notEvaluatedCount)} not evaluated</span>
+                ) : null}
+                <span className={control.failing > 0 ? 'bad' : undefined}>
+                  {control.failing > 0
+                    ? `${NUM.format(control.failing)} failing`
+                    : 'No failing records'}
+                </span>
+                <span className={`control-score ${meterClass(control.score)}`}>{control.score}</span>
+              </p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+
+      {/*
+       * Only where the area holds more than one control, because that is the
+       * only case where the area score is not simply the control score in the
+       * row above it.
+       */}
+      {controls.length > 1 ? (
+        <p className="area-method">
+          Area score ={' '}
+          <span className="mono">
+            ({controls.map(({ id }) => checkScoreOf(result, id)).join(' + ')}) ÷ {controls.length} ={' '}
+            {area.score}
+          </span>
+        </p>
+      ) : null}
+
+      {/*
+       * M-07, beside the attainment figure it guards.
+       *
+       * The metric dictionary is explicit that the SLA attainment rate must
+       * never be reported without the share of records it could measure. A
+       * rising score over a falling measurable share is not an improvement.
+       */}
+      {slaControl ? (
+        <p className="area-method">
+          Measurable population —{' '}
+          <span className="mono">
+            {NUM.format(slaControl.evaluated)} of {NUM.format(slaControl.orgPopulation)} Leads (
+            {measurablePercent(slaControl)}%)
+          </span>
+          . A Lead never given a response commitment is counted as neither met nor breached.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+/** How scoring works, in flow rather than as an overlay. */
+function ScoringDisclosure({ result }: { result: AssessmentResult }) {
+  const sla = result.controls.find((c) => c.id === 'sla-risk');
+  // Whichever area holds more than one control - the only case the worked
+  // example below is about. Named for the shape, not for a particular area.
+  const multi = result.categoryScores.find((c) => c.checkIds.length > 1);
+
+  return (
+    <details className="scoring">
+      <summary>How scoring works</summary>
+      <div className="scoring-body">
+        <dl>
+          <dt>What records are counted?</dt>
+          <dd>
+            Each control is scored against the Salesforce records eligible for that check. Records
+            outside that population are excluded rather than counted as passing.
+          </dd>
+
+          <dt>How is a control scored?</dt>
+          <dd>
+            A control score is the percentage of evaluated records that pass the check, rounded to a
+            whole number. A control with nothing to evaluate scores 100 — absence of data is not
+            evidence of failure.
+          </dd>
+
+          <dt>How is an assessment-area score calculated?</dt>
+          <dd>
+            An area is the <strong>unweighted mean</strong> of the scores of the controls inside it —
+            every control counts equally, regardless of how many records it judged. Overall health is
+            the unweighted mean of the area scores.
+            {multi && multi.checkIds.length > 1 ? (
+              <>
+                {' '}
+                {AREAS[multi.category].label} combines {multi.checkIds.length} controls scored{' '}
+                {multi.checkIds.map((id) => checkScoreOf(result, id)).join(' and ')}, so the area
+                scores ({multi.checkIds.map((id) => checkScoreOf(result, id)).join(' + ')}) ÷{' '}
+                {multi.checkIds.length} = {multi.score}. Their populations overlap and answer
+                different questions, so they are <strong>not</strong> added into one denominator.
+              </>
+            ) : null}
+          </dd>
+
+          {sla ? (
+            <>
+              <dt>Worked example — {AREAS['SLA Performance'].label}</dt>
+              <dd>
+                {sla.evaluated} Leads have a measurable SLA commitment. {sla.failing} are at risk or
+                breached, so {sla.evaluated - sla.failing} pass:{' '}
+                <span className="mono">
+                  {sla.evaluated - sla.failing} ÷ {sla.evaluated} = {sla.score}
+                </span>
+                . The other {sla.notEvaluatedCount} Leads in the org carry no SLA target and are{' '}
+                <strong>not counted as passing</strong> — they sit outside this check&rsquo;s
+                measurable population. This score does not measure every Lead: it measures{' '}
+                <strong>
+                  {sla.evaluated} of {sla.orgPopulation} ({measurablePercent(sla)}%)
+                </strong>
+                .
+              </dd>
+            </>
+          ) : null}
+
+          <dt>What does this screen prove?</dt>
+          <dd>
+            That these records are in this state right now. A finding reports what the org recorded;
+            it is <strong>not</strong> a test of the Salesforce automation that produced it. Control
+            behaviour is validated in the implementation log, not here.
+          </dd>
+        </dl>
       </div>
-    </Link>
+    </details>
   );
 }
 
 /**
- * The score one control contributed, recomputed from the counts the assessment
- * already reported. Same formula as the engine, used only to show the working.
+ * The score one control contributed, as the engine computed it.
+ *
+ * Read rather than recomputed: a healthy control used to be assumed to be 100
+ * because it has no entry in `findings`, which was true only by coincidence of
+ * the formula. `controls` carries every control's real score.
  */
 function checkScoreOf(result: AssessmentResult, id: string): number {
-  const f = result.findings.find((x) => x.id === id);
-  if (!f) return 100;
-  return Math.round(100 * (1 - f.affected / (f.evaluated || 1)));
+  return result.controls.find((c) => c.id === id)?.score ?? 100;
 }
 
-function formatTime(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return 'an unrecorded time';
-  return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)} UTC`;
+/** Share of the org population a control could actually measure. M-07. */
+function measurablePercent(c: ControlSummary): number {
+  if (c.orgPopulation === 0) return 0;
+  return Math.round((100 * c.evaluated) / c.orgPopulation);
 }

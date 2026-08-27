@@ -3,26 +3,28 @@
 | | |
 |---|---|
 | **Purpose** | Which objects and fields the architecture needs, and which of those are custom |
-| **Status** | 🟢 **APPROVED for Increment 1** — org inspected 2026-08-22; nothing built yet |
+| **Status** | 🟢 **21 custom fields deployed** — Lead 14 · Account 4 · User 3. 18 validated across Increments 2-4; the 3 `User` fields are **deployed and unconsumed**. |
 | **Related** | [`architecture.md`](architecture.md) · [`requirements.md`](requirements.md) · [`security-model.md`](security-model.md) |
 
 ---
 
 ## ⚠️ Status of Every Field in This Document
 
-**The org has been inspected (2026-08-22). 19 fields are approved for Increment 1. None is built yet.**
+**21 custom fields are deployed and in source control**, alongside **3 Custom Metadata Types holding 16 configuration records** (§2b — configuration, not CRM data). — Lead 14 (validated across Increments 2-4),
+Account 4 (deployed; `Normalized_Domain__c` validated), User 3 (**deployed, unconsumed**). The status
+column below is current; [`implementation-log.md`](implementation-log.md) records each transition.
 
 | Status | Meaning |
 |---|---|
 | **Standard — reuse** | An existing Salesforce field meets the need. **No custom field will be created.** |
 | **Candidate** | Proposed, not yet approved for a specific increment |
 | **Approved — Inc N** | Approved for build in the named increment. **Still not built.** |
-| **Implemented** | Created in the org and source-controlled — *none yet* |
-| **Validated** | Implemented and proven by test — *none yet* |
+| **Implemented** | Created in the org and source-controlled |
+| **Validated** | Implemented and proven by an executed test with recorded results |
 | **Deferred** | Valid but out of this release, or moved to a later increment |
 
-**No field below is Implemented or Validated.** The column advances as the build proceeds, and
-[`implementation-log.md`](implementation-log.md) records each transition.
+The status column advances as the build proceeds, and
+[`implementation-log.md`](implementation-log.md) records each transition with its date.
 
 **Org inspection reduced 22 candidates to 20, then 19 for Increment 1**: `Customer_Status__c` was
 replaced by standard `Account.Type`, `Lifecycle_Stage_Entered__c` was deferred to standard field
@@ -67,11 +69,12 @@ The discovery finding that governs this entire document:
 
 ---
 
-## 2. Candidate Custom Fields
+## 2. Custom Fields — 21 deployed
 
-**22 candidates.** Preferred envelope is 15–25.
+**21 built.** Preferred envelope is 15–25. The original proposal held 22 candidates; org inspection
+reduced it, Increment 3 rejected `Match_Basis__c`, and Increment 3 added `Account.Normalized_Domain__c`.
 
-### Lead — 12 built across Increments 2–4
+### Lead — 14 built across Increments 2–4
 
 | API name | Type | Purpose | Serves | Status |
 |---|---|---|---|---|
@@ -93,29 +96,38 @@ The discovery finding that governs this entire document:
 > ~~`Match_Basis__c`~~ — **NOT BUILT.** Rejected in Increment 3: with a single matching signal the
 > basis is constant, so `Match_Status__c` + `Matched_Account__c` already answer *what* and *which*.
 
-### Account — 3 approved (1 replaced by standard)
+### Account — 4 built (1 candidate replaced by standard)
 
 | API name | Type | Purpose | Serves | Status |
 |---|---|---|---|---|
-| `Strategic_Account__c` | Checkbox | Explicit designation, set by Revenue Operations | `BR-07`, `PD-02` | **Approved — Inc 1** |
+| `Normalized_Domain__c` | Text(255) | Reproduces Lead normalization so domains can be compared | `BR-03` | ✅ **VALIDATED (Inc 3)** — matches on all 13 stock Accounts |
+| `Strategic_Account__c` | Checkbox | Explicit designation, set by Revenue Operations | `BR-07`, `PD-02` | ✅ **DEPLOYED (Inc 1)** — consumed by routing Tier 1 |
 | ~~`Customer_Status__c`~~ | — | **REPLACED by standard `Account.Type`** (add `Churned` value) | `BR-03`, `BR-07` | **Removed** |
-| `Segment__c` | Picklist | Derived segment | `BR-05` | **Approved — Inc 1** |
-| `Territory__c` | Picklist | Derived territory | `BR-06` | **Approved — Inc 1** |
+| `Segment__c` | Picklist | Derived segment | `BR-05` | 🟡 **DEPLOYED (Inc 1)** — Account-level derivation deferred at Inc 3 |
+| `Territory__c` | Picklist | Derived territory | `BR-06` | 🟡 **DEPLOYED (Inc 1)** — Account-level derivation deferred at Inc 3 |
 
-### User — 3 approved for Increment 1
+### User — 3 deployed, none consumed
 
 | API name | Type | Purpose | Serves | Status |
 |---|---|---|---|---|
-| `Territory__c` | Picklist | Coverage — a routing input | `BR-06`, `BR-07` | **Approved — Inc 1** |
-| `Routing_Eligible__c` | Checkbox | Eligibility for assignment (`OD-02` interim) | `BR-08` | **Approved — Inc 1** |
-| `Last_Assigned_DateTime__c` | Date/Time | Rotation state — **readable, not inferred** | `BR-09`, `PD-07` | **Approved — Inc 1** |
+| `Territory__c` | Picklist | Coverage — a routing input | `BR-06`, `BR-07` | 🟡 **DEPLOYED, UNCONSUMED** |
+| `Routing_Eligible__c` | Checkbox | Eligibility for assignment (`OD-02` interim) | `BR-08` | 🟡 **DEPLOYED, UNCONSUMED** |
+| `Last_Assigned_DateTime__c` | Date/Time | Rotation state — **readable, not inferred** | `BR-09`, `PD-07` | 🟡 **DEPLOYED, UNCONSUMED** |
+
+> **All three are deployed, FLS-granted to `NIQ_Revenue_Operations`, and read by no automation.**
+> `Lead_Inbound_Before_Save` contains **zero references** to them. Round robin (`BR-09`, `PD-07`) was
+> deferred at Increment 3, and territory coverage routes to a **queue** rather than to an individual
+> seller.
+>
+> They remain deployed from the approved design but are currently unconsumed. **They are not evidence
+> that round robin exists.**
 
 ### Resolved at org inspection
 
 | API name | Type | Purpose | Serves | Disposition |
 |---|---|---|---|---|
 | `Lead.Exception_Type__c` | Picklist | Exception classification | `BR-13` | **Approved — Inc 1.** Kept separate from `Data_Quality_Status__c`: exception class and data-quality state are different concepts, and the one-queue design depends on this field. |
-| `Lead.SLA_Status__c` | **Formula(Text)** | Met · Breached · Pending · Unmeasurable | `BR-11`, `BR-12` | **Deferred to the SLA increment.** Its inputs (`SLA_Target_DateTime__c`, `First_Touch_DateTime__c`) carry no values until then. Formulas are non-destructive to add later. |
+| `Lead.SLA_Status__c` | **Formula(Text)** | Met · Breached · Pending · Unmeasurable | `BR-11`, `BR-12` | ✅ **DELIVERED in Increment 4** — VALIDATED, zero mutation. Originally deferred because its inputs (`SLA_Target_DateTime__c`, `First_Touch_DateTime__c`) carried no values until then, and formulas are non-destructive to add later. |
 | `Lead.Lifecycle_Stage_Entered__c` | Date/Time | Stage entry timestamp | `BR-16` | **Deferred — replaced by standard field history.** `LeadHistory` confirmed available; `PD-09` is satisfied by enabling tracking on `Status`, at zero field cost. |
 
 ### Formula fields
@@ -131,6 +143,64 @@ Four fields were candidates for formulas. Org inspection resolved three:
 
 > **A formula field cannot be a picklist.** `Data_Quality_Status__c` is therefore Formula(Text), not
 > a governed value set. Text still groups correctly in reports.
+
+---
+
+## 2b. Configuration Records — Custom Metadata
+
+**Custom Metadata is configuration, not CRM data**, and the distinction is load-bearing in this
+document. Everything in §2 is a field on a record a person or a process creates: a Lead, an Account,
+a User. Everything here is a **rule the business maintains**, stored as metadata, deployed and
+version-controlled like code but editable in the org without one.
+
+| | Custom fields (§2) | Custom Metadata records (here) |
+|---|---|---|
+| What it holds | A fact about one record | A rule that applies to many |
+| Who writes it | A person, or the intake Flow | An administrator, deliberately |
+| Changed by | Working a record | A configuration decision |
+| Volume | Grows with the business | Stays small by design |
+
+**No Custom Metadata Type in this project has a relationship to `Lead`.** There is no lookup, no
+master-detail, and no `__r` traversal from a Lead to any of them. That is not an omission: Custom
+Metadata cannot be the child of a standard object, and the association is made **by value at read
+time**, not by a foreign key.
+
+### `Routing_Readiness_Source__mdt` — which Lead Sources are assessed for routing readiness
+
+| Field API name | Type | Meaning, from the artifact | Manageability |
+|---|---|---|---|
+| `Lead_Source__c` | Text(255) | *"The exact `Lead.LeadSource` value this record covers. Matched on exact equality. `BR-02`."* | `SubscriberControlled` |
+| `Is_Active__c` | Checkbox, default `true` | *"Whether this source is in force."* | `SubscriberControlled` |
+
+**Record semantics.** One record per Lead Source. A record's `Lead_Source__c` is compared for
+**exact string equality** against `Lead.LeadSource`; there is no normalisation, no case folding and
+no pattern matching. Records currently deployed: `NorthstarIQ Inbound`, `Web`, `Phone Inquiry` — all
+three `Is_Active__c = true`.
+
+**Active/inactive is implemented, and it is a filter rather than a delete.** The assessment reads
+`WHERE Is_Active__c = true`. Unchecking the box removes a source from the assessed population while
+keeping the record — so a source that was once in scope stays visible as configuration history
+rather than vanishing.
+
+**How it relates to `Lead.LeadSource`, precisely.**
+
+```
+Lead.LeadSource                      a value on the record
+        │
+        │  compared for exact equality at assessment time
+        │  NOT a lookup, NOT a relationship, NOT enforced by the platform
+        ▼
+Routing_Readiness_Source__mdt.Lead_Source__c   where Is_Active__c = true
+```
+
+**Nothing enforces that the two agree.** A record here naming a Lead Source that no Lead uses is
+inert; a Lead Source with no record here is simply not assessed by that control. Neither is an error,
+and neither is prevented — which is why the assessment reports the sources it excluded, by name,
+rather than reporting a smaller population without saying so.
+
+**The other two types are automation configuration** — `Segment_Band__mdt` and `Routing_Rule__mdt`
+are read by `Lead_Inbound_Before_Save`, not by the assessment, and their rule content is documented
+in [`architecture.md`](architecture.md) §4 rather than repeated here.
 
 ---
 

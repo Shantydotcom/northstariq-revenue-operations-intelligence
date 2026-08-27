@@ -624,51 +624,206 @@ dl.definitions dd {
 
 /* ------------------------------------------------------------ overview */
 
-.page-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 32px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
-.page-head .lede {
+/*
+ * Two columns: what was assessed, and what it was assessed against. The rail is
+ * separated by a hairline rather than boxed, so it reads as supporting context
+ * and never competes with the conclusion below it.
+ */
+.overview-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 244px;
+  gap: 40px;
+  align-items: start;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 22px;
   margin-bottom: 24px;
 }
 
-.assessment {
+.overview-intro .lede {
+  margin: 0 0 16px;
+  max-width: 56ch;
+}
+
+.head-figures {
   display: flex;
   flex-direction: column;
-  gap: 40px;
+  gap: 3px;
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 
-/* The score, given room. One number, stated once. */
-.overall {
-  border-top: 2px solid var(--ink);
-  padding-top: 22px;
+.head-figures-sub {
+  color: var(--ink-muted);
 }
 
-.overall-head {
+.head-readonly {
+  margin: 14px 0 0;
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+  max-width: 46ch;
+}
+
+/* ------------------------------------------------------------ rail */
+
+.rail {
+  border-left: 1px solid var(--border);
+  padding-left: 26px;
+}
+
+.rail h2 {
+  margin: 0 0 14px;
+}
+
+.rail-state {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.rail-state.connected .status-dot {
+  background: var(--ok);
+}
+
+.rail-state.disconnected {
+  color: var(--high);
+}
+
+.rail-state.disconnected .status-dot {
+  background: var(--high);
+}
+
+.rail-line {
+  margin: 0 0 4px;
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+}
+
+.rail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 14px;
+}
+
+.rail-key {
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  font-weight: var(--w-medium);
+  color: var(--ink-faint);
+}
+
+.rail-value {
+  font-size: var(--t-small);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.rail-evidence {
+  margin-top: 14px;
+}
+
+.rail button.primary {
+  margin-top: 16px;
+  width: 100%;
+}
+
+/* ------------------------------------------------------------ conclusion */
+
+/*
+ * The heading states the overall assessment; the sentence names the weakest
+ * area. Those can legitimately differ, and the weakest area never redefines the
+ * overall state. Authority sits on the evidence count, not on the composite.
+ */
+.conclusion {
+  margin-bottom: 28px;
+}
+
+.conclusion h2 {
+  margin: 0 0 10px;
+}
+
+.conclusion h2.warn {
+  color: var(--medium);
+}
+
+.conclusion h2.bad {
+  color: var(--high);
+}
+
+.conclusion-lead {
+  margin: 0 0 14px;
+  font-size: var(--t-lede);
+  color: var(--ink);
+  max-width: 60ch;
+}
+
+.conclusion-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 14px;
+}
+
+.conclusion-count {
+  font-size: var(--t-display);
+  font-weight: var(--w-bold);
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  font-variant-numeric: tabular-nums;
+}
+
+.conclusion-count.warn {
+  color: var(--medium);
+}
+
+.conclusion-count.bad {
+  color: var(--high);
+}
+
+.conclusion-predicate {
+  font-size: var(--t-lede);
+  color: var(--ink-muted);
+  max-width: 54ch;
+}
+
+.conclusion-link {
+  font-size: var(--t-small);
+  text-decoration: none;
+}
+
+.conclusion-link:hover {
+  text-decoration: underline;
+}
+
+/* ------------------------------------------------------------ overall */
+
+.overall {
+  margin-bottom: 34px;
+}
+
+.overall h2 {
+  margin: 0 0 8px;
 }
 
 .overall-score {
   display: flex;
   align-items: baseline;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 8px;
 }
 
 .overall-value {
-  font-size: var(--t-display);
+  font-size: var(--t-data-lg);
   font-weight: var(--w-bold);
-  letter-spacing: -0.035em;
-  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 .overall-value.warn {
@@ -680,27 +835,21 @@ dl.definitions dd {
 }
 
 .overall-scale {
-  font-size: var(--t-lede);
-  color: var(--ink-faint);
-}
-
-.overall-state {
   font-size: var(--t-small);
-  font-weight: var(--w-medium);
-  letter-spacing: 0.02em;
-  padding-left: 14px;
-  border-left: 1px solid var(--border-strong);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.overall-method {
+  margin: 0 0 10px;
+  font-size: var(--t-small);
   color: var(--ink-muted);
+  max-width: 62ch;
 }
 
-.overall-state.warn {
-  color: var(--medium);
-}
+/* ------------------------------------------------------------ metrics */
 
-.overall-state.bad {
-  color: var(--high);
-}
-
+/* Retained for the finding-detail route, which still reads figures this way. */
 .metrics {
   display: flex;
   gap: 56px;
@@ -731,6 +880,8 @@ dl.definitions dd {
   color: var(--high);
 }
 
+/* ------------------------------------------------------------ sections */
+
 .section-head {
   display: flex;
   align-items: baseline;
@@ -739,7 +890,7 @@ dl.definitions dd {
   flex-wrap: wrap;
   border-bottom: 1px solid var(--border);
   padding-bottom: 10px;
-  margin-bottom: 4px;
+  margin-bottom: 12px;
 }
 
 .section-head h2 {
@@ -756,64 +907,549 @@ dl.definitions dd {
   text-decoration: underline;
 }
 
-/* Rows, not cards: the five scores are one list to work down, not five
-   unrelated objects. */
+.section-intro {
+  margin: 0 0 6px;
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+  max-width: 68ch;
+}
+
+/*
+ * The population explanation: what was found, what the control applies to,
+ * what was left out and why, what failed, and the arithmetic. Body colour
+ * rather than muted - it is the answer to the reader's first question, not a
+ * footnote to it.
+ */
+.explain {
+  margin: 18px 0 0;
+  font-size: var(--t-small);
+  line-height: 1.65;
+  color: var(--ink);
+  max-width: 74ch;
+}
+
+/*
+ * One compact control per table, rather than a row of loose links.
+ *
+ * The menu holds the actions; the filter it opens does not live inside it.
+ */
+.table-actions {
+  position: relative;
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 8px;
+}
+.actions-trigger {
+  font: inherit;
+  font-size: var(--t-label);
+  color: var(--ink-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.actions-trigger:hover,
+.actions-trigger[aria-expanded='true'] {
+  color: var(--ink);
+  border-color: var(--ink-faint);
+}
+.actions-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 20;
+  min-width: 170px;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  box-shadow: 0 4px 14px rgb(16 24 40 / 10%);
+  padding: 4px;
+}
+.actions-menu > * {
+  font: inherit;
+  font-size: var(--t-small);
+  text-align: left;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: 3px;
+  padding: 6px 10px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.actions-menu > *:hover {
+  background: #f1f3f6;
+}
+
+/*
+ * A runtime breakdown: how failures or exclusions actually divide.
+ *
+ * Quieter than .metrics on purpose - these are the composition of a figure
+ * already shown above, not new headline numbers.
+ */
+.breakdown {
+  margin: 12px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+.breakdown div {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  font-size: var(--t-label);
+  background: #f1f3f6;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 9px;
+}
+.breakdown dt {
+  color: var(--ink-muted);
+}
+.breakdown dd {
+  margin: 0;
+  color: var(--ink);
+  font-weight: var(--w-medium);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Control and verification as one labelled pair rather than two sections. */
+.control-pair {
+  margin: 0;
+  display: grid;
+  gap: 4px 18px;
+  grid-template-columns: max-content 1fr;
+  align-items: baseline;
+}
+.control-pair dt {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--w-medium);
+}
+.control-pair dd {
+  margin: 0 0 10px;
+  max-width: 74ch;
+  color: var(--ink);
+}
+
+@media (max-width: 640px) {
+  .control-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Recorded test outcomes, kept available but out of the reading path. */
+.tested {
+  margin: 14px 0 0;
+}
+.tested summary {
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+  cursor: pointer;
+}
+.tested summary:hover {
+  color: var(--ink);
+}
+
+/*
+ * Column filtering. A view operation over rows already on the page - it issues
+ * no request and cannot move a count or a score.
+ *
+ * The trigger sits in the header so the column that can be filtered is the
+ * column you click, and the active state is shown on the header itself.
+ */
+.col-filter-trigger {
+  font: inherit;
+  font-size: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.col-filter-caret {
+  color: var(--ink-faint);
+  font-size: 9px;
+}
+.usage-table th .col-filter-trigger,
+th.col-filtered {
+  color: var(--accent);
+}
+th.col-filtered .col-filter-caret {
+  color: var(--accent);
+}
+th {
+  position: relative;
+}
+.col-filter-pop {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  z-index: 25;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  box-shadow: 0 4px 14px rgb(16 24 40 / 10%);
+  padding: 7px;
+}
+.col-filter-pop input {
+  font: inherit;
+  font-size: var(--t-small);
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  min-width: 150px;
+}
+.col-filter-pop input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.col-filter-pop button {
+  font: inherit;
+  font-size: var(--t-label);
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--ink-muted);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+/* Active filters, visible without reopening anything. */
+.filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 8px;
+}
+.filter-chips-label {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--w-medium);
+}
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-label);
+  color: var(--ink-muted);
+  background: #f1f3f6;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px 2px 8px;
+}
+.filter-chip strong {
+  color: var(--ink);
+  font-weight: var(--w-medium);
+}
+.filter-chip button,
+.filter-clear-all {
+  font: inherit;
+  font-size: var(--t-label);
+  color: var(--ink-faint);
+  background: none;
+  border: 0;
+  padding: 0 4px;
+  cursor: pointer;
+}
+.filter-chip button:hover,
+.filter-clear-all:hover {
+  color: var(--ink);
+}
+.filter-clear-all {
+  text-decoration: underline;
+}
+
+/* Progressive disclosure: five rows, then the rest on request. */
+.table-more {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 8px 0 0;
+}
+.table-more button {
+  font: inherit;
+  font-size: var(--t-small);
+  color: var(--accent);
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.table-more .muted {
+  font-size: var(--t-label);
+  color: var(--ink-faint);
+}
+
+/* A grouped dependency reads as one block, not six unrelated rows. */
+.usage-table tr.usage-group-start td {
+  border-top: 1px solid var(--border);
+}
+.usage-table td[rowspan] {
+  vertical-align: top;
+}
+
+/* ------------------------------------------------------------ areas */
+
+/* Rows, not cards: the five areas are one list to work down, not five
+   unrelated objects. Area and score first, then the controls beneath it. */
 .areas {
   display: flex;
   flex-direction: column;
 }
 
 .area {
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) minmax(90px, 190px) 56px;
-  align-items: center;
-  gap: 24px;
-  padding: 17px 2px;
+  padding: 22px 0;
   border-bottom: 1px solid var(--border);
 }
 
-/* Name, then what was measured, then the population it was measured over. */
-.area-scope {
-  font-size: var(--t-small);
-  color: var(--ink-muted);
-  margin-top: 3px;
-}
-
-.area-population {
-  font-size: var(--t-meta);
-  color: var(--ink-faint);
-  margin-top: 5px;
-  font-variant-numeric: tabular-nums;
-}
-
 .area:last-child {
-  border-bottom: none;
+  border-bottom: 0;
+}
+
+/* Area identity on the left, area score on the right, on one baseline. */
+.area-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
 }
 
 .area-name {
-  font-size: var(--t-ui);
+  margin: 0;
+  font-size: var(--t-lede);
   font-weight: var(--w-medium);
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 7px;
 }
 
-.area .meter {
-  margin-top: 0;
+.area-score-block {
+  text-align: right;
+  min-width: 132px;
+  flex-shrink: 0;
 }
 
 .area-score {
-  font-size: var(--t-data);
+  margin: 0;
+  font-size: var(--t-data-lg);
   font-weight: var(--w-bold);
-  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+.area-scale {
+  font-size: var(--t-meta);
+  font-weight: var(--w-normal);
+  color: var(--ink-faint);
+}
+
+.area-band {
+  margin: 6px 0 0;
+  font-size: var(--t-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: var(--w-medium);
+  color: var(--ink-faint);
+}
+
+.area-band.warn,
+.area-band.bad {
+  color: var(--high);
+}
+
+.area-score-block .meter {
+  margin-top: 8px;
+}
+
+/* ------------------------------------------------------- area help */
+
+/*
+ * A hover/focus tooltip with no library and no JavaScript.
+ *
+ * The trigger is a real button so it is keyboard reachable without a tabindex,
+ * and aria-describedby ties it to the tip so assistive technology announces the
+ * explanation rather than a bare "i".
+ */
+.area-help {
+  position: relative;
+  display: inline-flex;
+}
+
+.help-trigger {
+  width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-faint);
+  font-size: 10px;
+  font-weight: var(--w-medium);
+  font-family: Georgia, 'Times New Roman', serif;
+  font-style: italic;
+  line-height: 1;
+  cursor: help;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.help-trigger:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.help-tip {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: -8px;
+  z-index: 20;
+  width: max-content;
+  max-width: 300px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  background: var(--ink);
+  color: #fff;
+  font-size: var(--t-small);
+  font-weight: var(--w-normal);
+  line-height: 1.45;
+  letter-spacing: normal;
+  text-transform: none;
+  box-shadow: 0 6px 20px rgb(20 33 61 / 22%);
+  /* Hidden from pointer and from assistive tech until it is revealed. */
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 120ms ease;
+}
+
+.help-trigger:hover + .help-tip,
+.help-trigger:focus-visible + .help-tip,
+.help-trigger:focus + .help-tip {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* ---------------------------------------------------------- controls */
+
+/*
+ * One row per control. Each carries its own record population, so two controls
+ * in one area keep two honest denominators instead of a combined figure.
+ */
+.controls {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+}
+
+.control {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 7px 0;
+}
+
+.control-name {
+  font-size: var(--t-ui);
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.control-name:hover {
+  border-bottom-color: currentColor;
+}
+
+.control-metrics {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  font-size: var(--t-meta);
+  color: var(--ink-muted);
   text-align: right;
+  flex-shrink: 0;
+}
+
+.control-metrics .bad {
+  color: var(--high);
+}
+
+/* The control score closes the row: population, failures, then the number. */
+.control-score {
+  min-width: 26px;
+  font-size: var(--t-ui);
+  font-weight: var(--w-medium);
+  color: var(--ink);
   font-variant-numeric: tabular-nums;
 }
 
-.area-score.warn {
-  color: var(--medium);
-}
-
-.area-score.bad {
+.control-score.warn,
+.control-score.bad {
   color: var(--high);
 }
+
+/* Only shown where an area holds more than one control. */
+.area-method {
+  margin: 10px 0 0;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+}
+
+@media (max-width: 720px) {
+  .area-head {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .area-score-block {
+    text-align: left;
+    min-width: 0;
+  }
+
+  .control {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .control-metrics {
+    text-align: left;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .help-tip {
+    left: auto;
+    right: 0;
+    max-width: 240px;
+  }
+}
+
+/* ------------------------------------------------------------ scoring */
 
 .scoring {
   font-size: var(--t-small);
@@ -825,6 +1461,7 @@ dl.definitions dd {
   color: var(--accent);
   list-style: none;
   white-space: nowrap;
+  display: inline-block;
 }
 
 .scoring summary::-webkit-details-marker {
@@ -841,10 +1478,9 @@ dl.definitions dd {
 }
 
 /*
- * In flow, not floating. As an overlay this panel covered the five rows it was
+ * In flow, not floating. As an overlay this panel covered the rows it was
  * explaining, and because no ancestor was positioned it anchored to the
- * viewport rather than to its own summary. Expanding in place costs a push of
- * the rows below and removes an occlusion, a mis-anchor and a dismissal trap.
+ * viewport rather than to its own summary.
  */
 .scoring-body {
   margin-top: 12px;
@@ -870,83 +1506,21 @@ dl.definitions dd {
   font-size: var(--t-meta);
 }
 
-.priorities {
-  display: flex;
-  flex-direction: column;
-}
-
-.priority {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 16px 2px;
-  border-bottom: 1px solid var(--border);
-  text-decoration: none;
-  color: inherit;
-}
-
-.priority:last-child {
-  border-bottom: none;
-}
-
-.priority:hover .priority-title {
-  text-decoration: underline;
-}
-
-.priority-title {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: var(--t-body);
-  font-weight: var(--w-medium);
-  color: var(--accent);
-}
-
-.priority-main p {
-  margin: 5px 0 0;
-  color: var(--ink-muted);
-  font-size: var(--t-ui);
-  max-width: 70ch;
-}
-
-.priority-count {
-  font-size: var(--t-body);
-  font-weight: var(--w-medium);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.priority-end {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 3px;
-}
-
-/* The findings queue names its own action; these rows had only a hover state,
-   which says nothing on touch or in a screenshot. */
-.priority-go {
-  font-size: var(--t-small);
-  color: var(--accent);
-  white-space: nowrap;
-}
-
 /*
- * Long labels wrap instead of forcing the row wider than its column. A flex or
+ * Long labels wrap instead of forcing a row wider than its column. A flex or
  * grid child will not shrink past its content without this.
  */
-.priority-main,
 .area-main,
 .queue-main {
   min-width: 0;
 }
 
-.priority-title,
 .area-name,
-.queue-name {
+.queue-name,
+.af-label {
   overflow-wrap: break-word;
 }
+
 
 /* ------------------------------------------------------------ salesforce links */
 
@@ -974,8 +1548,27 @@ dl.definitions dd {
 
 /* ------------------------------------------------------------ narrow screens */
 
+@media (max-width: 900px) {
+  /* The rail stops being a column and becomes a band beneath the intro. */
+  .overview-head {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 22px;
+  }
+
+  .rail {
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding-left: 0;
+    padding-top: 20px;
+  }
+
+  .rail button.primary {
+    width: auto;
+  }
+}
+
 @media (max-width: 720px) {
-  .overall-value {
+  .conclusion-count {
     font-size: var(--t-display-sm);
   }
 
@@ -983,30 +1576,43 @@ dl.definitions dd {
     gap: 32px;
   }
 
+  /*
+   * One column. Evidence and score become a single reading line beneath the
+   * question, so the row keeps its order - what it asks, what it judged, how it
+   * scored - without a side column narrow enough to collapse.
+   */
   .area {
-    grid-template-columns: 1fr 56px;
-    gap: 8px 16px;
-  }
-
-  .area-main {
-    grid-column: 1;
-  }
-
-  .area .meter {
-    grid-column: 1 / -1;
-  }
-
-  .priority {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
-
-  /* Stacked, the count and its affordance read left-to-right like the rest. */
-  .priority-end {
-    flex-direction: row;
-    align-items: baseline;
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
+    padding: 18px 2px;
+  }
+
+  .area-evidence {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+  }
+
+  .area-side {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+    text-align: left;
+  }
+
+  .area-side .meter {
+    margin-top: 0;
+    width: 108px;
+    flex: none;
+  }
+
+  .area-band {
+    margin: 0;
+  }
+
+  .af-go {
+    margin-left: 0;
   }
 
   .scoring-body {
@@ -1242,4 +1848,115 @@ a {
 td,
 th {
   font-variant-numeric: tabular-nums;
+}
+
+/* ------------------------------------------------------------ exports */
+
+/*
+ * Export controls sit beside the thing they export, not in a toolbar. They are
+ * links because a download is a navigation.
+ */
+.export-links {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.export-label {
+  font-size: var(--t-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.export-links a {
+  font-size: var(--t-small);
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.export-links a:hover {
+  border-bottom-color: currentColor;
+}
+
+/* The findings meta line carries the observation time and the export control. */
+.findings-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin: 0 0 22px;
+}
+
+.findings-meta .footnote {
+  margin: 0;
+}
+
+/* Evidence section head: count on the left, export on the right. */
+.section-tools {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+/* -------------------------------------------------- where is this used */
+
+.usage-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.usage-table th {
+  font-size: var(--t-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  font-weight: var(--w-medium);
+  text-align: left;
+  padding: 0 14px 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.usage-table td {
+  padding: 11px 14px 11px 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  font-size: var(--t-ui);
+  color: var(--ink-muted);
+}
+
+.usage-table td:first-child {
+  color: var(--ink);
+  font-weight: var(--w-medium);
+}
+
+.usage-table tr:last-child td {
+  border-bottom: 0;
+}
+
+/* The type is a word, not a coloured badge: it classifies, it does not rank. */
+.usage-type {
+  display: inline-block;
+  font-size: var(--t-meta);
+  color: var(--ink);
+  background: var(--accent-soft);
+  border-radius: 3px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+@media (max-width: 720px) {
+  .findings-meta {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .usage-table td,
+  .usage-table th {
+    padding-right: 10px;
+  }
 }

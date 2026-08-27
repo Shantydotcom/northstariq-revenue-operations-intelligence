@@ -4,7 +4,7 @@
 |---|---|
 | **Purpose** | The business capabilities this project must deliver, and the decisions that shape them |
 | **Count** | 23 core requirements, consolidated from 62 |
-| **Status** | Target State — **nothing in this document is implemented** |
+| **Status** | **Target State.** This document states required outcomes, not delivery. [`implementation-log.md`](implementation-log.md) is the sole authority on what is built. `BR-14`, `BR-16`, `BR-17`, `BR-19` and `BR-23` remain deliberately unbuilt. |
 | **Related** | [`business-case.md`](business-case.md) · [`architecture.md`](architecture.md) · [`data-model.md`](data-model.md) · [`testing-strategy.md`](testing-strategy.md) |
 
 ---
@@ -407,7 +407,7 @@ blockers — each has a defined interim behaviour.
 
 ## 5. Traceability
 
-| Requirement | Problem | Candidate component | Test scenario |
+| Requirement | Problem | Intended mechanism | Test scenario |
 |---|---|---|---|
 | `BR-01` | `PROB-001` | Before-save normalization; governed value sets | Malformed domain · country variant · unnormalizable value |
 | `BR-02` | `PROB-001` | Before-save completeness evaluation | Missing each routing-critical attribute · missing all · complete |

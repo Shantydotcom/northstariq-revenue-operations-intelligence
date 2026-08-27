@@ -1,4 +1,5 @@
 import { recordUrl } from '@/lib/salesforce';
+import RecordTable from './RecordTable';
 import type { EvidenceColumn, EvidenceRow } from '@/lib/types';
 
 /**
@@ -7,62 +8,35 @@ import type { EvidenceColumn, EvidenceRow } from '@/lib/types';
  * Only the fields a check reasons over are shown. No Contact email or phone,
  * and no field the finding does not need - the evidence should be sufficient
  * to act on and no broader than that.
+ *
+ * The server resolves each record's Salesforce URL here, because `recordUrl`
+ * sits behind the `server-only` boundary. Rendering, filtering and the actions
+ * menu happen in `RecordTable`, a Client Component that never sees the
+ * instance host.
  */
 export default function EvidenceTable({
   columns,
   rows,
   instanceHost,
+  label,
+  exportBase,
 }: {
   columns: EvidenceColumn[];
   rows: EvidenceRow[];
   /** When known, the record's name becomes a deep link into the connected org. */
   instanceHost?: string;
+  /** Names what is being filtered, for the filter input's accessible label. */
+  label: string;
+  /** Export route for this table. Omitted where the table has no export. */
+  exportBase?: string;
 }) {
-  if (rows.length === 0) {
-    return <div className="empty">No records to show.</div>;
-  }
-
   return (
-    <div className="table-scroll">
-      <table>
-        <thead>
-          <tr>
-            {columns.map((c) => (
-              <th key={c.key}>{c.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => {
-            // One link per row, on the name a reader recognises. The Id stays
-            // visible as text because it is the value Salesforce actually holds,
-            // but an 18-character key is not something to ask anyone to click.
-            const href = recordUrl(instanceHost, String(row.Id ?? ''));
-            return (
-              <tr key={String(row.Id ?? i)}>
-                {columns.map((c) => {
-                  const value = row[c.key];
-                  const display = value === null || value === '' ? '—' : String(value);
-                  const linked = href !== null && c.key === 'Name';
-                  return (
-                    <td key={c.key} className={c.mono ? 'mono' : undefined}>
-                      {linked ? (
-                        <a className="record-link" href={href} target="_blank" rel="noreferrer">
-                          {display}
-                          <span aria-hidden="true"> ↗</span>
-                          <span className="sr-only"> (opens in Salesforce)</span>
-                        </a>
-                      ) : (
-                        display
-                      )}
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <RecordTable
+      columns={columns}
+      rows={rows}
+      hrefs={rows.map((row) => recordUrl(instanceHost, String(row.Id ?? '')))}
+      label={label}
+      exportBase={exportBase}
+    />
   );
 }

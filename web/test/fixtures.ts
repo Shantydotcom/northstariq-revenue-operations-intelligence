@@ -9,6 +9,15 @@ import type { LeadRecord, OpportunityRecord } from '../lib/soql.ts';
 
 export const GOVERNED = 'NorthstarIQ Inbound';
 
+/**
+ * Stands in for the active Routing_Readiness_Source__mdt configuration.
+ *
+ * A fixture, not a definition: the real list comes from Salesforce each run.
+ * Tests pass it explicitly so a check can be exercised against a different
+ * configuration and prove it is reading one.
+ */
+export const READINESS_SOURCES = [GOVERNED, 'Web', 'Phone Inquiry'];
+
 let seq = 0;
 
 /** A clean, governed, fully-routed Lead. Overrides create each defect. */
@@ -25,7 +34,7 @@ export function lead(overrides: Partial<LeadRecord> = {}): LeadRecord {
     CountryCode: 'US',
     StateCode: 'CA',
     Segment__c: 'Mid-Market',
-    Segment_Basis__c: 'Employees 200-999',
+    Segment_Basis__c: 'Employee Count: 250 -> Mid-Market | Rule v1.0',
     Territory__c: 'NA-West',
     Match_Status__c: 'Matched',
     Matched_Account__c: '00100000000AAAA',

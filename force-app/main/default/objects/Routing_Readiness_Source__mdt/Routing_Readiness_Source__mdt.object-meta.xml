@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>BR-02/BR-21. Lead Sources expected to carry the data routing reads - employee count for segment, country for territory. A membership list, not a rules engine, and deliberately NOT ownership-routing authority: that stays in Lead_Inbound_Before_Save (fxRoutingEligible). Editable without deployment.</description>
+    <label>Routing Readiness Source</label>
+    <pluralLabel>Routing Readiness Sources</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

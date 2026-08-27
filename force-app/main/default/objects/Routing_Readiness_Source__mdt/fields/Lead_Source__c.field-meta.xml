@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Lead_Source__c</fullName>
+    <description>The exact Lead.LeadSource value this record covers. Matched on exact equality. BR-02.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>The exact Lead Source value this record covers.</inlineHelpText>
+    <label>Lead Source</label>
+    <required>false</required>
+    <length>255</length>
+    <unique>false</unique>
+    <type>Text</type>
+</CustomField>

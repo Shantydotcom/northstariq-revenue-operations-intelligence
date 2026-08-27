@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Purpose** | How the requirements are met in Salesforce, and how the NorthstarIQ application reads the result |
-| **Status** | 🟢 Org inspected 2026-08-22 · Increments 1-4 implemented · §13 Web MVP implemented, **live Salesforce connection not configured** · unbuilt items still CANDIDATE |
+| **Status** | 🟢 Org inspected 2026-08-22 · Increments 1-4 implemented · §13 Web MVP implemented, **Salesforce connection configured and its read path validated 2026-08-24** · unbuilt items still CANDIDATE |
 | **Related** | [`requirements.md`](requirements.md) · [`data-model.md`](data-model.md) · [`security-model.md`](security-model.md) · [`../web/README.md`](../web/README.md) |
 
 ---
@@ -24,8 +24,9 @@ say so on that basis. Anything still marked **CANDIDATE** is documented and **no
 [`implementation-log.md`](implementation-log.md) remains the sole authority on which is which.
 
 **Section 13 describes the NorthstarIQ application under `web/`** - a separate system that reads
-this org. It is implemented and verified locally, and its **live Salesforce connection is not
-configured and has never been exercised**.
+this org. It is implemented, its Salesforce connection is **configured**, and its **read path was
+validated against the Developer Edition org on 2026-08-24**. That run validated authentication and
+SOQL read; it exercised no Salesforce control.
 
 ---
 
@@ -346,10 +347,45 @@ Rules the business is expected to change must not live inside a Flow (`BR-21`).
 |---|---|---|---|
 | `Segment_Band__mdt` | Segment name · employee min/max · ARR override threshold · SLA response target · version | `BR-05`, `BR-10`, `BR-21` | A threshold change is a business decision that must not require a deployment |
 | `Routing_Rule__mdt` | Precedence order · segment · territory · eligibility criteria · rule version | `BR-07`, `BR-08`, `BR-21` | The precedence order is exactly the thing `PROB-005` says was never agreed — it must be visible and changeable |
+| `Routing_Readiness_Source__mdt` | `Lead_Source__c` · `Is_Active__c` | `BR-02`, `BR-21`, `BR-22` | Which Lead Sources are **held to a routing-readiness standard** is an operating decision. Held in configuration, it changes without a deployment. |
 
 **`Territory_Map__mdt` is not created.** `CountryCode` and `StateCode` are enabled as restricted
-standard picklists, so the country/state → territory mapping fits inside `Routing_Rule__mdt`. Two
-types, as intended.
+standard picklists, so the country/state → territory mapping fits inside `Routing_Rule__mdt`.
+
+### `Routing_Readiness_Source__mdt` — assessment configuration, not automation configuration
+
+**The third type differs from the first two in who reads it**, and that distinction is the reason it
+exists separately rather than as another column on an existing type.
+
+`Segment_Band__mdt` and `Routing_Rule__mdt` are read by the Salesforce Flow at intake: they decide
+what the org *does* to a record. `Routing_Readiness_Source__mdt` is read by the **NorthstarIQ
+assessment application**, and decides which records the org is *measured over*.
+`Lead_Inbound_Before_Save` holds **zero references to it** — verified against the Flow metadata.
+
+| | |
+|---|---|
+| **Purpose** | Governed Salesforce configuration defining which Lead Sources participate in NorthstarIQ's routing-readiness assessment population |
+| **Fields** | `Lead_Source__c` (Text 255) — *"The exact `Lead.LeadSource` value this record covers. Matched on exact equality."* · `Is_Active__c` (Checkbox, defaults true) — *"Whether this source is in force."* Both `SubscriberControlled`. |
+| **Active records** | 3 — `NorthstarIQ Inbound`, `Web`, `Phone Inquiry` |
+| **Consumed by** | The assessment application only, at run time. One static SOQL literal, `WHERE Is_Active__c = true`, issued in the same parallel read as `Lead` and `Opportunity`. |
+| **Serves** | The **Missing Routing Data** assessment, and that control alone |
+
+**It is deliberately NOT ownership-routing authority**, and the object's own description says so.
+Ownership routing stays narrower and stays in the Flow: `fxRoutingEligible` authorises reassignment
+for governed intake (`LeadSource = 'NorthstarIQ Inbound'`) only. A source can be held to a
+data-readiness standard without the org taking ownership of its Leads — `Web` and `Phone Inquiry`
+are exactly that case.
+
+**Empty configuration fails the run; it does not empty the population.** If the query returns no
+active record, the application raises a Salesforce error rather than scoring the control 100 on the
+grounds that nothing qualified. An unconfigured control that reports perfect health is a wrong answer
+presented as a result, and `BR-22` requires a measure to carry its reliability rather than conceal
+it.
+
+**Three types, one more than originally intended.** §4's original target was two, on the reasoning
+that automation configuration should stay minimal. The third serves a different reader — the
+assessment, not the Flow — and folding it into either existing type would have put assessment scope
+inside automation configuration, where a change to one would silently be a change to the other.
 
 **SLA response targets live in `Segment_Band__mdt`, not a separate type.** The target is an attribute
 of the segment. A separate `SLA_Target__mdt` would be a second table keyed on the same value.
@@ -525,11 +561,11 @@ Binding on every design decision above.
 
 | Constraint | Consequence |
 |---|---|
-| Limited user licenses | 8–10 users, enough to demonstrate access and rotation — not 64 |
+| Limited user licences | 4 Salesforce licences, 2 consumed by administrators. The access model is **validated against a representative non-admin Seller principal** — 1 user, not 64. Platform licences (6 free) cannot access Lead or Opportunity, so they cannot stand in. Multi-user behaviour is not tested and is not claimed. |
 | No sandbox | Changes are made in the org and captured to source control; no promotion path |
 | Standard object and field limits | Reinforces the tight field budget |
 | Storage limits | Dataset stays ~190 records |
-| Enterprise Territory Management availability | **Assumed unavailable** — validate at org inspection. The configuration-driven model is chosen partly for this reason. |
+| Enterprise Territory Management availability | **Confirmed unavailable** at org inspection 2026-08-22 (`ASM-10` confirmed). The configuration-driven model is required rather than merely preferred. |
 | No Shield / field audit trail | Standard field history tracking only (`PD-09`) |
 
 **Scale is designed for and never claimed.** Bulk-safe design is demonstrated at fixture volume.
@@ -557,9 +593,10 @@ would illustrate a design that has not survived contact with the org.
 
 ## 13. The NorthstarIQ Application (`web/`)
 
-**Status: implemented and verified locally · 🟡 the live Salesforce connection is not configured and
-has never been exercised.** Everything in this section exists in source control. Only the last hop
-is unproven, and it is marked as such in the picture below.
+**Status: implemented · ✅ the Salesforce connection is configured, and the read path was validated
+against the Developer Edition org on 2026-08-24.** Everything in this section exists in source
+control. The last hop is now proven, and **what it proves is bounded** - the table below states the
+boundary.
 
 Sections 1-12 describe the process **inside** Salesforce. This section describes the application
 that **reads** it. The two are deliberately separate systems: the org governs the records, and the
@@ -584,7 +621,7 @@ application assesses what the org did. Nothing here writes to Salesforce.
  ┌────────────────────────────────────────────────────────────┐
  │  SERVER-SIDE API ROUTES                                    │
  │  GET  /api/salesforce/status      connection probe         │
- │  POST /api/assessment/run         run the six checks       │
+ │  POST /api/assessment/run         run the seven checks     │
  │  GET  /api/findings/[checkId]     evidence for one check   │
  │  Salesforce failures are classified into safe codes here   │
  │  and never forwarded verbatim                              │
@@ -592,7 +629,7 @@ application assesses what the org did. Nothing here writes to Salesforce.
                               ▼
  ┌────────────────────────────────────────────────────────────┐
  │  ASSESSMENT · SCORING · CHECK LOGIC                        │
- │  6 rendered checks + 1 negative control                    │
+ │  7 rendered checks + 1 negative control                    │
  │  Pure functions over records already fetched               │
  │  Mean-based scoring: check → category → overall health     │
  │  No network here at all — which is why it is unit-testable │
@@ -607,8 +644,8 @@ application assesses what the org did. Nothing here writes to Salesforce.
  ║  OAuth 2.0 Client Credentials Flow · SOQL query only       ║
  ╚════════════════════════════┬═══════════════════════════════╝
                               │
-                              │  🟡 IMPLEMENTED, NEVER EXERCISED
-                              │     No Connected App exists yet.
+                              │  ✅ CONFIGURED · READ PATH VALIDATED 2026-08-24
+                              │     Authentication and SOQL read. No write path.
                               ▼
    SALESFORCE DEVELOPER EDITION  (`northstariq-dev`)
    Lead · Opportunity — read. Account · Contact — counted only.
@@ -636,15 +673,18 @@ or a raw Salesforce error.
 | Salesforce integration boundary | ✅ **Implemented** — typed, guarded, read-only by construction |
 | Disconnected / not-configured path | ✅ **Verified locally** — every page renders and **no results are invented** |
 | Error and failure paths | ✅ **Verified locally** — classified into safe codes; the status probe cannot 500 |
-| Check and scoring logic | ✅ **Verified against fixtures** — 20/20 unit tests, no network |
-| Salesforce Connected App / OAuth credentials | ⬜ **Not configured** |
-| Live authentication, live SOQL, live assessment | ⬜ **Not validated.** No request has ever been made to the org from this application. |
+| Check and scoring logic | ✅ **Verified against fixtures** — 50/50 unit tests, no network |
+| Salesforce Connected App / OAuth credentials | ✅ **Configured** — the Client Credentials Flow reaches the org. Credentials live in `web/.env.local`, which is git-ignored; org-side configuration is **not inspected** in this repository. |
+| Live authentication, live SOQL, live assessment | ✅ **Validated — read path only (2026-08-24)** — HTTP 200, 81 records assessed, 6 findings returned. |
+| **Salesforce control behaviour judged by those findings** | ⬜ **Not validated by this application.** It reports what the org recorded; it exercises no control. |
 | Deployment | ⬜ **Not deployed.** No Vercel project exists. |
 
-**The distinction that matters.** The connected path is *implemented*, not *validated*. Under the
-status vocabulary in [`implementation-log.md`](implementation-log.md) those are different words with
-different evidence standards, and this section will not use the second until an assessment has
-actually run against the org.
+**The distinction that matters.** The connected path is now *validated* - and only as far as the run
+reached. **A finding is a symptom report, not a control test.** The application reads what the org
+already recorded, exercises no routing, segmentation, SLA or matching control, and has no write path
+at all. Salesforce control behaviour remains validated by the Increment 1-4 evidence in
+[`implementation-log.md`](implementation-log.md) and by nothing this application did. The same
+boundary is stated in [`testing-strategy.md`](testing-strategy.md) §2g.
 
 ### What this application deliberately is not
 
@@ -658,5 +698,5 @@ carry a stated reliability class) and `BR-23` (recorded reasons and bases are re
 operational write), and the justification is recorded in
 [`implementation-log.md`](implementation-log.md) under the Web MVP entry.
 
-Full application detail, including the six checks and the scoring formula, is in
+Full application detail, including the seven checks and the scoring formula, is in
 [`../web/README.md`](../web/README.md).
