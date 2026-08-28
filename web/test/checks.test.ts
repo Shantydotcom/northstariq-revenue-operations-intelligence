@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  CHECK_IDS,
   ambiguousMatch,
   governedWithoutSegment,
   missingFirmographics,
@@ -13,7 +14,7 @@ import {
   slaRisk,
   staleOpportunities,
 } from '../lib/checks/index.ts';
-import { lead, opportunity, TODAY, READINESS_SOURCES } from './fixtures.ts';
+import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, TODAY, lead, opportunity } from './fixtures.ts';
 import { categoryScores, overallHealth, toFindings } from '../lib/score.ts';
 
 const EXCEPTION_QUEUE = { Name: 'NIQ Routing Exception', Type: 'Queue' };
@@ -270,14 +271,22 @@ test('the negative control finds nothing on a clean governed population', () => 
   assert.equal(control.failing, 0);
 });
 
-test('a check with nothing to evaluate scores 100 rather than 0', () => {
-  // Absence of data is not evidence of failure.
+test('a check with nothing to evaluate is not scored, and is not 100', () => {
+  /**
+   * Absence of data is not evidence of failure - and under Model v2 it is not
+   * evidence of health either. The one record here is outside the control
+   * entirely, so there is no evidence gap: the reason is that nothing applies,
+   * not that something could not be judged.
+   */
   const result = missingFirmographics([lead({ LeadSource: 'Purchased List' })], READINESS_SOURCES);
 
   assert.equal(result.evaluated, 0);
-  assert.equal(result.score, 100);
-  assert.equal(result.healthy, true);
+  assert.equal(result.score, null, 'no pass or fail was reached, so there is no score');
+  assert.notEqual(result.score, 100, 'Model v1 returned 100 here; v2 must not');
+  assert.equal(result.scoreReason, 'no-applicable-records');
+  assert.equal(result.healthy, true, 'nothing failed, so it is not a finding');
   assert.equal(result.notEvaluatedCount, 1, 'the record is still accounted for');
+  assert.equal(result.unmeasurableCount, 0);
 });
 
 test('routing exceptions evaluates only Leads submitted to ownership routing', () => {
@@ -343,7 +352,7 @@ test('every check accounts for its whole starting population', () => {
   ];
   const opps = [opportunity(), opportunity({ IsClosed: true, StageName: 'Closed Won' })];
 
-  for (const result of runAllChecks(leads, opps, TODAY, READINESS_SOURCES)) {
+  for (const result of runAllChecks(leads, opps, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY)) {
     assert.equal(
       result.evaluated + result.notEvaluatedCount,
       result.orgPopulation,
@@ -359,9 +368,21 @@ test('every check accounts for its whole starting population', () => {
   }
 });
 
-test('runAllChecks runs exactly the seven implemented checks', () => {
-  const results = runAllChecks([lead()], [opportunity()], TODAY, READINESS_SOURCES);
+test('runAllChecks runs exactly the eleven implemented checks, in order', () => {
+  const results = runAllChecks(
+    [lead()],
+    [opportunity()],
+    TODAY,
+    READINESS_SOURCES,
+    GOVERNANCE,
+    NO_HISTORY,
+  );
 
+  /*
+   * The four lifecycle controls sit last and in LIFECYCLE order - progression,
+   * then the three stage claims a Lead makes as it moves - so reading the rows
+   * top to bottom follows the Lead rather than the implementation history.
+   */
   assert.deepEqual(
     results.map((r) => r.id),
     [
@@ -372,8 +393,13 @@ test('runAllChecks runs exactly the seven implemented checks', () => {
       'ambiguous-match',
       'missing-territory',
       'stale-opportunities',
+      'lifecycle-progression',
+      'mql-integrity',
+      'sales-acceptance-sql',
+      'lifecycle-conversion',
     ],
   );
+  assert.deepEqual(results.map((r) => r.id), CHECK_IDS, 'the run and the allow-list agree');
 });
 
 test('evidence is capped for display while the count stays complete', () => {
@@ -398,8 +424,8 @@ test('missing territory is unchanged by the routing-readiness correction', () =>
     lead({ LeadSource: 'Web', Match_Status__c: null, Territory__c: null }),
   ];
 
-  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES).find((r) => r.id === 'missing-territory');
-  const b = runAllChecks(leads, [], TODAY, ['Purchased List']).find((r) => r.id === 'missing-territory');
+  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY).find((r) => r.id === 'missing-territory');
+  const b = runAllChecks(leads, [], TODAY, ['Purchased List'], GOVERNANCE, NO_HISTORY).find((r) => r.id === 'missing-territory');
 
   assert.equal(a?.evaluated, 3);
   assert.equal(a?.failing, 2);
@@ -414,8 +440,8 @@ test('ambiguous account match is unchanged by the routing-readiness correction',
     lead({ Match_Status__c: null }),
   ];
 
-  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES).find((r) => r.id === 'ambiguous-match');
-  const b = runAllChecks(leads, [], TODAY, ['Purchased List']).find((r) => r.id === 'ambiguous-match');
+  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY).find((r) => r.id === 'ambiguous-match');
+  const b = runAllChecks(leads, [], TODAY, ['Purchased List'], GOVERNANCE, NO_HISTORY).find((r) => r.id === 'ambiguous-match');
 
   assert.equal(a?.evaluated, 2);
   assert.equal(a?.failing, 1);
@@ -694,10 +720,13 @@ test('segment consistency reconciles: evaluated = passing + failing, total = eva
   assert.equal(excluded, result.notEvaluatedCount, 'every exclusion is accounted for');
 });
 
-test('adding segment consistency leaves the other six definitions untouched', () => {
+test('the six original definitions are untouched by everything added since', () => {
   /**
-   * Same records, same six results. The new check reads Segment_Basis__c,
-   * which no other check consults, so nothing it does can move them.
+   * Same records, same six results. Segment consistency reads
+   * `Segment_Basis__c` and the four lifecycle controls read the lifecycle
+   * evidence fields, none of which these six consult - so nothing added since
+   * can move them. This is the regression guard for Model v2: activating four
+   * controls must not change what the original seven observed.
    */
   const leads = [
     lead(),
@@ -711,12 +740,14 @@ test('adding segment consistency leaves the other six definitions untouched', ()
   ];
   const opps = [opportunity(), opportunity({ IsClosed: true })];
 
-  const results = runAllChecks(leads, opps, TODAY, READINESS_SOURCES);
-  const others = results.filter((r) => r.id !== 'segment-consistency');
+  const results = runAllChecks(leads, opps, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
+  const original = results.filter(
+    (r) => r.category !== 'Lifecycle Governance' && r.id !== 'segment-consistency',
+  );
 
-  assert.equal(others.length, 6);
+  assert.equal(original.length, 6);
   assert.deepEqual(
-    others.map((r) => [r.id, r.orgPopulation, r.evaluated, r.failing, r.score]),
+    original.map((r) => [r.id, r.orgPopulation, r.evaluated, r.failing, r.score]),
     [
       ['missing-firmographics', 8, 8, 1, 88],
       ['routing-exceptions', 8, 7, 1, 86],
@@ -735,7 +766,7 @@ test('missing routing data still reads its sources from Salesforce configuration
    */
   const leads = [lead({ LeadSource: 'Web' }), lead({ LeadSource: 'Trade Show' })];
   const byId = (sources: string[]) =>
-    runAllChecks(leads, [], TODAY, sources).find((r) => r.id === 'missing-firmographics');
+    runAllChecks(leads, [], TODAY, sources, GOVERNANCE, NO_HISTORY).find((r) => r.id === 'missing-firmographics');
 
   assert.equal(byId(['Web'])?.evaluated, 1);
   assert.equal(byId(['Trade Show'])?.evaluated, 1);
@@ -746,10 +777,10 @@ test('missing routing data still reads its sources from Salesforce configuration
 test('segment consistency is unaffected by the routing readiness configuration', () => {
   const leads = [segmented(500, 'Mid-Market', 'SMB', { LeadSource: 'Purchased List' })];
 
-  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES).find(
+  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY).find(
     (r) => r.id === 'segment-consistency',
   );
-  const b = runAllChecks(leads, [], TODAY, ['Trade Show']).find(
+  const b = runAllChecks(leads, [], TODAY, ['Trade Show'], GOVERNANCE, NO_HISTORY).find(
     (r) => r.id === 'segment-consistency',
   );
 
@@ -831,11 +862,16 @@ test('a Lead making no conversion claim is outside the control, never a pass', (
   assert.match(String(result.notEvaluatedRows[0].Reason), /makes no claim to have been converted/);
 });
 
-test('a control with nothing claiming conversion scores 100 rather than 0', () => {
+test('a control with nothing claiming conversion is not scored', () => {
   const result = opportunityConversionIntegrity([lead(), lead()]);
 
   assert.equal(result.evaluated, 0);
-  assert.equal(result.score, 100, 'absence of data is not evidence of failure');
+  assert.equal(result.score, null, 'absence of data is neither failure nor health');
+  assert.equal(
+    result.scoreReason,
+    'no-applicable-records',
+    'these Leads make no conversion claim at all - the control simply does not apply',
+  );
 });
 
 test('conversion integrity reconciles and scores from the claim population only', () => {
@@ -895,44 +931,54 @@ test('the finding is generated and carries a precise name', () => {
   assert.equal(findings[0].evaluated, 1);
 });
 
-test('conversion integrity is NOT scored: the assessment still runs seven controls in five areas', () => {
+test('conversion integrity is scored under Model v2, inside Lifecycle Governance', () => {
   /**
-   * The scoring boundary this increment deliberately holds.
-   *
-   * The control is implemented and tested above, and it is absent from
-   * runAllChecks - so Assessment Model v1 is untouched and overall health
-   * cannot have moved. Wiring it in is one line, held for approval.
+   * The boundary this increment deliberately CROSSED. The control was held
+   * out of `runAllChecks` while the scoring contract could only express a
+   * number, because an unscorable control would have been reported as a
+   * perfect one. With Not Scored expressible, it joins the assessment.
    */
   const leads = [claimsOnly(), lead(), lead({ LeadSource: 'Web' })];
-  const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES);
+  const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
 
-  assert.equal(results.length, 7, 'seven scored controls');
-  assert.ok(
-    !results.some((r) => r.id === 'lifecycle-conversion'),
-    'the lifecycle control must not enter the scored run',
-  );
+  assert.equal(results.length, 11, 'eleven scored controls - Model v2');
+  const conversion = results.find((r) => r.id === 'lifecycle-conversion');
+  assert.ok(conversion, 'the lifecycle control is part of the scored run');
+  assert.equal(conversion.evaluated, 1, 'the one Lead claiming conversion');
+  assert.equal(conversion.failing, 1);
+  assert.equal(conversion.score, 0);
 
   const areas = categoryScores(results);
-  assert.equal(areas.length, 5, 'five scored assessment areas - Model v1');
-  assert.ok(
-    !areas.some((a) => a.category === 'Lifecycle Governance'),
-    'an area with no executed control is not reported',
-  );
+  assert.equal(areas.length, 6, 'six assessment areas - Model v2');
+  const lifecycle = areas.find((a) => a.category === 'Lifecycle Governance');
+  assert.ok(lifecycle, 'the area is reported');
+  assert.equal(lifecycle.coverage.total, 4, 'it holds four controls');
 });
 
-test('declaring Lifecycle Governance does not disturb the existing area scores', () => {
+test('Lifecycle Governance is reported sixth and the five original areas are unmoved', () => {
   /**
-   * `CATEGORY_ORDER` now lists Lifecycle Governance. This proves that listing
-   * it changes nothing while it holds no result - the regression a naive
-   * registry edit would introduce.
+   * Activating an area must not perturb the areas beside it. The five original
+   * scores are computed from their own controls and nothing else, and the
+   * overall figure is the mean of whatever actually scored.
    */
   const leads = [lead(), lead({ NumberOfEmployees: null })];
-  const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES);
+  const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
 
   const areas = categoryScores(results);
   assert.deepEqual(
     areas.map((a) => a.category),
-    ['Data Quality', 'Routing', 'Identity & Matching', 'SLA Performance', 'Pipeline Hygiene'],
+    [
+      'Data Quality',
+      'Routing',
+      'Identity & Matching',
+      'SLA Performance',
+      'Pipeline Hygiene',
+      'Lifecycle Governance',
+    ],
   );
-  assert.equal(overallHealth(areas), Math.round(areas.reduce((sum, a) => sum + a.score, 0) / 5));
+  const scored = areas.map((a) => a.score).filter((s): s is number => s !== null);
+  assert.equal(
+    overallHealth(areas),
+    Math.round(scored.reduce((sum, s) => sum + s, 0) / scored.length),
+  );
 });

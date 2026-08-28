@@ -5,6 +5,7 @@ import type {
   EvidenceColumn,
   EvidenceRow,
   NotEvaluatedRecord,
+  ScoreReason,
 } from '../types.ts';
 import {
   CONVERTED_LEAD_STATUS,
@@ -116,10 +117,34 @@ function tally<T>(items: T[], key: (item: T) => string): [string, number][] {
   return [...counts.entries()].sort((a, b) => b[1] - a[1]);
 }
 
-function score(evaluated: number, failing: number): number {
-  // Nothing evaluated is not failure. A check with no population scores 100.
-  if (evaluated === 0) return 100;
+/**
+ * A control is scored on what it actually judged, or not at all.
+ *
+ * MODEL v2. Nothing evaluated is neither a pass nor a failure, so it is not
+ * a number: returning 100 would present "no determination" as perfect
+ * performance, and returning 0 would present it as a demonstrated breach the
+ * control never observed. Both are claims the evidence does not support.
+ *
+ * Model v1 returned 100. The branch never fired against the live org, but the
+ * lifecycle controls can legitimately judge nothing, so the contract had to
+ * become explicit rather than incidentally unreachable.
+ */
+function score(evaluated: number, failing: number): number | null {
+  if (evaluated === 0) return null;
   return Math.round(100 * (1 - failing / evaluated));
+}
+
+/**
+ * Which kind of nothing a control judged.
+ *
+ * Derived from the counts the control already produced - no control decides
+ * this for itself, so the two states cannot drift apart per check. Records
+ * the control applies to but cannot judge are a coverage gap; a control with
+ * no applicable records at all is a boundary working as intended.
+ */
+function scoreReason(evaluated: number, unmeasurable: number): ScoreReason | null {
+  if (evaluated > 0) return null;
+  return unmeasurable > 0 ? 'insufficient-evidence' : 'no-applicable-records';
 }
 
 /** Shared shape for the Leads a control declined, plus the field it would have judged. */
@@ -156,6 +181,7 @@ function build(
   base: Omit<
     CheckResult,
     | 'score'
+    | 'scoreReason'
     | 'healthy'
     | 'evidence'
     | 'notEvaluatedCount'
@@ -168,13 +194,21 @@ function build(
   notEvaluated: NotEvaluatedRecord[],
   breakdowns: { failure?: BreakdownLine[]; exclusion?: BreakdownLine[] } = {},
 ): CheckResult {
+  const unmeasurableCount = notEvaluated.filter((n) => n.kind === 'unmeasurable').length;
   return {
     ...base,
     score: score(base.evaluated, base.failing),
+    scoreReason: scoreReason(base.evaluated, unmeasurableCount),
+    /*
+     * Healthy means nothing FAILED, which is not the same as scored. An
+     * unscored control is healthy in this sense and generates no finding -
+     * correctly, because it demonstrated no problem. The evidence gap is
+     * reported through the population counts, not through the findings queue.
+     */
     healthy: base.failing === 0,
     evidence: failingRows.slice(0, EVIDENCE_LIMIT),
     notEvaluatedCount: notEvaluated.length,
-    unmeasurableCount: notEvaluated.filter((n) => n.kind === 'unmeasurable').length,
+    unmeasurableCount,
     notEvaluatedRows: notEvaluated.slice(0, NOT_EVALUATED_LIMIT).map((n) => n.row),
     // Only where the division is meaningful. An empty list renders nothing.
     failureBreakdown: (breakdowns.failure ?? []).filter((b) => b.count > 0),
@@ -1891,12 +1925,34 @@ export function governedWithoutSegment(leads: LeadRecord[]): { evaluated: number
   };
 }
 
+/**
+ * The governed definitions the four lifecycle controls consume.
+ *
+ * Passed in rather than fetched here for the same reason
+ * `routingReadinessSources` is: these checks are pure functions over records
+ * already read, so every one stays unit-testable with no network. Resolving
+ * and validating the policies is `assessment.ts`'s job, and it throws when a
+ * definition is missing or ambiguous rather than scoring an unreadable
+ * policy as compliant.
+ */
+export interface LifecycleGovernance {
+  graph: LifecycleGraph;
+  mqlPolicy: MqlPolicy;
+  mqlEligibleSegments: string[];
+  acceptancePolicy: SalesAcceptancePolicy;
+  sqlPolicy: SqlQualificationPolicy;
+}
+
 export function runAllChecks(
   leads: LeadRecord[],
   opps: OpportunityRecord[],
   today: Date,
   /** Active Lead Sources from Routing_Readiness_Source__mdt, per run. */
   routingReadinessSources: string[],
+  /** The five governed definitions Lifecycle Governance is judged against. */
+  lifecycle: LifecycleGovernance,
+  /** Status transitions Salesforce still retains. Bounded and incomplete. */
+  statusHistory: LeadStatusHistoryRecord[],
 ): CheckResult[] {
   return [
     missingFirmographics(leads, routingReadinessSources),
@@ -1906,9 +1962,39 @@ export function runAllChecks(
     ambiguousMatch(leads),
     missingTerritory(leads),
     staleOpportunities(opps, today),
+    /*
+     * Lifecycle Governance, in lifecycle order rather than implementation
+     * order: progression, then the three stage claims a Lead makes as it
+     * moves. Reading the four rows top to bottom follows the Lead.
+     *
+     * Each takes the governed definition it consumes. None of their
+     * algorithms changed when they became scored - they were built to be
+     * scored and held back only because activating them moves the model.
+     */
+    lifecycleProgressionIntegrity(leads, statusHistory, lifecycle.graph),
+    mqlQualificationIntegrity(
+      leads,
+      lifecycle.mqlPolicy,
+      routingReadinessSources,
+      lifecycle.mqlEligibleSegments,
+    ),
+    salesAcceptanceSqlIntegrity(
+      leads,
+      lifecycle.acceptancePolicy,
+      lifecycle.sqlPolicy,
+      statusHistory,
+    ),
+    opportunityConversionIntegrity(leads),
   ];
 }
 
+/**
+ * The scored set, and the API allow-list. Assessment Model v2: eleven.
+ *
+ * Order matters twice - it is the order `runAllChecks` returns and the order
+ * a reader meets the controls - so the four lifecycle controls stay in
+ * lifecycle order after the seven that preceded them.
+ */
 export const CHECK_IDS: CheckId[] = [
   'missing-firmographics',
   'segment-consistency',
@@ -1917,6 +2003,10 @@ export const CHECK_IDS: CheckId[] = [
   'ambiguous-match',
   'missing-territory',
   'stale-opportunities',
+  'lifecycle-progression',
+  'mql-integrity',
+  'sales-acceptance-sql',
+  'lifecycle-conversion',
 ];
 
 export function isCheckId(value: string): value is CheckId {

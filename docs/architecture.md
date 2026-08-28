@@ -894,7 +894,7 @@ or a raw Salesforce error.
 | Salesforce integration boundary | ✅ **Implemented** — typed, guarded, read-only by construction |
 | Disconnected / not-configured path | ✅ **Verified locally** — every page renders and **no results are invented** |
 | Error and failure paths | ✅ **Verified locally** — classified into safe codes; the status probe cannot 500 |
-| Check and scoring logic | ✅ **Verified against fixtures** — 150/150 unit tests, no network |
+| Check and scoring logic | ✅ **Verified against fixtures** — 166/166 unit tests, no network. **Assessment Model v2**: 11 controls, 6 areas. |
 | Salesforce Connected App / OAuth credentials | ✅ **Configured** — the Client Credentials Flow reaches the org. Credentials live in `web/.env.local`, which is git-ignored; org-side configuration is **not inspected** in this repository. |
 | Live authentication, live SOQL, live assessment | ✅ **Validated — read path only (2026-08-24)** — HTTP 200, 81 records assessed, 6 findings returned. |
 | **Salesforce control behaviour judged by those findings** | ⬜ **Not validated by this application.** It reports what the org recorded; it exercises no control. |

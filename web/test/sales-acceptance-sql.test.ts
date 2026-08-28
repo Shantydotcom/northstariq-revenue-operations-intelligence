@@ -38,7 +38,7 @@ import type {
   SalesAcceptancePolicyRecord,
   SqlPolicyRecord,
 } from '../lib/soql.ts';
-import { lead, opportunity, READINESS_SOURCES } from './fixtures.ts';
+import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, lead, opportunity } from './fixtures.ts';
 
 /** The two active policies as Salesforce currently declares them. */
 const ACCEPTANCE: SalesAcceptancePolicy = {
@@ -492,13 +492,28 @@ test('the recorded need is judged, not the seller picklist that may have moved o
 });
 
 /* ------------------------------------------------- 22. empty population */
-test('an org with no Sales handoff claims evaluates nothing and scores 100', () => {
+test('an org with no Sales handoff claims evaluates nothing and is not scored', () => {
   const r = run([lead(), lead({ Status: 'Working - Contacted' })]);
   assert.equal(r.evaluated, 0);
   assert.equal(r.failing, 0);
-  assert.equal(r.score, 100, 'absence of a population is not failure');
+  assert.equal(r.score, null, 'absence of a population is neither failure nor health');
   assert.equal(r.unmeasurableCount, 0, 'and they are outside the control, not unmeasurable');
+  assert.equal(r.scoreReason, 'no-applicable-records');
   assert.equal(r.notEvaluatedCount, 2);
+});
+
+test('a handoff claim that cannot be judged is unscored for a DIFFERENT reason', () => {
+  /**
+   * The live baseline: a status claiming the handoff, with none of the
+   * acceptance evidence, because the fields postdate the record. Both states
+   * are unscored and neither is a number - but one is a coverage gap and the
+   * other is a boundary, and the reason is what says which.
+   */
+  const r = run([lead({ Status: 'SAL' })]);
+  assert.equal(r.evaluated, 0);
+  assert.equal(r.unmeasurableCount, 1);
+  assert.equal(r.score, null);
+  assert.equal(r.scoreReason, 'insufficient-evidence');
 });
 
 test('every Lead is accounted for: evaluated plus not evaluated equals the population', () => {
@@ -509,16 +524,24 @@ test('every Lead is accounted for: evaluated plus not evaluated equals the popul
 });
 
 /* ------------------------------------------------------ assessment isolation */
-test('the control is implemented but stays out of the scored assessment', () => {
+test('the control is scored under Model v2 and is part of the assessment', () => {
   assert.ok(
-    !CHECK_IDS.includes('sales-acceptance-sql'),
-    'CHECK_IDS is the API allow-list and the scored set - this control is not in it',
+    CHECK_IDS.includes('sales-acceptance-sql'),
+    'CHECK_IDS is the API allow-list and the scored set - this control is in it',
   );
-  assert.equal(CHECK_IDS.length, 7, 'Assessment Model v1 still allows exactly seven controls');
-  const results = runAllChecks([qualified()], [opportunity()], new Date('2026-08-27'), READINESS_SOURCES);
-  assert.equal(results.length, 7, 'Assessment Model v1 still runs exactly seven controls');
-  assert.ok(!results.some((r) => r.id === 'sales-acceptance-sql'));
-  assert.ok(!results.some((r) => r.category === 'Lifecycle Governance'));
+  assert.equal(CHECK_IDS.length, 11, 'Assessment Model v2: eleven scored controls');
+  const results = runAllChecks(
+    [lead()],
+    [opportunity()],
+    new Date('2026-08-27'),
+    READINESS_SOURCES,
+    GOVERNANCE,
+    NO_HISTORY,
+  );
+  assert.equal(results.length, 11, 'Assessment Model v2 runs exactly eleven controls');
+  const mine = results.find((r) => r.id === 'sales-acceptance-sql');
+  assert.ok(mine, 'the control executes as part of the ordinary assessment');
+  assert.equal(mine.category, 'Lifecycle Governance');
 });
 
 test('the control still computes its own score for inspection', () => {

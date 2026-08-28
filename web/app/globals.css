@@ -857,15 +857,24 @@ h2.scope-eyebrow {
 }
 
 /*
- * Five columns divided by hairlines - one surface, not five floating cards.
- * The divider is what makes it read as a single band.
+ * Six areas on a three-column grid - 3 x 2, divided by hairlines so it reads
+ * as one surface rather than six floating cards. Three columns rather than
+ * six: six would be unreadably narrow, and this is the same column count the
+ * narrow breakpoint already used, so no new layout rule was invented for it.
  */
 .scope-areas {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px 0;
+}
+
+/* Restart the divider on each new row rather than leaving an orphan rule. */
+.scope-areas li:nth-child(3n + 1) {
+  padding-left: 0;
+  border-left: 0;
 }
 
 .scope-areas li {
@@ -1078,17 +1087,6 @@ h2.scope-eyebrow {
 /* ------------------------------------------------------ run: narrow */
 
 @media (max-width: 1180px) {
-  .scope-areas {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 24px 0;
-  }
-
-  /* Restart the divider on each new row rather than leaving an orphan rule. */
-  .scope-areas li:nth-child(3n + 1) {
-    padding-left: 0;
-    border-left: 0;
-  }
-
   .run-lower {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -2277,6 +2275,42 @@ th {
 
 .area-score-block .meter {
   margin-top: 8px;
+}
+
+/*
+ * Not Scored, in all three places a score appears.
+ *
+ * Deliberately outside the score bands. A band is a reading aid for a number,
+ * and there is no number here - colouring it would claim a judgement the
+ * control never reached, in whichever direction the colour implied. It reads
+ * as quiet secondary text at the weight of the label beside it, so an unscored
+ * row is legible without competing with the rows that do carry a result.
+ */
+.area-score.area-unscored {
+  font-size: var(--t-label);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-weight: var(--w-medium);
+  color: var(--ink-faint);
+}
+
+/* The coverage qualifier, shown only when it is not the whole area. */
+.area-coverage {
+  margin: 6px 0 0;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+}
+
+.control-score.control-unscored {
+  color: var(--ink-faint);
+  font-weight: var(--w-medium);
+  font-variant-numeric: normal;
+}
+
+/* The model identifier: present, findable, and never the headline. */
+.overall-model {
+  white-space: nowrap;
+  color: var(--ink-faint);
 }
 
 /* ------------------------------------------------------- area help */

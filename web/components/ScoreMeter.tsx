@@ -8,6 +8,21 @@ import { meterClass } from '@/lib/score-bands';
 export { healthLabel, meterClass } from '@/lib/score-bands';
 
 /**
+ * What to render where a score would go when there is no score.
+ *
+ * Model v2 leaves a control unscored when it reached no pass or fail. That
+ * is neither a band nor a number, so it never touches `meterClass` or
+ * `healthLabel` — a colour would claim a judgement, and 0 or 100 would
+ * claim the wrong one. Callers guard on null and render this instead.
+ */
+export const NOT_SCORED = 'Not scored';
+
+/** Why a control has no score, in the evaluator's language. */
+export function notScoredReason(reason: 'insufficient-evidence' | 'no-applicable-records' | null) {
+  return reason === 'no-applicable-records' ? 'No applicable records' : 'Insufficient evidence';
+}
+
+/**
  * The bar is decoration over a number that is always rendered beside it, so it
  * stays `presentation` and adds nothing for a screen reader to re-read.
  *

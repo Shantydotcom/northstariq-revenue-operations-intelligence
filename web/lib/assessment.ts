@@ -22,6 +22,7 @@ import {
   type SqlPolicyRecord,
 } from './soql.ts';
 import {
+  type LifecycleGovernance,
   lifecycleProgressionIntegrity,
   mqlQualificationIntegrity,
   runAllChecks,
@@ -39,13 +40,20 @@ import type { AssessmentResult, CheckId, CheckResult } from './types.ts';
 /**
  * One assessment run.
  *
- * Three SOQL reads, seven pure checks, deterministic scoring. Nothing is
+ * Eight SOQL reads, eleven pure checks, deterministic scoring. Nothing is
  * persisted - there is no database on the free tier, and an assessment that
  * always reflects the live org is more honest than a stale stored one.
  *
- * The third read is configuration rather than data: Salesforce owns which Lead
- * Sources carry a routing-readiness expectation, so the application asks each
- * run instead of holding its own copy.
+ * MOST OF THOSE READS ARE CONFIGURATION, NOT DATA. Salesforce owns which Lead
+ * Sources carry a routing-readiness expectation, which segments qualify, which
+ * transitions are permitted, and what MQL, Sales acceptance and SQL require.
+ * The application asks each run rather than holding its own copy, which is
+ * what lets a policy change take effect without a deployment. Custom Metadata
+ * reads do not consume SOQL query rows, so the cost of asking is small.
+ *
+ * The ninth read, Lead Status history, is the one genuinely partial input:
+ * field history is bounded and never records a Lead's first status, which is
+ * why the controls that consume it report absence as unmeasurable.
  */
 
 const OBJECTS = ['Lead', 'Opportunity'];
@@ -54,12 +62,30 @@ async function fetchRecords(): Promise<{
   leads: LeadRecord[];
   opportunities: OpportunityRecord[];
   routingReadinessSources: string[];
+  lifecycle: LifecycleGovernance;
+  statusHistory: LeadStatusHistoryRecord[];
 }> {
   // Independent reads - run them together rather than in series.
-  const [leads, opportunities, sources] = await Promise.all([
+  const [
+    leads,
+    opportunities,
+    sources,
+    transitions,
+    mqlPolicies,
+    eligibleSegments,
+    acceptancePolicies,
+    sqlPolicies,
+    statusHistory,
+  ] = await Promise.all([
     query<LeadRecord>(LEAD_SOQL),
     query<OpportunityRecord>(OPPORTUNITY_SOQL),
     query<RoutingReadinessSourceRecord>(ROUTING_READINESS_SOQL),
+    query<LifecycleTransitionRecord>(LIFECYCLE_TRANSITION_SOQL),
+    query<MqlPolicyRecord>(MQL_POLICY_SOQL),
+    query<SegmentEligibilityRecord>(MQL_SEGMENT_ELIGIBILITY_SOQL),
+    query<SalesAcceptancePolicyRecord>(SALES_ACCEPTANCE_POLICY_SOQL),
+    query<SqlPolicyRecord>(SQL_POLICY_SOQL),
+    query<LeadStatusHistoryRecord>(LEAD_STATUS_HISTORY_SOQL),
   ]);
 
   const routingReadinessSources = sources
@@ -82,12 +108,39 @@ async function fetchRecords(): Promise<{
     );
   }
 
-  return { leads, opportunities, routingReadinessSources };
+  /*
+   * The governed definitions, resolved once per run.
+   *
+   * Each resolver THROWS when its definition is missing, ambiguous or
+   * malformed, and that is deliberate: an unreadable policy is a diagnostic
+   * failure, never a population that all passes. Under Model v2 these
+   * controls are scored, so a silently-defaulted policy would now move the
+   * overall number - which makes failing loudly matter more, not less.
+   */
+  const lifecycle: LifecycleGovernance = {
+    graph: buildLifecycleGraph(transitions),
+    mqlPolicy: resolveMqlPolicy(mqlPolicies),
+    mqlEligibleSegments: eligibleSegments
+      .map((e) => e.Segment_Name__c)
+      .filter((v): v is string => v !== null && v.trim() !== ''),
+    acceptancePolicy: resolveSalesAcceptancePolicy(acceptancePolicies),
+    sqlPolicy: resolveSqlQualificationPolicy(sqlPolicies),
+  };
+
+  return { leads, opportunities, routingReadinessSources, lifecycle, statusHistory };
 }
 
 export async function runAssessment(now: Date): Promise<AssessmentResult> {
-  const { leads, opportunities, routingReadinessSources } = await fetchRecords();
-  const results = runAllChecks(leads, opportunities, now, routingReadinessSources);
+  const { leads, opportunities, routingReadinessSources, lifecycle, statusHistory } =
+    await fetchRecords();
+  const results = runAllChecks(
+    leads,
+    opportunities,
+    now,
+    routingReadinessSources,
+    lifecycle,
+    statusHistory,
+  );
   return buildAssessment(
     results,
     leads.length + opportunities.length,
@@ -98,107 +151,26 @@ export async function runAssessment(now: Date): Promise<AssessmentResult> {
 
 /** Detail for one check, including its evidence rows. */
 export async function runCheck(id: CheckId, now: Date): Promise<CheckResult | null> {
-  const { leads, opportunities, routingReadinessSources } = await fetchRecords();
+  const { leads, opportunities, routingReadinessSources, lifecycle, statusHistory } =
+    await fetchRecords();
   return (
-    runAllChecks(leads, opportunities, now, routingReadinessSources).find((r) => r.id === id) ?? null
+    runAllChecks(
+      leads,
+      opportunities,
+      now,
+      routingReadinessSources,
+      lifecycle,
+      statusHistory,
+    ).find((r) => r.id === id) ?? null
   );
 }
 
-/**
- * Run the MQL Qualification Integrity detective control on its own.
+/*
+ * THE THREE STANDALONE LIFECYCLE RUNNERS ARE GONE, AND THAT IS THE POINT.
  *
- * DELIBERATELY NOT PART OF `runAssessment`. The control is implemented and
- * tested but unscored: it is absent from `CHECK_IDS` and from `runAllChecks`,
- * so overall health stays at five areas and seven scored controls. Activating
- * Lifecycle Governance is a user-visible scoring change and is held for human
- * approval rather than taken quietly.
- *
- * It is also kept out of `fetchRecords` so the ordinary assessment does not pay
- * for two extra configuration reads it never uses.
- *
- * Read-only, like every other control. Two Custom Metadata reads bring the
- * governed definition in - which requirements apply, and which segments the
- * business qualifies - and the Lead population comes from the same query the
- * scored controls use.
+ * Each existed to execute one lifecycle control outside `runAllChecks` while
+ * Lifecycle Governance was implemented but unscored. Under Model v2 all four
+ * are scored members of the ordinary assessment, so `runAssessment` and
+ * `runCheck` reach them like every other control and a second execution path
+ * would be a second answer waiting to disagree with the first.
  */
-export async function runMqlQualificationIntegrity(): Promise<CheckResult> {
-  const [leads, sources, policies, eligible] = await Promise.all([
-    query<LeadRecord>(LEAD_SOQL),
-    query<RoutingReadinessSourceRecord>(ROUTING_READINESS_SOQL),
-    query<MqlPolicyRecord>(MQL_POLICY_SOQL),
-    query<SegmentEligibilityRecord>(MQL_SEGMENT_ELIGIBILITY_SOQL),
-  ]);
-
-  // Throws when governance is missing or ambiguous. Absence of a governed
-  // definition is a diagnostic failure, never a population that all passes.
-  const policy = resolveMqlPolicy(policies);
-
-  return mqlQualificationIntegrity(
-    leads,
-    policy,
-    sources.map((s) => s.Lead_Source__c).filter((v): v is string => v !== null && v.trim() !== ''),
-    eligible
-      .map((e) => e.Segment_Name__c)
-      .filter((v): v is string => v !== null && v.trim() !== ''),
-  );
-}
-
-/**
- * Run the Lifecycle Progression Integrity detective control on its own.
- *
- * DELIBERATELY NOT PART OF `runAssessment`, for the same reason as the MQL
- * detector: it is implemented and tested but unscored, so Assessment Model v1
- * stays at five areas and seven scored controls until activating Lifecycle
- * Governance is approved as a user-visible scoring change.
- *
- * Three read-only queries. The transition policy is Custom Metadata, which does
- * not consume SOQL limits; the history read is bounded and filtered to Status
- * changes rather than pulling every field-history row in the org.
- */
-export async function runLifecycleProgressionIntegrity(): Promise<CheckResult> {
-  const [leads, transitions, history] = await Promise.all([
-    query<LeadRecord>(LEAD_SOQL),
-    query<LifecycleTransitionRecord>(LIFECYCLE_TRANSITION_SOQL),
-    query<LeadStatusHistoryRecord>(LEAD_STATUS_HISTORY_SOQL),
-  ]);
-
-  // Throws when the governed model is missing or malformed. An unreadable
-  // policy is a diagnostic failure, never a population that all passes.
-  const graph = buildLifecycleGraph(transitions);
-
-  return lifecycleProgressionIntegrity(leads, history, graph);
-}
-
-/**
- * Run the Sales Acceptance / SQL Integrity detective control on its own.
- *
- * DELIBERATELY NOT PART OF `runAssessment`, for the same reason as the two
- * detectors above: implemented and tested but unscored, so Assessment Model v1
- * stays at five areas and seven scored controls until activating Lifecycle
- * Governance is approved as a user-visible scoring change.
- *
- * Four read-only queries. Two of them are the governed definitions - the
- * acceptance policy and the qualification policy, read as two records because
- * Salesforce holds them as two Custom Metadata Types. The history read is the
- * same bounded, Status-filtered query the progression control uses, and it is
- * needed for one thing only: establishing when a Lead entered the qualified
- * stage, so a recorded next-step date can be judged against the decision it
- * belonged to rather than against today.
- */
-export async function runSalesAcceptanceSqlIntegrity(): Promise<CheckResult> {
-  const [leads, acceptance, sql, history] = await Promise.all([
-    query<LeadRecord>(LEAD_SOQL),
-    query<SalesAcceptancePolicyRecord>(SALES_ACCEPTANCE_POLICY_SOQL),
-    query<SqlPolicyRecord>(SQL_POLICY_SOQL),
-    query<LeadStatusHistoryRecord>(LEAD_STATUS_HISTORY_SOQL),
-  ]);
-
-  // Both throw when the governed definition is missing or ambiguous. Absence
-  // of governance is a diagnostic failure, never a population that all passes.
-  return salesAcceptanceSqlIntegrity(
-    leads,
-    resolveSalesAcceptancePolicy(acceptance),
-    resolveSqlQualificationPolicy(sql),
-    history,
-  );
-}

@@ -1,4 +1,11 @@
-import type { LeadRecord, OpportunityRecord } from '../lib/soql.ts';
+import type {
+  LeadRecord,
+  LeadStatusHistoryRecord,
+  LifecycleTransitionRecord,
+  OpportunityRecord,
+} from '../lib/soql.ts';
+import type { LifecycleGovernance } from '../lib/checks/index.ts';
+import { buildLifecycleGraph } from '../lib/checks/lifecycle-graph.ts';
 
 /**
  * Fixtures for the check tests.
@@ -96,3 +103,67 @@ export function opportunity(overrides: Partial<OpportunityRecord> = {}): Opportu
 
 /** Fixed "today" so no test depends on the wall clock. */
 export const TODAY = new Date('2026-08-23T09:00:00.000Z');
+
+/* ------------------------------------------------ Lifecycle Governance (v2) */
+
+/**
+ * The governed definitions the four Lifecycle Governance controls consume.
+ *
+ * A FIXTURE, NOT A DEFINITION. The real ones are read from Custom Metadata
+ * every run - `Lifecycle_Transition__mdt`, `MQL_Qualification_Policy__mdt`,
+ * `Sales_Acceptance_Policy__mdt`, `SQL_Qualification_Policy__mdt` and
+ * `Segment_Band__mdt.MQL_Eligible__c`. These mirror what is deployed so a test
+ * exercises realistic shapes, and tests that need a different policy build
+ * their own rather than mutating this one.
+ */
+const TRANSITIONS: LifecycleTransitionRecord[] = [
+  ['Open - Not Contacted', 'Working - Contacted'],
+  ['Open - Not Contacted', 'Closed - Not Converted'],
+  ['Working - Contacted', 'MQL'],
+  ['Working - Contacted', 'Closed - Not Converted'],
+  ['MQL', 'SAL'],
+  ['MQL', 'Closed - Not Converted'],
+  ['SAL', 'SQL'],
+  ['SAL', 'Closed - Not Converted'],
+  ['SQL', 'Closed - Converted'],
+  ['SQL', 'Closed - Not Converted'],
+].map(([From_Stage__c, To_Stage__c]) => ({
+  From_Stage__c,
+  To_Stage__c,
+  Is_Active__c: true,
+  Rule_Version__c: 'v1.0',
+}));
+
+export const GOVERNANCE: LifecycleGovernance = {
+  graph: buildLifecycleGraph(TRANSITIONS),
+  mqlPolicy: {
+    version: 'v1.1',
+    qualifiedStage: 'MQL',
+    requireGovernedSource: true,
+    requireEligibleSegment: true,
+    requireRoutableTerritory: true,
+    requireUnambiguousMatch: true,
+  },
+  mqlEligibleSegments: ['Strategic', 'Enterprise', 'Mid-Market'],
+  acceptancePolicy: {
+    version: 'v1.0',
+    acceptedStage: 'SAL',
+    requireExplicitAcceptance: true,
+    requireMqlEvidence: true,
+  },
+  sqlPolicy: {
+    version: 'v1.0',
+    qualifiedStage: 'SQL',
+    requireAcceptanceEvidence: true,
+    requireConfirmedNeed: true,
+    requireNextStep: true,
+  },
+};
+
+/**
+ * No retained Status history - the ordinary case.
+ *
+ * Salesforce field history is bounded and never records a Lead's first status,
+ * so an empty history is the baseline reality rather than a degenerate input.
+ */
+export const NO_HISTORY: LeadStatusHistoryRecord[] = [];

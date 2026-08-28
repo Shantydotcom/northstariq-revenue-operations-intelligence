@@ -70,7 +70,8 @@ export interface ControlFacts {
   unmeasurableCount: number;
   /** What the failing records actually showed, from the check. */
   failureDetail: string;
-  score: number;
+  /** Null when the control reached no pass/fail determination. */
+  score: number | null;
 }
 
 /**
@@ -90,6 +91,17 @@ export function explainControl(f: ControlFacts, e: ControlExplanation): string {
     // sentence() already terminates the clause - do not add a second stop.
     out.push(f.failing === 0 ? 'None failed.' : sentence(f.failureDetail));
     out.push(`${f.evaluated - f.failing} passed.`);
+  } else {
+    /*
+     * Said plainly, because the alternative is a reader inferring a pass from
+     * silence. This control judged nothing, so it has no score - and which
+     * kind of nothing it judged is the whole distinction Model v2 protects.
+     */
+    out.push(
+      f.unmeasurableCount > 0
+        ? 'It reached no pass or fail on any record, so it is not scored: the records it applies to carry no evidence it can judge.'
+        : 'It reached no pass or fail on any record, so it is not scored: no record in the org is in scope for it.',
+    );
   }
   /*
    * One reason for the rest, in business terms. The per-record breakdown -
@@ -776,15 +788,17 @@ export const AREAS: Record<Category, AreaPresentation> = {
     question: 'Do open Opportunities have a current or future Close Date?',
   },
   /*
-   * Assessment Area #6. Declared, and NOT YET SCORED - the only control that
-   * belongs to it is deliberately not executed by `runAllChecks`, so the
-   * assessment still reports five areas. See checks/index.ts.
+   * Assessment Area #6. SCORED since Assessment Model v2, by four controls:
+   * lifecycle progression, MQL qualification, Sales acceptance / SQL, and
+   * Opportunity conversion. Two of them can legitimately judge no record on
+   * a baseline that predates the evidence architecture, so this is the first
+   * area where an unscored control is an ordinary outcome rather than a bug.
    */
   'Lifecycle Governance': {
     label: 'Lifecycle Governance',
     scope: 'Lifecycle claims against the Salesforce record that substantiates them.',
     question:
-      'Are prospects earning each lifecycle stage according to governed qualification and conversion criteria?',
+      'Do Leads reach each lifecycle stage by a route the business permits, with the governed evidence to support the claim?',
   },
 };
 
@@ -809,17 +823,24 @@ export function findingPopulation(
  * population, then canonical order. Presentation only — nothing here changes a
  * score, and the canonical order in score.ts still governs how areas are listed.
  */
-export function mostAffectedArea<T extends { category: Category; score: number; checkIds: CheckId[] }>(
-  areas: T[],
-  findings: { id: CheckId; affected: number }[],
-): T | null {
-  if (areas.length === 0) return null;
+export function mostAffectedArea<
+  T extends { category: Category; score: number | null; checkIds: CheckId[] },
+>(areas: T[], findings: { id: CheckId; affected: number }[]): T | null {
+  /*
+   * Only areas that produced a score can be compared. An unscored area is
+   * not the weakest one - it is the one nothing is known about, and calling
+   * it the lowest would be the same overclaim in the opposite direction.
+   */
+  const scored = areas.filter(
+    (a): a is T & { score: number } => a.score !== null,
+  );
+  if (scored.length === 0) return null;
   const affectedIn = (a: T) =>
     a.checkIds.reduce((sum, id) => sum + (findings.find((f) => f.id === id)?.affected ?? 0), 0);
-  return areas.reduce((worst, a) => {
+  return scored.reduce((worst, a) => {
     if (a.score !== worst.score) return a.score < worst.score ? a : worst;
     return affectedIn(a) > affectedIn(worst) ? a : worst;
-  }, areas[0]);
+  }, scored[0]);
 }
 
 /**

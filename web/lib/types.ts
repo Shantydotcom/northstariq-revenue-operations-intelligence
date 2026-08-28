@@ -154,8 +154,31 @@ export interface CheckResult {
   failureBreakdown: BreakdownLine[];
   /** How the not-evaluated records divide, by the evidence that excluded them. */
   exclusionBreakdown: BreakdownLine[];
-  /** 0-100. 100 when nothing was evaluated - absence of data is not failure. */
-  score: number;
+  /**
+   * 0-100, or `null` when the control reached no pass/fail determination.
+   *
+   * THE MODEL v2 CONTRACT. A score is what the control OBSERVED, over the
+   * records it could actually judge. `evaluated === 0` therefore has no
+   * score at all - not 100, which would turn "we could not tell" into
+   * "everything is fine", and not 0, which would turn it into a failure the
+   * control never demonstrated.
+   *
+   * Model v1 returned 100 here. That branch never fired against the live org
+   * - every v1 control evaluated at least four records - but it existed, and
+   * the lifecycle controls are the first that can legitimately judge nothing.
+   * `scoreReason` says which kind of nothing it was.
+   */
+  score: number | null;
+  /**
+   * Why there is no score. Null whenever `score` is a number.
+   *
+   * Derived, never authored: `evaluated === 0` plus `unmeasurableCount`
+   * decides it. Two states, because they are different facts - a control
+   * that found nothing to judge is a boundary working as intended, while one
+   * whose records exist but carry no usable evidence is a gap in coverage.
+   * Neither is a numeric distinction: both are simply unscored.
+   */
+  scoreReason: ScoreReason | null;
   /** Population description, shown so a reviewer can see what was measured. */
   population: string;
   evidenceColumns: EvidenceColumn[];
@@ -164,10 +187,35 @@ export interface CheckResult {
   healthy: boolean;
 }
 
+/**
+ * Why a control has no numeric score.
+ *
+ * Deliberately two literals rather than a status enum: these are the only
+ * two ways a control can reach no determination, and a general framework for
+ * a set of size two would be architecture for its own sake.
+ */
+export type ScoreReason = 'insufficient-evidence' | 'no-applicable-records';
+
+/** Scored controls over total controls - the coverage behind an area score. */
+export interface Coverage {
+  scored: number;
+  total: number;
+}
+
 export interface CategoryScore {
   category: Category;
-  score: number;
+  /** Mean of the SCORED controls in this area, or null when none is scored. */
+  score: number | null;
   checkIds: CheckId[];
+  /**
+   * How many of this area's controls produced the score above.
+   *
+   * Control coverage, not record coverage. The controls in an area evaluate
+   * different populations - pooling them into one denominator would be a
+   * precise-looking number that answers no real question. This one is
+   * checkable by counting the rows on screen.
+   */
+  coverage: Coverage;
 }
 
 /** Summary shown in the findings list; detail is fetched per check. */
@@ -203,16 +251,28 @@ export interface ControlSummary {
   failing: number;
   notEvaluatedCount: number;
   unmeasurableCount: number;
-  score: number;
+  score: number | null;
+  scoreReason: ScoreReason | null;
 }
 
 export interface AssessmentResult {
   /** ISO timestamp of this run. */
   ranAt: string;
+  /**
+   * Which scoring model produced this result.
+   *
+   * Carried on the payload so an exported file and an API response stay
+   * self-describing: v1 and v2 overall scores are not comparable, and a
+   * number with no model beside it invites exactly that comparison.
+   */
+  modelVersion: string;
   /** Distinct Salesforce records read across all checks. */
   recordsAssessed: number;
-  overallHealth: number;
+  /** Mean of the scored areas, or null when no area could be scored. */
+  overallHealth: number | null;
   categoryScores: CategoryScore[];
+  /** How many assessment areas produced a score, of those reported. */
+  areaCoverage: Coverage;
   findings: FindingSummary[];
   /** Every control, healthy or not, with the populations behind its score. */
   controls: ControlSummary[];

@@ -21,7 +21,7 @@ import {
   transitionAllowed,
 } from '../lib/checks/lifecycle-graph.ts';
 import type { LeadStatusHistoryRecord, LifecycleTransitionRecord } from '../lib/soql.ts';
-import { lead, opportunity, READINESS_SOURCES } from './fixtures.ts';
+import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, lead, opportunity } from './fixtures.ts';
 
 /** The deployed v1.0 policy: 10 active transitions. */
 const POLICY_RECORDS: LifecycleTransitionRecord[] = (
@@ -273,7 +273,12 @@ test('Leads that assert no progression are outside, not unmeasurable', () => {
   assert.equal(r.failing, 0);
   assert.equal(r.unmeasurableCount, 0);
   assert.equal(r.notEvaluatedCount, 1);
-  assert.equal(r.score, 100, 'absence of a population is not failure');
+  assert.equal(r.score, null, 'absence of a population is neither failure nor health');
+  assert.equal(
+    r.scoreReason,
+    'no-applicable-records',
+    'nothing was in scope - a boundary working as intended, not an evidence gap',
+  );
 });
 
 /* ------------------------------------------ 16-17. policy failure safety */
@@ -320,12 +325,24 @@ test('the governed early exit is permitted from every open stage', () => {
 });
 
 /* ---------------------------------------------- 19-20. assessment isolation */
-test('the control is implemented but stays out of the scored assessment', () => {
-  assert.ok(!CHECK_IDS.includes('lifecycle-progression'));
-  const results = runAllChecks([lead()], [opportunity()], new Date('2026-08-27'), READINESS_SOURCES);
-  assert.equal(results.length, 7, 'Assessment Model v1 still runs exactly seven controls');
-  assert.ok(!results.some((r) => r.id === 'lifecycle-progression'));
-  assert.ok(!results.some((r) => r.category === 'Lifecycle Governance'));
+test('the control is scored under Model v2 and is part of the assessment', () => {
+  assert.ok(
+    CHECK_IDS.includes('lifecycle-progression'),
+    'CHECK_IDS is the API allow-list and the scored set - this control is in it',
+  );
+  assert.equal(CHECK_IDS.length, 11, 'Assessment Model v2: eleven scored controls');
+  const results = runAllChecks(
+    [lead()],
+    [opportunity()],
+    new Date('2026-08-27'),
+    READINESS_SOURCES,
+    GOVERNANCE,
+    NO_HISTORY,
+  );
+  assert.equal(results.length, 11, 'Assessment Model v2 runs exactly eleven controls');
+  const mine = results.find((r) => r.id === 'lifecycle-progression');
+  assert.ok(mine, 'the control executes as part of the ordinary assessment');
+  assert.equal(mine.category, 'Lifecycle Governance');
 });
 
 test('the independent score counts only records that were settled', () => {

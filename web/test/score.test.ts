@@ -1,12 +1,19 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildAssessment, categoryScores, overallHealth, toFindings } from '../lib/score.ts';
+import {
+  areaCoverage,
+  buildAssessment,
+  categoryScores,
+  MODEL_VERSION,
+  overallHealth,
+  toFindings,
+} from '../lib/score.ts';
 import { checkScore } from '../lib/checks/index.ts';
 import { healthLabel, meterClass } from '../lib/score-bands.ts';
 import { runAllChecks } from '../lib/checks/index.ts';
-import { lead, opportunity, TODAY, READINESS_SOURCES } from './fixtures.ts';
-import type { CheckResult } from '../lib/types.ts';
+import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, TODAY, lead, opportunity } from './fixtures.ts';
+import type { CategoryScore, CheckResult } from '../lib/types.ts';
 
 function stub(over: Partial<CheckResult>): CheckResult {
   return {
@@ -28,12 +35,22 @@ function stub(over: Partial<CheckResult>): CheckResult {
     notEvaluatedColumns: [],
     notEvaluatedRows: [],
     score: 100,
+    scoreReason: null,
     population: '',
     evidenceColumns: [],
     evidence: [],
     healthy: true,
     ...over,
   };
+}
+
+/** A CategoryScore, with the coverage the area rules now carry. */
+function area(
+  category: CheckResult['category'],
+  score: number | null,
+  coverage = { scored: score === null ? 0 : 1, total: 1 },
+): CategoryScore {
+  return { category, score, checkIds: [], coverage };
 }
 
 test('a multi-check category scores as the mean, not the minimum', () => {
@@ -62,18 +79,92 @@ test('category scores round to a whole number', () => {
   assert.equal(categories[0].score, 84, '83.5 rounds to 84');
 });
 
-test('overall health is the mean of the category scores', () => {
-  const health = overallHealth([
-    { category: 'Data Quality', score: 100, checkIds: [] },
-    { category: 'Routing', score: 70, checkIds: [] },
-    { category: 'SLA Performance', score: 40, checkIds: [] },
-  ]);
+test('overall health is the mean of the scored category scores', () => {
+  const health = overallHealth([area('Data Quality', 100), area('Routing', 70), area('SLA Performance', 40)]);
 
   assert.equal(health, 70);
 });
 
-test('an empty category list scores 100 rather than 0', () => {
-  assert.equal(overallHealth([]), 100);
+/* ------------------------------------------------ Model v2: not scored */
+
+test('a control that evaluated nothing is not scored, and is never 100', () => {
+  /**
+   * THE MODEL v2 CONTRACT, at its narrowest. Model v1 returned 100 here,
+   * which reads as perfect performance over a population the control never
+   * judged. Nothing evaluated is not a pass, and it is not a failure either.
+   */
+  assert.equal(checkScore(0, 0), null);
+  assert.notEqual(checkScore(0, 0), 100);
+  assert.notEqual(checkScore(0, 0), 0);
+});
+
+test('a control that evaluated records is scored on those records alone', () => {
+  assert.equal(checkScore(10, 0), 100, 'no failures among the records judged');
+  assert.equal(checkScore(10, 10), 0, 'every record judged failed');
+  assert.equal(checkScore(10, 3), 70, 'partial failure');
+  assert.equal(checkScore(27, 1), 96, 'rounds to a whole number');
+});
+
+test('an unscored control is left out of its area, not averaged in', () => {
+  /**
+   * The behaviour that keeps the area honest. Under Model v1 the unscored
+   * control would have contributed 100 and dragged the area up to 50; here
+   * the area reports what the one scored control actually observed, and the
+   * coverage says how much of the area that was.
+   */
+  const [routing] = categoryScores([
+    stub({ id: 'routing-exceptions', category: 'Routing', evaluated: 4, failing: 4, score: 0 }),
+    stub({
+      id: 'missing-territory',
+      category: 'Routing',
+      evaluated: 0,
+      failing: 0,
+      score: null,
+      scoreReason: 'insufficient-evidence',
+    }),
+  ]);
+
+  assert.equal(routing.score, 0, 'the mean of the scored controls, which is one control');
+  assert.deepEqual(routing.coverage, { scored: 1, total: 2 });
+  assert.equal(routing.checkIds.length, 2, 'both controls are still reported');
+});
+
+test('an area whose every control is unscored is itself not scored', () => {
+  const [routing] = categoryScores([
+    stub({ id: 'routing-exceptions', category: 'Routing', evaluated: 0, score: null, scoreReason: 'insufficient-evidence' }),
+    stub({ id: 'missing-territory', category: 'Routing', evaluated: 0, score: null, scoreReason: 'no-applicable-records' }),
+  ]);
+
+  assert.equal(routing.score, null, 'not 100, and not 0');
+  assert.deepEqual(routing.coverage, { scored: 0, total: 2 });
+});
+
+test('an unscored area is left out of overall health, not averaged in', () => {
+  const health = overallHealth([
+    area('Data Quality', 100),
+    area('Routing', 60),
+    area('Lifecycle Governance', null, { scored: 0, total: 4 }),
+  ]);
+
+  assert.equal(health, 80, 'the mean of 100 and 60 - the unscored area is not a third term');
+  assert.notEqual(health, 53, 'it was not treated as 0');
+  assert.notEqual(health, 87, 'and it was not treated as 100');
+});
+
+test('an assessment where nothing could be scored reports no overall score', () => {
+  /**
+   * Model v1 returned 100 for an empty category list. A perfect score for an
+   * assessment that judged nothing is the largest overclaim the product could
+   * make, so v2 returns no score at all.
+   */
+  assert.equal(overallHealth([]), null);
+  assert.equal(overallHealth([area('Lifecycle Governance', null, { scored: 0, total: 4 })]), null);
+});
+
+test('area coverage counts the areas that produced a score', () => {
+  const areas = [area('Data Quality', 80), area('Lifecycle Governance', null, { scored: 0, total: 4 })];
+  assert.deepEqual(areaCoverage(areas), { scored: 1, total: 2 });
+  assert.deepEqual(areaCoverage([area('Data Quality', 80)]), { scored: 1, total: 1 });
 });
 
 test('healthy checks never become findings', () => {
@@ -100,19 +191,49 @@ test('findings sort by severity, then by how many records are affected', () => {
 });
 
 test('an assessment over a clean org reports full health and no findings', () => {
-  const results = runAllChecks([lead(), lead()], [opportunity()], TODAY, READINESS_SOURCES);
+  const results = runAllChecks(
+    [lead(), lead()],
+    [opportunity()],
+    TODAY,
+    READINESS_SOURCES,
+    GOVERNANCE,
+    NO_HISTORY,
+  );
   const assessment = buildAssessment(results, 3, ['Lead', 'Opportunity'], TODAY.toISOString());
 
-  assert.equal(assessment.overallHealth, 100);
   assert.equal(assessment.findingCount, 0);
   assert.equal(assessment.highSeverityCount, 0);
-  assert.equal(assessment.categoryScores.length, 5, 'all five categories are always reported');
+  assert.equal(
+    assessment.categoryScores.length,
+    6,
+    'all six assessment areas are always reported, scored or not',
+  );
+  assert.equal(assessment.modelVersion, MODEL_VERSION);
+  assert.equal(assessment.modelVersion, 'v2');
+
+  /*
+   * Two clean Leads that never left the entry stage: the five original areas
+   * score 100, and Lifecycle Governance scores 100 on the one control that
+   * can judge them - conversion, which they make no claim against... except
+   * that it evaluates nothing, so it is unscored. Whatever the split, the
+   * invariant under test is that overall is the mean of the SCORED areas and
+   * that no unscored area was quietly counted.
+   */
+  const scored = assessment.categoryScores.filter((c) => c.score !== null);
+  assert.equal(assessment.areaCoverage.scored, scored.length);
+  assert.equal(assessment.areaCoverage.total, assessment.categoryScores.length);
+  assert.equal(
+    assessment.overallHealth,
+    Math.round(scored.reduce((sum, c) => sum + (c.score ?? 0), 0) / scored.length),
+  );
 });
 
 test('the assessment total is traceable from records to overall health', () => {
   /**
-   * One breached Lead out of two measurable ones: SLA Performance scores 50,
-   * the other four categories score 100, so overall health is 90.
+   * One breached Lead out of two measurable ones, so SLA Performance scores
+   * 50. Overall is then the mean of every area that produced a score - which
+   * is the property being pinned here, rather than a written-down total that
+   * would need editing every time the model gains an area.
    */
   const target = '2026-08-20T12:00:00.000+0000';
   const leads = [
@@ -121,7 +242,7 @@ test('the assessment total is traceable from records to overall health', () => {
   ];
 
   const assessment = buildAssessment(
-    runAllChecks(leads, [], TODAY, READINESS_SOURCES),
+    runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY),
     2,
     ['Lead', 'Opportunity'],
     TODAY.toISOString(),
@@ -129,9 +250,17 @@ test('the assessment total is traceable from records to overall health', () => {
 
   const sla = assessment.categoryScores.find((c) => c.category === 'SLA Performance');
   assert.equal(sla?.score, 50);
-  assert.equal(assessment.overallHealth, 90);
   assert.equal(assessment.findingCount, 1);
   assert.equal(assessment.highSeverityCount, 1);
+
+  const scored = assessment.categoryScores
+    .map((c) => c.score)
+    .filter((s): s is number => s !== null);
+  assert.equal(
+    assessment.overallHealth,
+    Math.round(scored.reduce((sum, s) => sum + s, 0) / scored.length),
+    'overall is the mean of the scored areas and nothing else',
+  );
 });
 
 /* ------------------------------------------- score presentation semantics */
@@ -175,6 +304,7 @@ test('a failing-record count is still distinguishable from the score', () => {
    * and the score are different facts and may legitimately be styled apart.
    */
   const score = checkScore(27, 1);
+  assert.equal(score, 96, 'evaluated records produce a number, so a band applies');
   assert.equal(meterClass(score), '');
   assert.ok(1 > 0, 'the failing count remains a positive number the UI renders');
 });

@@ -41,18 +41,17 @@ const AREA_MARKS: Record<Category, { icon: (p: { className?: string }) => React.
   'Pipeline Hygiene': { icon: AreaPipelineIcon, tone: 'red' },
   /*
    * Assessment Area #6. Present for type completeness and ready for the day
-   * the area is scored - AREA_ORDER below still lists five, so the scope band
-   * on screen is unchanged by this increment.
+   * the area is scored, which it has been since Model v2.
    */
   'Lifecycle Governance': { icon: AreaLifecycleIcon, tone: 'violet' },
 };
 
 /**
- * The areas the scope band shows: the five that are actually scored.
+ * The areas the scope band shows: the six that are actually scored.
  *
- * Lifecycle Governance is deliberately absent. Showing a sixth area whose only
- * control is not executed would tell a reader the assessment covers something
- * it does not.
+ * Lifecycle Governance joined them in Assessment Model v2. The band lists
+ * only areas the assessment really executes, so it stays a promise the run
+ * can keep rather than a description of what was built.
  */
 const AREA_ORDER: Category[] = [
   'Data Quality',
@@ -60,6 +59,7 @@ const AREA_ORDER: Category[] = [
   'Identity & Matching',
   'SLA Performance',
   'Pipeline Hygiene',
+  'Lifecycle Governance',
 ];
 
 export default function RunAssessment({
@@ -110,7 +110,7 @@ export default function RunAssessment({
           Assessment scope
         </h2>
         <p className="scope-lede">
-          Seven governed controls are evaluated across these five assessment areas.
+          Eleven governed controls are evaluated across these six assessment areas.
         </p>
 
         <ul className="scope-areas">

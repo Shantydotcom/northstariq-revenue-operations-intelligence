@@ -14,7 +14,7 @@ import {
 import { TRACEABILITY } from '@/lib/traceability';
 import { resolveSetupLinks, setupLinkFor, fieldLinkFor } from '@/lib/setup-links';
 import EvidenceTable from '@/components/EvidenceTable';
-import { meterClass } from '@/components/ScoreMeter';
+import { meterClass, NOT_SCORED, notScoredReason } from '@/components/ScoreMeter';
 import Notice, { DisconnectedNotice } from '@/components/Notice';
 import type { CheckResult } from '@/lib/types';
 
@@ -157,12 +157,27 @@ export default async function FindingDetailPage({
               <dd>{check.evaluated}</dd>
             </div>
             <div>
-              <dt>Not evaluated</dt>
-              <dd>{check.notEvaluatedCount}</dd>
+              <dt>Could not be evaluated</dt>
+              <dd>{check.unmeasurableCount}</dd>
             </div>
             <div>
+              <dt>Not applicable</dt>
+              <dd>{check.notEvaluatedCount - check.unmeasurableCount}</dd>
+            </div>
+            {/*
+             * A control reaching no pass or fail has no score. Rendering
+             * "null/100" or a 0 meter here would be the exact claim Model v2
+             * removed, so the cell says what happened instead.
+             */}
+            <div>
               <dt>Score</dt>
-              <dd className={meterClass(check.score)}>{check.score}/100</dd>
+              {check.score === null ? (
+                <dd>
+                  {NOT_SCORED} — {notScoredReason(check.scoreReason).toLowerCase()}
+                </dd>
+              ) : (
+                <dd className={meterClass(check.score)}>{check.score}/100</dd>
+              )}
             </div>
           </dl>
           <p className="explain">{explainControl(check, p.explain)}</p>

@@ -17,7 +17,7 @@ import {
   type MqlPolicy,
 } from '../lib/checks/mql-policy.ts';
 import type { MqlPolicyRecord } from '../lib/soql.ts';
-import { lead, opportunity, READINESS_SOURCES, GOVERNED } from './fixtures.ts';
+import { GOVERNANCE, GOVERNED, NO_HISTORY, READINESS_SOURCES, lead, opportunity } from './fixtures.ts';
 
 const ELIGIBLE = ['Strategic', 'Enterprise', 'Mid-Market'];
 const BASIS_V11 =
@@ -129,13 +129,28 @@ test('several violations on one record are reported together, once', () => {
 });
 
 /* -------------------------------------------------- 9. no evaluable records */
-test('an org with no Marketing-qualified claims evaluates nothing and scores 100', () => {
+test('an org with no Marketing-qualified claims evaluates nothing and is not scored', () => {
   const r = run([lead(), lead({ Status: 'Working - Contacted' })]);
   assert.equal(r.evaluated, 0);
   assert.equal(r.failing, 0);
-  assert.equal(r.score, 100, 'absence of a population is not failure');
+  assert.equal(r.score, null, 'absence of a population is neither failure nor health');
   assert.equal(r.unmeasurableCount, 0, 'and they are outside the control, not unmeasurable');
+  assert.equal(r.scoreReason, 'no-applicable-records');
   assert.equal(r.notEvaluatedCount, 2);
+});
+
+test('claims that exist but cannot be judged are unscored for a DIFFERENT reason', () => {
+  /**
+   * The live baseline exactly: Leads whose status claims MQL, carrying no
+   * qualification evidence because the field postdates them. The control
+   * applies and cannot judge - a coverage gap, not an empty boundary, and the
+   * two must not be told apart only by reading the record list.
+   */
+  const r = run([lead({ Status: 'SAL', MQL_Basis__c: null })]);
+  assert.equal(r.evaluated, 0);
+  assert.equal(r.unmeasurableCount, 1);
+  assert.equal(r.score, null);
+  assert.equal(r.scoreReason, 'insufficient-evidence');
 });
 
 /* ------------------------------------------- 10. governance unavailable */
@@ -238,15 +253,24 @@ test('the recorded policy version is read from the basis, or reported as unknown
 });
 
 /* ------------------------------------------------------ assessment isolation */
-test('the control is implemented but stays out of the scored assessment', () => {
+test('the control is scored under Model v2 and is part of the assessment', () => {
   assert.ok(
-    !CHECK_IDS.includes('mql-integrity'),
-    'CHECK_IDS is the API allow-list and the scored set - this control is not in it',
+    CHECK_IDS.includes('mql-integrity'),
+    'CHECK_IDS is the API allow-list and the scored set - this control is in it',
   );
-  const results = runAllChecks([qualified()], [opportunity()], new Date('2026-08-27'), READINESS_SOURCES);
-  assert.equal(results.length, 7, 'Assessment Model v1 still runs exactly seven controls');
-  assert.ok(!results.some((r) => r.id === 'mql-integrity'));
-  assert.ok(!results.some((r) => r.category === 'Lifecycle Governance'));
+  assert.equal(CHECK_IDS.length, 11, 'Assessment Model v2: eleven scored controls');
+  const results = runAllChecks(
+    [lead()],
+    [opportunity()],
+    new Date('2026-08-27'),
+    READINESS_SOURCES,
+    GOVERNANCE,
+    NO_HISTORY,
+  );
+  assert.equal(results.length, 11, 'Assessment Model v2 runs exactly eleven controls');
+  const mine = results.find((r) => r.id === 'mql-integrity');
+  assert.ok(mine, 'the control executes as part of the ordinary assessment');
+  assert.equal(mine.category, 'Lifecycle Governance');
 });
 
 test('the control still computes its own score for inspection', () => {

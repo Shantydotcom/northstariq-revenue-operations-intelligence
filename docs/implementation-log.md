@@ -1597,6 +1597,11 @@ AND `IsConverted` is false.**
 unmeasurable: a Lead in *Open - Not Contacted* asserts nothing about conversion, so there is nothing
 to substantiate. Each carries its own reason naming its own status.
 
+> **Superseded 2026-08-28** — Assessment Model v2 activated Lifecycle Governance and this
+> control with it; see *Assessment Model v2* below. The paragraph is left as written because it
+> records the boundary that was deliberately held at the time, and the reasoning it gives is
+> exactly what the later scoring decision had to answer. It is history, not current status.
+
 **IT IS IMPLEMENTED AND NOT SCORED, AND THAT IS THE POINT.** `opportunityConversionIntegrity` is
 absent from `runAllChecks` and from `CHECK_IDS`. Adding it would create Assessment Area #6, and
 because `overallHealth` is an unweighted mean of areas, **every existing area would fall from a fifth
@@ -2924,6 +2929,100 @@ a deployment, and none was made — the org was not contacted at all during this
 
 ---
 
+### 2026-08-28 — Assessment Model v2: a score reports what was judged, and says what it could not
+
+```
+Requirement:   Human-approved scoring decision (Candidate D). Lifecycle
+               Governance activation as Assessment Area #6.
+Repository:    NEW  web/test/model-v2.test.ts              - 8 model scenarios
+               MOD  types.ts, score.ts, checks/index.ts, assessment.ts,
+                    presentation.ts, export-model.ts,
+                    AssessmentPanel.tsx, ScoreMeter.tsx, RunAssessment.tsx,
+                    findings/[checkId]/page.tsx, globals.css, package.json,
+                    test/fixtures.ts + 4 existing test files
+               MOD  README.md, docs/architecture.md, docs/testing-strategy.md,
+                    docs/implementation-log.md
+Salesforce:    0 metadata changes. 0 deployments. 0 record mutations.
+               One read-only assessment run for validation.
+Validation:    166/166 unit tests, tsc clean, production build clean,
+               live read-only run: 60, 6 areas, 11 controls, 8 findings.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**Model v2 is two changes, and calling it one would be the first dishonest thing
+about it.** It adds Lifecycle Governance as a sixth equally-weighted area, and it
+changes what a control with nothing to evaluate is worth: **Model v1 scored it 100;
+v2 leaves it unscored.**
+
+**The second change is the one that mattered.** Two of the four lifecycle controls
+evaluate zero records against the live baseline, because the evidence architecture
+postdates every Lead in it. Under the old contract they would each have contributed
+**100** — a perfect score for a population neither of them judged — the area would
+have read **75**, and overall health would have **risen from 62 to 64** on the
+strength of activating a control that fails every record it judges. A scoring system
+in which discovering a failure improves the score is not defensible at any level of
+explanation, so the contract changed before the controls were activated.
+
+**The rule, in one sentence.** A score is the mean of what was actually scored: a
+control that judged no record has no score, an area made only of such controls has
+no score, and neither is averaged in as a number. What is left out is reported as
+coverage rather than absorbed.
+
+**What a score now means, fixed in place.** `100` = no demonstrated failures **among
+the records NorthstarIQ could evaluate** — not proof the control is healthy across
+the population. `0` = every record it could evaluate failed. `Not scored` = it
+reached no pass or fail, which is neither, and which sits outside the score bands
+entirely rather than being coloured into one of them.
+
+**Two reasons, no numeric difference.** *Insufficient evidence* — records the
+control applies to exist and carry nothing it can judge. *No applicable records* —
+nothing is in scope at all. A coverage gap and a boundary working as intended are
+different facts about the org, and the reason is what tells them apart. Both are
+simply unscored.
+
+**Live result: Overall 60, six areas, eleven controls, eight findings.** Lifecycle
+Governance scores **50** — the mean of progression at 100 and conversion at 0 — with
+**2 of 4 controls scored** shown beside it, so the number is never read without
+knowing how much of the area stands behind it. **The seven original controls
+returned identical scores to their v1 run**: 63, 96, 75, 50, 89, 89, 7. Activation
+moved nothing it was not supposed to move.
+
+**62 and 60 are not comparable, and the drop is not a decline.** Different weighting,
+different eligibility, same org. Every result now carries `modelVersion`, one
+constant in `score.ts` beside the area list that defines what a version *is*, and
+the export repeats the warning so a file opened months later cannot be misread.
+
+**The UI says three things it did not say before.** Which records *could not be
+evaluated* as distinct from *not applicable* — the application has always known the
+difference and was collapsing it into one "not evaluated" count. That the overall
+mean is across **scored** areas, not reported ones. And, quietly, which model
+produced the number.
+
+**TypeScript did the safety work.** Making `score` nullable turned every consumer
+into a compiler error - twenty of them - so no screen, export or API path could
+silently keep rendering a fabricated 100. Nothing was silenced with `any`, a
+non-null assertion or a suppression comment; each site decided what to show.
+
+**Three dead functions went with it.** `runMqlQualificationIntegrity`,
+`runLifecycleProgressionIntegrity` and `runSalesAcceptanceSqlIntegrity` existed to
+execute one lifecycle control outside `runAllChecks` while the area was unscored.
+All four are now ordinary members of the assessment, so a second execution path
+would only be a second answer waiting to disagree with the first.
+
+**No detector algorithm changed.** Not one predicate in the eleven controls was
+rewritten. They were built to be scored and were held back only because activating
+them moved the model.
+
+**Not built:** configurable weights, a model registry, assessment history, a v1/v2
+comparison view, confidence scores, pooled record denominators, a new findings
+severity, or any new dependency. The scoring change is three rules and one constant.
+
+⚠️ **The `NIQ_Revenue_Operations` FLS correction remains undeployed** and was not
+touched here. It is a separate source→org synchronisation task and stays
+independently auditable.
+
+---
+
 ## Implementation Status
 
 **Increments 1-4 are deployed, runtime-validated, and human-accepted.** Increments 3 and 4 were
@@ -2967,15 +3066,15 @@ folded into rows about org metadata.
 | Area | Status |
 |---|---|
 | Next.js application under `web/` | ✅ **IMPLEMENTED** — 4 pages, 3 API routes, in source control |
-| Seven assessment checks + scoring | ✅ **VALIDATED against fixtures** — 150/150 unit tests, no network, no org. The seventh, **Segment Assignment Consistency**, was added 2026-08-26. **Assessment Model v1: 5 areas, 7 scored controls.** |
-| Opportunity Conversion Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — live read-only run: **3 evaluated, 3 failing**, one finding. Compares `Lead.Status` against the platform’s `IsConverted`; `ConvertedOpportunityId` is never required, because Salesforce permits conversion without an Opportunity. Truth-synced 2026-08-27: its preventive half **is** built — `Lifecycle_Transition__mdt` + `Lead_Inbound_Before_Save`, verified against native Lead Conversion — but governs new transitions only. ⚠️ **UNSCORED**: absent from `CHECK_IDS` and `runAllChecks`. |
+| Assessment checks + scoring | ✅ **VALIDATED against fixtures** — 166/166 unit tests, no network, no org. **Assessment Model v2 (2026-08-28): 6 areas, 11 scored controls, overall 60.** A control that evaluates no record is **Not Scored**, never 100. ⚠️ v1's overall 62 is not comparable: area weighting and scoring eligibility both changed. |
+| Opportunity Conversion Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — live read-only run: **3 evaluated, 3 failing**, one finding. Compares `Lead.Status` against the platform’s `IsConverted`; `ConvertedOpportunityId` is never required, because Salesforce permits conversion without an Opportunity. Truth-synced 2026-08-27: its preventive half **is** built — `Lifecycle_Transition__mdt` + `Lead_Inbound_Before_Save`, verified against native Lead Conversion — but governs new transitions only. ✅ **SCORED since Model v2 (2026-08-28)**. |
 | Lifecycle taxonomy — `Lead.Status` + `Lifecycle_Transition__mdt` | ✅ **DEPLOYED and VALIDATED (2026-08-27)** — 7 status values, 10 transition records. |
 | SQL qualification enforcement — `SQL_Qualification_Policy__mdt` + `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27), policy v1.0** — 11/11 behavioural scenarios including native conversion. Requires substantiated Sales acceptance, a governed business need and an agreed next step dated today or later. ⚠️ **SYNTHETIC BASELINE** policy. The detective half is now **implemented** as Sales Acceptance / SQL Integrity. |
 | Sales acceptance enforcement — `Sales_Acceptance_Policy__mdt` + `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27), policy v1.0** — 9/9 behavioural scenarios. Requires an explicit seller acceptance and a substantiated Marketing handoff before `SAL`; records who accepted, when, and under which policy. ⚠️ **SYNTHETIC BASELINE** policy. Sales Acceptance / SQL Integrity (detective) is now **implemented**. |
 | MQL qualification enforcement — `MQL_Qualification_Policy__mdt` + `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27), policy v1.1** — 10/10 then 11/11 behavioural scenarios. **Four** required conditions declared on the policy record, none weighted; blocks an unearned MQL claim and records `MQL_Basis__c` when it is earned. Seller first touch was removed in v1.1 and is now a candidate for SAL. ⚠️ **SYNTHETIC BASELINE** policy. |
-| Lifecycle Progression Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 28 fixture scenarios plus a live read-only run: 15 evaluated, 0 failing, 6 unmeasurable. Builds its model from `Lifecycle_Transition__mdt` and holds no transition matrix of its own. ⚠️ **UNSCORED**: absent from `CHECK_IDS` and `runAllChecks`. |
-| MQL Qualification Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 22 fixture scenarios plus a live read-only run. Reads the same governed policy the Flow consults and judges existing claims against it. ⚠️ **UNSCORED**: absent from `CHECK_IDS` and `runAllChecks`; Assessment Model v1 unchanged at 5 areas / 7 scored controls. |
-| Sales Acceptance / SQL Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 37 fixture scenarios plus a live read-only run: **0 evaluated, 0 failing, 3 unmeasurable, 46 outside**. No baseline Lead has ever been through the governed handoff, and none was created to change that. Consumes `Sales_Acceptance_Policy__mdt` v1.0 and `SQL_Qualification_Policy__mdt` v1.0 as two separate definitions; judges the recorded next-step date against the recorded qualification event, never against TODAY. ⚠️ **UNSCORED**: absent from `CHECK_IDS` and `runAllChecks`. |
+| Lifecycle Progression Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 28 fixture scenarios plus a live read-only run: 15 evaluated, 0 failing, 6 unmeasurable. Builds its model from `Lifecycle_Transition__mdt` and holds no transition matrix of its own. ✅ **SCORED since Model v2 (2026-08-28)**. |
+| MQL Qualification Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 22 fixture scenarios plus a live read-only run. Reads the same governed policy the Flow consults and judges existing claims against it. ✅ **SCORED since Model v2 (2026-08-28)**. |
+| Sales Acceptance / SQL Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 37 fixture scenarios plus a live read-only run: **0 evaluated, 0 failing, 3 unmeasurable, 46 outside**. No baseline Lead has ever been through the governed handoff, and none was created to change that. Consumes `Sales_Acceptance_Policy__mdt` v1.0 and `SQL_Qualification_Policy__mdt` v1.0 as two separate definitions; judges the recorded next-step date against the recorded qualification event, never against TODAY. ✅ **SCORED since Model v2 (2026-08-28)**. |
 | Lifecycle transition enforcement — `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 9/9 behavioural scenarios for ordinary Status edits, plus native Lead conversion verified separately the same day. Blocks a transition absent from the policy — including one attempted through Salesforce Lead Conversion — and stamps `Lifecycle_Stage_Entered__c` on create and on an allowed transition. |
 | Negative control (governed without segment) | ✅ **VALIDATED against fixtures** — returns zero, never rendered |
 | SLA measurable-population rule (`M-07`) | ✅ **VALIDATED against fixtures** — unmeasurable Leads excluded from the denominator |

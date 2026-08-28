@@ -15,6 +15,13 @@ import type { Sheet } from './export.ts';
  * Column names are the operator-facing ones, not the internal keys.
  */
 
+/** Why a control has no score, for a reader opening the file away from the app. */
+function scoreReasonText(reason: 'insufficient-evidence' | 'no-applicable-records' | null): string {
+  return reason === 'no-applicable-records'
+    ? 'no applicable records'
+    : 'records exist but carry no evidence this control can judge';
+}
+
 const SALESFORCE_OBJECT: Record<string, string> = {
   'missing-firmographics': 'Lead',
   'segment-consistency': 'Lead',
@@ -80,13 +87,16 @@ function runSheet(result: AssessmentResult): Sheet {
     rows: [
       ['Observed from Salesforce at', formatObservedAt(result.ranAt)],
       ['Observation timestamp (UTC ISO)', result.ranAt],
+      ['Assessment model', `Model ${result.modelVersion}`],
       ['Salesforce records assessed', result.recordsAssessed],
       ['Objects assessed', result.objectsAssessed.join(', ')],
-      ['Overall health', result.overallHealth],
-      ['Assessment areas', result.categoryScores.length],
+      ['Overall health', result.overallHealth === null ? 'Not scored' : result.overallHealth],
+      ['Assessment areas reported', result.categoryScores.length],
+      ['Assessment areas scored', result.areaCoverage.scored],
       ['Findings', result.findingCount],
       ['High priority findings', result.highSeverityCount],
-      ['Scoring method', 'Control score = round(100 x (1 - failing / evaluated)). Area = unweighted mean of its controls. Overall health = unweighted mean of areas.'],
+      ['Scoring method', 'Control score = round(100 x (1 - failing / evaluated)). A control that evaluated no record is Not Scored, never 100 or 0. Area = unweighted mean of its SCORED controls. Overall health = unweighted mean of the SCORED areas.'],
+      ['Model comparability', 'Model v2 adds Lifecycle Governance and changes zero-evaluated controls from an automatic 100 to Not Scored. Assessment area weighting and scoring eligibility both changed, so v1 and v2 overall scores are not directly comparable.'],
       ['Source', 'NorthstarIQ read-only assessment. Salesforce data is synthetic; NorthstarIQ is a fictional company.'],
       ['Limitation', 'A finding reports what the org recorded. It is not a test of the Salesforce automation that produced it.'],
     ],
@@ -134,7 +144,7 @@ export function findingsExport(result: AssessmentResult): Sheet[] {
       AREAS[c.category].label,
       AREAS[c.category].question,
       c.checkIds.map((id) => PRESENTATION[id].label).join(', '),
-      c.score,
+      c.score === null ? 'Not scored' : c.score,
     ]),
   };
 
@@ -189,8 +199,13 @@ export function evidenceExport(
       ['Population Evaluated', check.evaluated],
       ['Population Description', check.population],
       ['Records Failing', check.failing],
-      ['Control Score', check.score],
-      ['Calculation', `round(100 x (1 - ${check.failing} / ${check.evaluated || 1})) = ${check.score}`],
+      ['Control Score', check.score === null ? 'Not scored' : check.score],
+      [
+        'Calculation',
+        check.score === null
+          ? `Not scored — no pass/fail observations (${scoreReasonText(check.scoreReason)})`
+          : `round(100 x (1 - ${check.failing} / ${check.evaluated})) = ${check.score}`,
+      ],
       ['Records in this export', check.evidence.length],
       [
         'Export coverage',
@@ -261,9 +276,10 @@ export function notEvaluatedExport(
       [`${check.orgPopulationNoun} found`, check.orgPopulation],
       ['Evaluated by this control', check.evaluated],
       ['Not evaluated', check.notEvaluatedCount],
-      ['Of those, unmeasurable', check.unmeasurableCount],
+      ['Of those, could not be evaluated', check.unmeasurableCount],
+      ['Of those, not applicable', check.notEvaluatedCount - check.unmeasurableCount],
       ['Records failing', check.failing],
-      ['Control Score', check.score],
+      ['Control Score', check.score === null ? 'Not scored' : check.score],
       [
         'What this file contains',
         'The records this control did not evaluate, each with the reason it was left out. They are not counted as passing and did not contribute to the score.',

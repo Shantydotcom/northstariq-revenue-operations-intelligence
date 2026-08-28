@@ -17,7 +17,7 @@ import {
   mostAffectedArea,
   objectPhrase,
 } from '@/lib/presentation';
-import ScoreMeter, { healthLabel, meterClass } from './ScoreMeter';
+import ScoreMeter, { healthLabel, meterClass, NOT_SCORED, notScoredReason } from './ScoreMeter';
 import RunAssessment from './RunAssessment';
 import Notice, { DisconnectedNotice } from './Notice';
 
@@ -144,8 +144,10 @@ export default function AssessmentPanel({ status }: { status: SalesforceStatus }
       setState({ phase: 'done', result: next, error: null });
       storeResult(next);
       setLive(
-        `Assessment complete. Overall health ${next.overallHealth} out of 100, ` +
-          `${healthLabel(next.overallHealth)}. ` +
+        (next.overallHealth === null
+          ? 'Assessment complete. No area could be scored. '
+          : `Assessment complete. Overall health ${next.overallHealth} out of 100, ` +
+            `${healthLabel(next.overallHealth)}. `) +
           `${NUM.format(next.recordsAssessed)} records assessed, ` +
           `${NUM.format(next.findingCount)} findings.`,
       );
@@ -331,7 +333,9 @@ function Assessment({ result }: { result: AssessmentResult }) {
        * and the most affected area never redefines the overall state.
        */}
       <section className="conclusion">
-        <h2 className={meterClass(result.overallHealth)}>{healthLabel(result.overallHealth)}</h2>
+        <h2 className={result.overallHealth === null ? undefined : meterClass(result.overallHealth)}>
+          {result.overallHealth === null ? NOT_SCORED : healthLabel(result.overallHealth)}
+        </h2>
 
         {worst && headline ? (
           <>
@@ -344,7 +348,7 @@ function Assessment({ result }: { result: AssessmentResult }) {
               {AREAS[worst.category].label} has the lowest assessment score.
             </p>
             <p className="conclusion-evidence">
-              <span className={`conclusion-count ${meterClass(worst.score)}`}>
+              <span className={`conclusion-count ${meterClass(worst.score ?? 0)}`}>
                 {NUM.format(headline.affected)} of {NUM.format(headline.evaluated)}
               </span>
               <span className="conclusion-predicate">
@@ -365,14 +369,36 @@ function Assessment({ result }: { result: AssessmentResult }) {
       <section className="overall">
         <h2>Overall assessment</h2>
         <p className="overall-score">
-          <span className={`overall-value ${meterClass(result.overallHealth)}`}>
-            {result.overallHealth}
-          </span>
-          <span className="overall-scale">/ 100</span>
+          {result.overallHealth === null ? (
+            <span className="overall-value">{NOT_SCORED}</span>
+          ) : (
+            <>
+              <span className={`overall-value ${meterClass(result.overallHealth)}`}>
+                {result.overallHealth}
+              </span>
+              <span className="overall-scale">/ 100</span>
+            </>
+          )}
         </p>
+        {/*
+         * The denominator is the SCORED areas, not the reported ones. Saying
+         * "across 6 areas" while five contributed would be the exact
+         * overclaim Model v2 exists to remove, so the sentence names the
+         * number that was actually averaged and, when they differ, says how
+         * many were left out and why they were.
+         */}
         <p className="overall-method">
-          Equal-weight mean across {result.categoryScores.length} assessment areas. Every area counts
-          the same, however many records it judged.
+          Equal-weight mean across {result.areaCoverage.scored} scored assessment
+          {result.areaCoverage.scored === 1 ? ' area' : ' areas'}. Every scored area counts the
+          same, however many records it judged.
+          {result.areaCoverage.scored < result.areaCoverage.total ? (
+            <>
+              {' '}
+              {result.areaCoverage.total - result.areaCoverage.scored} of{' '}
+              {result.areaCoverage.total} areas could not be scored and are not averaged in.
+            </>
+          ) : null}{' '}
+          <span className="overall-model">Assessment Model {result.modelVersion}</span>
         </p>
         <ScoringDisclosure result={result} />
       </section>
@@ -385,8 +411,9 @@ function Assessment({ result }: { result: AssessmentResult }) {
           </Link>
         </div>
         <p className="section-intro">
-          Five operational areas, in a fixed order. Each score is the share of evaluated records that
-          passed the checks in that area.
+          {result.categoryScores.length} operational areas, in a fixed order. Each score is the
+          share of evaluated records that passed the controls in that area {'—'} counting only the
+          controls that reached a pass or fail.
         </p>
 
         <div className="areas">
@@ -442,12 +469,32 @@ function AreaRow({ area, result }: { area: CategoryScore; result: AssessmentResu
           </span>
         </h3>
 
+        {/*
+         * An unscored area shows no number, no meter and no band word. The
+         * coverage line below carries the qualifier whenever fewer controls
+         * were scored than the area holds, so a score is never read without
+         * knowing how much of the area stands behind it.
+         */}
         <div className="area-score-block">
-          <p className={`area-score ${meterClass(area.score)}`}>
-            {area.score} <span className="area-scale">/ 100</span>
-          </p>
-          <ScoreMeter score={area.score} />
-          <p className={`area-band ${meterClass(area.score)}`}>{healthLabel(area.score)}</p>
+          {area.score === null ? (
+            <>
+              <p className="area-score area-unscored">{NOT_SCORED}</p>
+              <p className="area-band">No control in this area reached a pass or fail</p>
+            </>
+          ) : (
+            <>
+              <p className={`area-score ${meterClass(area.score)}`}>
+                {area.score} <span className="area-scale">/ 100</span>
+              </p>
+              <ScoreMeter score={area.score} />
+              <p className={`area-band ${meterClass(area.score)}`}>{healthLabel(area.score)}</p>
+            </>
+          )}
+          {area.coverage.scored < area.coverage.total ? (
+            <p className="area-coverage">
+              {area.coverage.scored} of {area.coverage.total} controls scored
+            </p>
+          ) : null}
         </div>
       </div>
 
@@ -474,15 +521,36 @@ function AreaRow({ area, result }: { area: CategoryScore; result: AssessmentResu
                   {NUM.format(control.evaluated)} of {NUM.format(control.orgPopulation)}{' '}
                   {control.orgPopulationNoun} evaluated
                 </span>
-                {control.notEvaluatedCount > 0 ? (
-                  <span>{NUM.format(control.notEvaluatedCount)} not evaluated</span>
+                {/*
+                 * Two different facts, shown as two. "Could not be evaluated"
+                 * is a gap in evidence; "not applicable" is a boundary working
+                 * as intended. Collapsing them into one "not evaluated" count
+                 * hides the first inside the second, and telling them apart is
+                 * part of what this assessment is for.
+                 */}
+                {control.unmeasurableCount > 0 ? (
+                  <span>{NUM.format(control.unmeasurableCount)} could not be evaluated</span>
+                ) : null}
+                {control.notEvaluatedCount - control.unmeasurableCount > 0 ? (
+                  <span>
+                    {NUM.format(control.notEvaluatedCount - control.unmeasurableCount)} not
+                    applicable
+                  </span>
                 ) : null}
                 <span className={control.failing > 0 ? 'bad' : undefined}>
                   {control.failing > 0
                     ? `${NUM.format(control.failing)} failing`
                     : 'No failing records'}
                 </span>
-                <span className={`control-score ${meterClass(control.score)}`}>{control.score}</span>
+                {control.score === null ? (
+                  <span className="control-score control-unscored">
+                    {NOT_SCORED} {'—'} {notScoredReason(control.scoreReason).toLowerCase()}
+                  </span>
+                ) : (
+                  <span className={`control-score ${meterClass(control.score)}`}>
+                    {control.score}
+                  </span>
+                )}
               </p>
             ) : null}
           </li>
@@ -494,12 +562,16 @@ function AreaRow({ area, result }: { area: CategoryScore; result: AssessmentResu
        * only case where the area score is not simply the control score in the
        * row above it.
        */}
-      {controls.length > 1 ? (
+      {area.score !== null && area.coverage.scored > 1 ? (
         <p className="area-method">
           Area score ={' '}
           <span className="mono">
-            ({controls.map(({ id }) => checkScoreOf(result, id)).join(' + ')}) ÷ {controls.length} ={' '}
-            {area.score}
+            (
+            {controls
+              .map(({ id }) => checkScoreOf(result, id))
+              .filter((s): s is number => s !== null)
+              .join(' + ')}
+            ) ÷ {area.coverage.scored} = {area.score}
           </span>
         </p>
       ) : null}
@@ -606,8 +678,10 @@ function ScoringDisclosure({ result }: { result: AssessmentResult }) {
  * because it has no entry in `findings`, which was true only by coincidence of
  * the formula. `controls` carries every control's real score.
  */
-function checkScoreOf(result: AssessmentResult, id: string): number {
-  return result.controls.find((c) => c.id === id)?.score ?? 100;
+function checkScoreOf(result: AssessmentResult, id: string): number | null {
+  // Null both when the control is unscored and when it is absent from the
+  // run. Neither is a number, and neither should be invented as one.
+  return result.controls.find((c) => c.id === id)?.score ?? null;
 }
 
 /** Share of the org population a control could actually measure. M-07. */

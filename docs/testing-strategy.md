@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Purpose** | How this project proves that what it built actually works |
-| **Status** | 🟢 **Strategy defined · Increments 1-4 executed with recorded results** — 8/8 · 9/9 · 6/6 · 15/15 · 9/9 · 2/2 · 10/10 · 11/11 · 9/9 · 11/11 Salesforce, 150/150 application unit tests. **The ~190-record synthetic dataset is not generated**, so no scenario has run against the designed population. |
+| **Status** | 🟢 **Strategy defined · Increments 1-4 executed with recorded results** — 8/8 · 9/9 · 6/6 · 15/15 · 9/9 · 2/2 · 10/10 · 11/11 · 9/9 · 11/11 Salesforce, 166/166 application unit tests. **Assessment Model v2 is active**: 6 areas, 11 scored controls. **The ~190-record synthetic dataset is not generated**, so no scenario has run against the designed population. |
 | **Related** | [`requirements.md`](requirements.md) · [`architecture.md`](architecture.md) · [`security-model.md`](security-model.md) |
 
 ---
@@ -13,7 +13,7 @@
 **Executed, with results recorded in [`implementation-log.md`](implementation-log.md):** Increment 2
 fixtures (8/8) · Increment 3 routing (9/9) · Seller negative-security and `BR-08` regression (6/6) ·
 Increment 4 SLA (15/15, including 8 negative and guardrail tests) · web application unit tests
-(50/50 at §2h, 150/150 as the suite now stands — fixtures only) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run).
+(50/50 at §2h, 166/166 as the suite now stands — fixtures only) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run) · Assessment Model v2 scoring activation (§2q, 8 model scenarios + a live read-only run).
 
 **Not executed:** every scenario in §2 against the **designed ~190-record dataset**, which has not
 been generated. The results above came from purpose-built fixtures and from records the org already
@@ -1069,6 +1069,128 @@ was real, or that the next step ever happened.
 
 **It is unscored.** Assessment Model v1 remains **62 — 5 areas, 7 scored controls, 7 findings** —
 verified by a live run after implementation.
+
+---
+
+## 2q. Assessment Model v2 — scoring activation, executed 2026-08-28
+
+Not a control. This section records the **scoring contract** change that made
+Lifecycle Governance scorable, and the live result it produced. **Read-only**: no
+Salesforce record or metadata was created, updated or deleted, and nothing was
+deployed.
+
+### The methodology change, stated plainly
+
+Model v2 is **not** simply "adds Lifecycle Governance". It changes two things:
+
+| | Model v1 | Model v2 |
+|---|---|---|
+| Assessment areas | 5 | **6** |
+| Scored controls | 7 | **11** |
+| A control with `evaluated = 0` | scored **100** | **Not Scored** |
+| Area score | mean of its controls | mean of its **scored** controls |
+| Overall | mean of the areas | mean of the **scored** areas |
+
+⚠️ **The zero-evaluated branch never fired under v1 against the live org** — every
+v1 control evaluated at least four records — so no v1 number was ever produced by
+it. It existed in the implementation, and the lifecycle controls are the first that
+can legitimately judge nothing, which is what forced the contract to become
+explicit.
+
+### What a score means, fixed in place
+
+| | Meaning |
+|---|---|
+| **100** | No demonstrated failures **among the records NorthstarIQ could evaluate**. It does **not** claim the control is healthy across the whole population. |
+| **0** | Every record it could evaluate failed. |
+| **Not scored** | It reached no pass or fail. Neither healthy nor failing, and outside the score bands entirely. |
+
+Two reasons, no numeric difference between them:
+
+- **Insufficient evidence** — `evaluated = 0`, `could not be evaluated > 0`. Records
+  the control applies to exist and carry nothing it can judge. A coverage gap.
+- **No applicable records** — `evaluated = 0`, `could not be evaluated = 0`. Nothing
+  in the org is in scope. A boundary working as intended.
+
+### Unit tests — 16 added, 16 passed, 0 failed
+
+Full suite **166 passed / 0 failed** (150 before this increment). No skipped tests,
+no `.only`.
+
+`test/model-v2.test.ts` (8): six areas and eleven controls · the result names its
+model · **the four lifecycle controls split two scored / two unscored** · Lifecycle
+Governance = 50 and explicitly **not** the 75 Model v1 would have produced ·
+coverage 2 of 4 · overall averages only scored areas · **an unscored control
+generates no finding while a failing one still does** · exports carry the model
+version and render an unscored control as `Not scored` with no fabricated
+calculation.
+
+`test/score.test.ts` (8 new): `evaluated = 0` is null and neither 100 nor 0 ·
+scored controls return 100 / 0 / partial / rounded · an unscored control is left
+out of its area rather than averaged in · an area of only unscored controls is
+itself unscored · an unscored area is left out of overall and is treated as
+**neither 0 nor 100** · an assessment that scored nothing reports no overall score ·
+area coverage counts what produced a score.
+
+Existing tests were updated **intentionally**, not mechanically: each zero-evaluated
+assertion now states which of the two unscored reasons applies, and the three
+lifecycle isolation tests were inverted into activation tests rather than deleted.
+
+### Live read-only execution — 2026-08-28
+
+| | |
+|---|---:|
+| Assessment model | **v2** |
+| **Overall** | **60** |
+| Assessment areas | 6 reported, **6 scored** |
+| Scored controls | 11 |
+| Findings | **8** |
+
+| Area | Score | Coverage |
+|---|---:|---|
+| Data Quality | 80 | 2 of 2 |
+| Routing | 82 | 2 of 2 |
+| Identity & Matching | 89 | 1 of 1 |
+| SLA Performance | 50 | 1 of 1 |
+| Pipeline Hygiene | 7 | 1 of 1 |
+| **Lifecycle Governance** | **50** | **2 of 4 controls scored** |
+
+`(80 + 82 + 89 + 50 + 7 + 50) ÷ 6 = 358 ÷ 6 = 59.67 → **60**`
+
+| Lifecycle control | Evaluated | Failing | Could not be evaluated | Not applicable | Score |
+|---|---:|---:|---:|---:|---|
+| Lifecycle Progression Integrity | 15 | 0 | 6 | 28 | 100 |
+| MQL Qualification Integrity | 0 | 0 | 3 | 46 | **Not scored — insufficient evidence** |
+| Sales Acceptance / SQL Integrity | 0 | 0 | 3 | 46 | **Not scored — insufficient evidence** |
+| Opportunity Conversion Integrity | 3 | 3 | 0 | 46 | 0 |
+
+**The area is 50 because two controls observed something and two could not.** Under
+Model v1 the two that observed nothing would each have contributed 100, the area
+would have read **75**, and overall health would have **risen** from 62 to 64 on the
+strength of adding a control that fails every record it judges. That arithmetic is
+the whole argument for the change.
+
+The seven original controls returned **identical** scores to their Model v1 run —
+63, 96, 75, 50, 89, 89, 7 — so activation moved nothing it was not supposed to move.
+
+### Historical comparability
+
+⚠️ **Overall 62 (Model v1) and Overall 60 (Model v2) are not comparable, and the
+difference is not a decline.** Model v2 adds Lifecycle Governance as a sixth
+equally-weighted area and changes zero-evaluated controls from an automatic 100 to
+Not Scored. Both the area weighting and the scoring eligibility changed, so the two
+numbers are produced by different models over the same org. Every result now carries
+its model version for exactly this reason, and the export repeats the warning.
+
+### What these results do not prove
+
+**Nothing about the lifecycle controls' detection ability changed.** Their
+algorithms were not touched. Two of them still have no live failing population, and
+their failure paths remain proven by fixtures only.
+
+**A coverage of 2 of 4 is the honest current state**, not a defect to be scored
+away. It will improve when Leads actually pass through the governed lifecycle, and
+not before.
 
 ---
 
