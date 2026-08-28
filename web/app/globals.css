@@ -2811,9 +2811,55 @@ th {
   font-weight: var(--w-bold);
 }
 
+/*
+ * The risk the control protects against, stated before any number.
+ * Reads as body prose rather than a caption - it is the reason the rest of
+ * the page exists, not an aside about it.
+ */
+.why {
+  margin: 0 0 18px;
+  max-width: 74ch;
+  color: var(--ink-muted);
+}
+
 .safeguard {
   border-left: 2px solid var(--accent);
   padding: 2px 0 2px 18px;
+}
+
+/*
+ * Preventive or detective, said in a word.
+ *
+ * Colour is a second signal, never the only one: the badge always spells out
+ * which it is, so the distinction survives greyscale, a colour-vision
+ * difference and a screen reader alike.
+ */
+.kind {
+  margin: 0 0 8px;
+}
+
+.kind-badge {
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--w-bold);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  color: var(--ink-muted);
+}
+
+.kind-badge.preventive {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 40%, var(--border));
+}
+
+/* Where the ticks above came from, and what they do not cover. */
+.verification-source {
+  margin: 14px 0 0;
+  max-width: 84ch;
+  font-size: var(--t-small);
+  color: var(--ink-faint);
 }
 
 .safeguard h3 {

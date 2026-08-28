@@ -534,7 +534,7 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
         {
           term: 'Salesforce Lead Conversion facts',
           detail:
-            '`IsConverted` is set by the platform during Lead Conversion and is not writable afterwards, and the same transaction populates the Converted Date, Account and Contact. That is why it settles the question and the status picklist does not. A null Converted Opportunity is **not** a failure: the conversion screen carries a \u201cdon\u2019t create an opportunity\u201d option, so a converted Lead may legitimately have none.',
+            '`IsConverted` is set by the platform during Lead Conversion and is not writable afterwards, and the same transaction populates the Converted Date, Account and Contact. That is why it settles the question and the status picklist does not. A null Converted Opportunity is not a failure: the conversion screen carries a \u201cdon\u2019t create an opportunity\u201d option, so a converted Lead may legitimately have none.',
         },
         {
           term: 'Salesforce Custom Metadata \u2014 Lifecycle Transition',
@@ -546,7 +546,7 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
     safeguard: {
       kind: 'preventive',
       title: 'Salesforce refuses an unsupported transition into the converted stage',
-      body: 'The intake Flow checks every status change against the governed transition policy and blocks the save when no permitted transition matches. **Native Salesforce Lead Conversion takes the same path**: converting from a stage the policy gives no route to the converted status is refused, and the whole conversion transaction rolls back \u2014 no Account, Contact or Opportunity is left behind. That safeguard governs NEW transitions only. It could not reach records that already held a converted status before it existed, and those are exactly what this control finds.',
+      body: 'The intake Flow checks every status change against the governed transition policy and blocks the save when no permitted transition matches. Native Salesforce Lead Conversion takes the same path: converting from a stage the policy gives no route to the converted status is refused, and the whole conversion transaction rolls back \u2014 no Account, Contact or Opportunity is left behind. That safeguard governs NEW transitions only. It could not reach records that already held a converted status before it existed, and those are exactly what this control finds.',
       tech: ['Lead_Inbound_Before_Save', 'Lifecycle_Transition__mdt', 'Lead.Status', 'Lead.IsConverted'],
     },
     verification: [
@@ -558,7 +558,7 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
       'Native Lead Conversion from a stage the policy gives no route from \u2192 blocked, and the whole transaction rolls back',
     ],
     verificationSource:
-      'Application unit tests against fixture records, plus a read-only observation of the Developer Edition org on 2026-08-27. The two native-conversion outcomes are **prior validated evidence** from the conversion experiment of 2026-08-27 \u2014 two purpose-built fixtures, both deleted afterwards, no baseline record touched. \u26a0\ufe0f This detective control was not used during that validation, and no safeguard governed the baseline records that predate it.',
+      'Application unit tests against fixture records, plus a read-only observation of the Developer Edition org on 2026-08-27. The two native-conversion outcomes are prior validated evidence from the conversion experiment of 2026-08-27 \u2014 two purpose-built fixtures, both deleted afterwards, no baseline record touched. \u26a0\ufe0f This detective control was not used during that validation, and no safeguard governed the baseline records that predate it.',
     evidencePath: 'force-app/main/default/standardValueSets/LeadStatus.standardValueSet-meta.xml',
   },
 

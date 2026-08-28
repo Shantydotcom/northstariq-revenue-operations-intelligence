@@ -138,7 +138,24 @@ export default async function FindingDetailPage({
       </div>
 
       <div className="detail">
-        {/* 1. Result: the population, accounted for, then what it means. */}
+        {/*
+         * 1. The question, before the answer.
+         *
+         * A reader arriving from the findings queue knows a count and a title
+         * and nothing about why either matters. The risk and the expectation
+         * come first so the numbers below land as evidence about something
+         * rather than as the first thing said.
+         */}
+        <section>
+          <h2>Why this control exists</h2>
+          <p className="why">{p.why}</p>
+          <dl className="control-pair">
+            <dt>What the control expects</dt>
+            <dd>{p.control}</dd>
+          </dl>
+        </section>
+
+        {/* 2. Result: the population, accounted for, then what it means. */}
         <section>
           <h2>What NorthstarIQ found</h2>
           {/*
@@ -378,12 +395,68 @@ export default async function FindingDetailPage({
           )}
         </section>
 
-        {/* 6. Control and verification: expected condition, and the recheck. */}
+        {/*
+         * 6. What Salesforce prevents, as distinct from what this reports.
+         *
+         * THE DISTINCTION IS THE POINT, AND IT IS LABELLED RATHER THAN IMPLIED.
+         * Every NorthstarIQ control is detective: it reads what the org already
+         * holds and never blocks anything. Some of them sit beside a Salesforce
+         * safeguard that does block, and `kind` says which case this is. A
+         * reader must not leave thinking the assessment enforced something, or
+         * that a preventive safeguard found the records listed above - it could
+         * not have, because they predate it.
+         */}
         <section>
-          <h2>Control &amp; verification</h2>
+          <h2>Implemented safeguard</h2>
+          <div className="safeguard">
+            <p className="kind">
+              <span className={`kind-badge ${p.safeguard.kind}`}>
+                {p.safeguard.kind === 'preventive'
+                  ? 'Preventive \u2014 Salesforce blocks it'
+                  : 'Detective \u2014 reported, not prevented'}
+              </span>
+            </p>
+            <h3>{p.safeguard.title}</h3>
+            <p>{p.safeguard.body}</p>
+            {p.safeguard.tech && p.safeguard.tech.length > 0 ? (
+              <ul className="tech" aria-label="Salesforce components behind this safeguard">
+                {p.safeguard.tech.map((t) => (
+                  <li className="tech-tag" key={t}>
+                    {t}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+        </section>
+
+        {/*
+         * 7. What was actually executed - outcomes, not intentions.
+         *
+         * `verificationSource` carries the limits of those outcomes and is
+         * rendered every time, never conditionally: a list of ticks with no
+         * statement of what produced them reads as a broader claim than the
+         * evidence supports.
+         */}
+        <section>
+          <h2>Verification</h2>
+          <ul className="verification">
+            {p.verification.map((v) => (
+              <li key={v}>
+                <span className="tick" aria-hidden="true">
+                  ✓
+                </span>
+                <span>{v}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="verification-source">{p.verificationSource}</p>
+        </section>
+
+        {/* 8. The recheck. The expectation itself is stated at the top. */}
+        <section>
+          <h2>How this finding clears</h2>
           <dl className="control-pair">
-            <dt>Control</dt>
-            <dd>{p.control}</dd>
             <dt>Verify</dt>
             <dd>{p.recheck}</dd>
           </dl>

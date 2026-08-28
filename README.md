@@ -18,7 +18,7 @@ that process against the org and shows the records behind every number.
 | | |
 |---|---|
 | **Salesforce** | Four increments deployed to a Developer Edition org and human-accepted as a non-admin persona. 21 custom fields · 1 before-save Flow · 3 Custom Metadata Types holding 16 configuration records · 4 permission sets · 3 queues · 2 reports · 4 org-wide default changes · **0 Apex** |
-| **Assessment application** (`web/`) | Next.js App Router — 4 pages, 6 API routes, **Assessment Model v2: 11 controls across 6 assessment areas**, deterministic scoring. Authenticates by OAuth 2.0 Client Credentials and reads `Lead` and `Opportunity` by SOQL. 166 unit tests over the checks, the lifecycle controls and the scoring. |
+| **Assessment application** (`web/`) | Next.js App Router — 4 pages, 6 API routes, **Assessment Model v2: 11 controls across 6 assessment areas**, deterministic scoring. Authenticates by OAuth 2.0 Client Credentials and reads `Lead` and `Opportunity` by SOQL. 181 unit tests over the checks, the lifecycle controls, the scoring and the investigation trail each finding renders. |
 | **Live assessment snapshot — 2026-08-24** | HTTP 200, 81 records assessed, overall health 68, six findings, three high. A dated record of that run, **not** current state. |
 | **Deferred, not built** | The ~190-record synthetic dataset · Power BI analytics · round-robin distribution · application deployment |
 
@@ -308,8 +308,8 @@ npm test
 npm run build
 ```
 
-`npm test` runs 166 unit tests over the checks, the lifecycle controls and the scoring with no
-network and no org. Four runtime dependencies: `next`, `react`, `react-dom`, `server-only`.
+`npm test` runs 181 unit tests over the checks, the lifecycle controls, the scoring and the
+investigation trail each finding renders, with no network and no org. Four runtime dependencies: `next`, `react`, `react-dom`, `server-only`.
 
 ---
 
