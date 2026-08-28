@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Purpose** | Who can do what, why, and how that is proven |
-| **Status** | 🟢 **OWD and 4 permission sets in source** · `NIQ_Revenue_Seller` **validated against a representative non-admin Seller principal** · `NIQ_Integration_Read` — effective read-only on the four assessed objects **proven by platform describe** (§4b), with a recorded finding that the principal is writable elsewhere · role hierarchy **not built** · `NIQ_Revenue_Operations` and `NIQ_Rule_Configuration` deployed but **unassigned** |
+| **Status** | 🟢 **OWD and 4 permission sets in source** · `NIQ_Revenue_Seller` **validated against a representative non-admin Seller principal** · `NIQ_Integration_Read` — effective read-only on the four assessed objects **proven by platform describe** (§4b), with a recorded finding that the principal is writable elsewhere · role hierarchy **not built** · `NIQ_Revenue_Operations` deployed and **assigned only to an administrator**, so its least-privilege behaviour is **not runtime-validated** · `NIQ_Rule_Configuration` deployed but **unassigned** |
 | **Related** | [`requirements.md`](requirements.md) · [`data-model.md`](data-model.md) · [`testing-strategy.md`](testing-strategy.md) |
 
 ---
@@ -22,8 +22,13 @@ assigned permission set, as the platform computes it — reports `createable`, `
 `Lead` fields writable. Established by sObject Describe, which cannot mutate a record; **no write was
 attempted.**
 
-**Not proven.** `NIQ_Revenue_Operations` and `NIQ_Rule_Configuration` are deployed but **unassigned
-to any principal**, so nothing about them has been executed. The broad analytics principal described
+**Not proven.** `NIQ_Rule_Configuration` is deployed but **unassigned to any principal**, so
+nothing about it has been executed. `NIQ_Revenue_Operations` is deployed and **is** assigned —
+to the practitioner's own System Administrator user, since 2026-08-22, predating every FLS
+increment since. That assignment cannot demonstrate least privilege: the administrator profile
+carries `Modify All Data`, so what that identity can do says nothing about what the permission
+set alone grants. **Runtime validation through a representative non-admin RevOps principal has
+not been performed.** The broad analytics principal described
 in §4 still does not exist. The role hierarchy is **not built**. **No DML rejection has been
 observed** — describe reports computed permission, not enforcement in flight.
 
@@ -346,7 +351,7 @@ Verified in the permission-set artifacts, not assumed:
 | `NIQ_Rule_Configuration` | no FLS grant | no FLS grant | **write** | **write** |
 | System Administrator | **no FLS grant at all** | **no FLS grant at all** | — | — |
 
-⚠️ **`NIQ_Revenue_Operations` read was added to the repository on 2026-08-28 and is NOT DEPLOYED.** The two fields were the only system-generated Lead evidence this permission set could not read: it already reads `Segment_Basis__c`, `Routing_Reason__c`, `SLA_Basis__c`, `Sales_Acceptance_Basis__c` and `SQL_Basis__c`, all read-only. The gap was an omission from the increments that created these two fields, not a narrower grant by design — RevOps resolves routing exceptions and duplicate review, and the acceptance evidence it already reads *points at* MQL evidence it could not. `editable=false`, like every other evidence field: read to investigate, never to assert.
+✅ **`NIQ_Revenue_Operations` read was added to the repository on 2026-08-28 and DEPLOYED and VERIFIED the same day** (deploy `0Afaj00000iGpusCAC`, 1/1 components, 0 errors; the org was read back independently rather than the deployment result being taken as proof). The two fields were the only system-generated Lead evidence this permission set could not read: it already reads `Segment_Basis__c`, `Routing_Reason__c`, `SLA_Basis__c`, `Sales_Acceptance_Basis__c` and `SQL_Basis__c`, all read-only. The gap was an omission from the increments that created these two fields, not a narrower grant by design — RevOps resolves routing exceptions and duplicate review, and the acceptance evidence it already reads *points at* MQL evidence it could not. `editable=false`, like every other evidence field: read to investigate, never to assert.
 
 **The integration principal reads the policy, and now the segment bands too.** Granting
 `Segment_Band__mdt` read to `NIQ_Integration_Read` (2026-08-27) is what makes the future **MQL
@@ -396,11 +401,22 @@ point of holding qualification evidence in a governed field rather than a note.
 evidence rather than a value a seller or an integration can assert. This is the same separation
 `SP-4` applies to configuration capability, expressed as field-level access.
 
-**The administrator running the CLI cannot read it.** A SOQL query for the field returns
-`INVALID_FIELD`, because FLS was granted only to the three permission sets above and none of them is assigned to that administrator. Every assertion in
+**The administrator running the CLI could not read it until 2026-08-28.** A SOQL query for either
+field returned `INVALID_FIELD`, because the only grantors were permission sets that administrator
+did not effectively hold the fields through. Every assertion in
 [`testing-strategy.md`](testing-strategy.md) §2i was therefore verified through the NorthstarIQ
 integration identity — the same identity the assessment uses. Least privilege made the test harder
 to write, which is the point.
+
+Since `NIQ_Revenue_Operations` gained read on both fields (2026-08-28) that same query succeeds,
+which is how the grant was verified end to end: the field was unreadable before the deployment and
+readable after it, through a principal that holds the permission set. ⚠️ **The write restriction was
+NOT proven through that principal.** It holds a System Administrator profile carrying `Modify All
+Data`, so a platform describe reports the field updateable for the composed identity regardless of
+FLS. What *is* established is stronger and narrower: **no principal in the org grants `edit` on
+either field** — all three grantors are `read=true, edit=false`, and no profile grants them at all.
+Proving the restriction in flight would need the permission set assigned to a representative
+non-admin principal, which is out of scope here and remains untested.
 
 **The policy is configuration, not runtime user input.** `Lifecycle_Transition__mdt` is readable by
 the integration principal and writable only through `NIQ_Rule_Configuration`, which remains
@@ -576,6 +592,7 @@ demonstration differ, the gap is stated — never substituted silently.
 | Merge policy | `OD-01` — **no merge capability granted in this release** |
 | Number of integration principals | Depends on integrations that do not exist in this scope |
 | Round-robin distribution | `BR-09`, `PD-07` — **deferred.** The three `User` routing fields are deployed and FLS-granted to `NIQ_Revenue_Operations`, but **no automation consumes them.** Territory coverage routes to a queue. |
-| `NIQ_Revenue_Operations` · `NIQ_Rule_Configuration` | **Deployed, unassigned.** Neither has been executed as a principal, so neither is validated. |
+| `NIQ_Revenue_Operations` | **Deployed. Metadata validated, runtime not.** Its field grants were read back from the org and match source exactly, and the 2026-08-28 lifecycle-evidence read was demonstrated by a query that failed before the deployment and succeeded after it. But its only assignee holds a System Administrator profile, so **least-privilege behaviour has never been exercised by a representative non-admin principal.** |
+| `NIQ_Rule_Configuration` | **Deployed, unassigned.** It has not been executed as a principal, so it is not validated. |
 | **Integration principal writable on 133 non-assessed objects** | **Open finding, 2026-08-27.** Platform describe reports create/update/delete on `LeadShare`, `OpportunityShare`, `AccountShare`, `Note`, `Attachment`, `ContentVersion` and `User`, among others. **Not granted by `NIQ_Integration_Read`** — it is licence and profile baseline. Narrowing it is a profile change on the integration identity and **needs its own approval**; it was not attempted here. Sharing rows are the material item: they are how record access widens. |
 | DML rejection against an assessed object | **Never attempted.** Describe reports computed permission, not enforcement in flight. A real negative write test would need explicit approval and a target that cannot be mutated if the permission assumption is wrong. |

@@ -3023,6 +3023,80 @@ independently auditable.
 
 ---
 
+### 2026-08-28 — Lifecycle evidence FLS: the source→org gap closes
+
+```
+Requirement:   BR-18, SP-4. Synchronisation only - no new access was designed.
+Repository:    MOD  docs/security-model.md - two truth-status statements
+               NO Salesforce source metadata changed. The permission set was
+               already correct and committed at f285417.
+Salesforce:    1 metadata deployment. 0 record mutations. 0 field changes,
+               0 Flow changes, 0 policy changes, 0 assignment changes.
+Deployment:    Validate-only 0Afaj00000iG9znCAC - Succeeded, 1/1, 0 errors.
+               Deploy       0Afaj00000iGpusCAC - Succeeded, 1/1, 0 errors.
+               Component: PermissionSet:NIQ_Revenue_Operations (one file).
+Validation:    Org read back independently: 2 field permissions added, 0 removed,
+               0 changed. Org now byte-identical to source on all 31 grants.
+               Assessment regression: 60, 6 areas, 11 controls, 8 findings.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**Nothing was designed in this increment.** `NIQ_Revenue_Operations` gained read on
+`Lead.MQL_Basis__c` and `Lead.Lifecycle_Stage_Entered__c` in the pre-commit corrections of
+2026-08-28, was reviewed there, and was committed at `f285417` **as source only**. That entry above
+says so, and it stays as written: the permission genuinely did not exist in the org at that
+checkpoint. This entry records the deployment that closed the gap.
+
+**The mismatch was measured before deploying, not assumed.** Every one of the 31 field permissions
+in the source file was compared against `FieldPermissions` in the org. **29 matched exactly. Two
+were absent.** Nothing existed in the org that was missing from source, and nothing differed. The
+delta was precisely the two approved grants, which is what made a targeted deployment safe.
+
+**Deployed one named component, not a directory.** `--metadata PermissionSet:NIQ_Revenue_Operations`
+rather than `force-app/main/default`, so the deployment could not carry anything that happened to be
+uncommitted elsewhere. A validate-only run went first and reported the same 1/1.
+
+**Verified by reading the org back, not by trusting the deployment result.** After the deploy the
+same comparison shows **2 added, 0 removed, 0 changed**, both `readable=true, editable=false`, and
+the org identical to source across all 31 grants.
+
+**Least privilege, checked rather than asserted.** The permission set holds **zero object
+permissions** and **zero user permissions** — `ModifyAllData`, `ViewAllData`, `ManageUsers` and
+`AuthorApex` are all false. It grants nothing on `Lead.Status`, `Lead.OwnerId`,
+`Opportunity.Amount` or `Opportunity.StageName`. All six system-generated lifecycle evidence fields
+are read-only in it, and the only ten editable grants are the pre-existing seller and routing inputs,
+unchanged by this deployment. No assignment was created or altered.
+
+**Read access proven end to end.** Before the deployment, `SELECT COUNT(MQL_Basis__c) FROM Lead` as
+the assigned administrator returned `INVALID_FIELD`. After it, the same query returns 49 Leads with
+0 populated. The grant is doing real work, and the before/after is the evidence.
+
+⚠️ **The write restriction is proven in metadata, not in flight.** No principal in the org grants
+`edit` on either field: all three grantors are `read=true, edit=false`, and no profile grants them at
+all. But the only assignee of `NIQ_Revenue_Operations` holds a System Administrator profile with
+`Modify All Data`, so a platform describe reports the fields updateable for that composed identity —
+a property of the profile, not of this permission set. **No DML was attempted and no record was
+mutated to test it.** Demonstrating the restriction in flight needs a representative non-admin
+principal, which this increment was not authorised to create.
+
+**NorthstarIQ is unaffected, as an FLS-only change should be.** The read-only assessment returns
+exactly the Model v2 baseline: **overall 60, 6 assessment areas, 11 controls, 8 findings**,
+Lifecycle Governance **50** at **2 of 4 controls scored**, with MQL Qualification Integrity and Sales
+Acceptance / SQL Integrity both **Not Scored — insufficient evidence**. Every control's populations
+are unchanged. No assessment logic was touched.
+
+⚠️ **A separate documentation defect was found, raised, and then corrected on review.**
+[`security-model.md`](security-model.md) described `NIQ_Revenue_Operations` as *deployed but
+unassigned* in three places. It is in fact assigned to the practitioner's System Administrator user,
+and has been since **2026-08-22T18:20:56Z** — four days before this increment. **No assignment
+change occurred during this validation**; the claim was simply already inaccurate when written. The
+three statements now say the sharper thing: the permission set is assigned, but only to an
+administrator whose profile carries `Modify All Data`, so that assignment cannot demonstrate least
+privilege and **runtime validation through a representative non-admin RevOps principal remains
+outstanding**. `NIQ_Rule_Configuration` is genuinely still unassigned and is described that way.
+
+---
+
 ## Implementation Status
 
 **Increments 1-4 are deployed, runtime-validated, and human-accepted.** Increments 3 and 4 were
