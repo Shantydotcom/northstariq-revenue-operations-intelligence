@@ -36,7 +36,13 @@ import type {
 export const MODEL_VERSION = 'v2';
 
 /** Display order for the Overview. */
-const CATEGORY_ORDER: Category[] = [
+/**
+ * The six Assessment Areas, in reporting order.
+ *
+ * Exported because the Findings area filter validates against it: one list, so
+ * a filter can never accept an area the assessment does not report.
+ */
+export const CATEGORIES: readonly Category[] = [
   'Data Quality',
   'Routing',
   'Identity & Matching',
@@ -65,7 +71,7 @@ const meanScore = (scores: number[]) =>
  */
 export function categoryScores(results: CheckResult[]): CategoryScore[] {
   const out: CategoryScore[] = [];
-  for (const category of CATEGORY_ORDER) {
+  for (const category of CATEGORIES) {
     const inCategory = results.filter((r) => r.category === category);
     if (inCategory.length === 0) continue;
     const scored = inCategory

@@ -84,6 +84,32 @@ export interface NotEvaluatedRecord {
 }
 
 /**
+ * Enough of a record to name it and open it in Salesforce.
+ *
+ * Deliberately not the whole record: the populations a reader drills into can
+ * be the entire evaluated set, and carrying full evidence for all of them
+ * would be a copy of the org in the assessment payload. Failing records keep
+ * their full evidence, because that is what a finding has to prove.
+ */
+export interface RecordRef {
+  id: string;
+  label: string;
+}
+
+/**
+ * A population, and a sample of the records in it.
+ *
+ * `total` is the authoritative count, taken from the same numbers that produced
+ * the score. `records` is capped, so `records.length <= total` and a reader can
+ * always be told "showing 10 of 30" rather than shown a sample dressed up as
+ * the whole population.
+ */
+export interface RecordSample {
+  records: RecordRef[];
+  total: number;
+}
+
+/**
  * One counted line of a runtime breakdown.
  *
  * Deliberately a flat list rather than a shape per check: the UI renders it
@@ -146,6 +172,22 @@ export interface CheckResult {
   notEvaluatedColumns: EvidenceColumn[];
   /** Capped for display; `notEvaluatedCount` stays the full total. */
   notEvaluatedRows: EvidenceRow[];
+  /**
+   * The same capped records as `notEvaluatedRows`, with the classification the
+   * detector assigned still attached.
+   *
+   * `notEvaluatedRows` is the `.row` projection of this list and drops `kind`,
+   * which is what made record-level "no result" indistinguishable from
+   * "not applicable" downstream. Both are kept: the projection because
+   * evidence tables and exports already consume it, this because the
+   * distinction is a fact the detector established and nothing else can
+   * recover.
+   */
+  notEvaluatedRecords: NotEvaluatedRecord[];
+  /** The records this check judged. Same set the score was computed over. */
+  checkedSample: RecordSample;
+  /** Of those, the ones that did not fail. Derived from the failing set. */
+  passingSample: RecordSample;
   /**
    * How the failures actually divide - "1 missing Country, 10 missing Employee
    * Count", not "11 missing one of two fields". Empty where the check has no

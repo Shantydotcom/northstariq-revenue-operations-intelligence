@@ -3116,3 +3116,47 @@ th {
     padding-right: 10px;
   }
 }
+
+/* -------------------------------------------------------- area filter ---
+ * The Findings queue narrowed to one Assessment Area.
+ *
+ * It states the area, how much of the queue is hidden, and the way back. A
+ * filter a reader cannot see is a queue that looks shorter than it is.
+ */
+.area-filter {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.area-filter-label {
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.area-filter-value {
+  font-size: var(--t-ui);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.area-filter-count {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.area-filter-clear {
+  margin-left: auto;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+}

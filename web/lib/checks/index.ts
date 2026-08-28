@@ -5,6 +5,7 @@ import type {
   EvidenceColumn,
   EvidenceRow,
   NotEvaluatedRecord,
+  RecordRef,
   ScoreReason,
 } from '../types.ts';
 import {
@@ -68,6 +69,18 @@ const EVIDENCE_LIMIT = 10;
  * every control completely. The full total is always reported beside it.
  */
 const NOT_EVALUATED_LIMIT = 50;
+
+/**
+ * How many records of a judged population are retained.
+ *
+ * Same order as NOT_EVALUATED_LIMIT and for the same reason: enough to open an
+ * investigation, small enough that an assessment payload stays a summary. The
+ * count beside it is never capped, so nothing here can overstate a population.
+ */
+const RECORD_SAMPLE_LIMIT = 50;
+
+/** Identity only. Both Lead and Opportunity carry Id and Name. */
+const refOf = (r: { Id: string; Name: string }): RecordRef => ({ id: r.Id, label: r.Name });
 
 /*
  * Which Lead Sources carry a routing-readiness expectation is Salesforce's
@@ -187,14 +200,33 @@ function build(
     | 'notEvaluatedCount'
     | 'unmeasurableCount'
     | 'notEvaluatedRows'
+    | 'notEvaluatedRecords'
+    | 'checkedSample'
+    | 'passingSample'
     | 'failureBreakdown'
     | 'exclusionBreakdown'
   >,
   failingRows: EvidenceRow[],
   notEvaluated: NotEvaluatedRecord[],
+  /**
+   * The records the caller actually judged, in the order it judged them.
+   *
+   * Supplied by the detector from the same population it counted, never
+   * recomputed here: a second population rule would be a second answer to the
+   * question the score already answered.
+   */
+  evaluatedRecords: RecordRef[],
   breakdowns: { failure?: BreakdownLine[]; exclusion?: BreakdownLine[] } = {},
 ): CheckResult {
   const unmeasurableCount = notEvaluated.filter((n) => n.kind === 'unmeasurable').length;
+  const retained = notEvaluated.slice(0, NOT_EVALUATED_LIMIT);
+  /*
+   * Passing is what the detector judged and did not fail - subtraction over
+   * the two sets it already produced, not a third pass over the records. Every
+   * failing row carries its Id for exactly this reason.
+   */
+  const failingIds = new Set(failingRows.map((r) => String(r.Id ?? '')));
+  const passingRecords = evaluatedRecords.filter((r) => !failingIds.has(r.id));
   return {
     ...base,
     score: score(base.evaluated, base.failing),
@@ -209,7 +241,21 @@ function build(
     evidence: failingRows.slice(0, EVIDENCE_LIMIT),
     notEvaluatedCount: notEvaluated.length,
     unmeasurableCount,
-    notEvaluatedRows: notEvaluated.slice(0, NOT_EVALUATED_LIMIT).map((n) => n.row),
+    notEvaluatedRecords: retained,
+    // The projection of the line above, so the two can never disagree.
+    notEvaluatedRows: retained.map((n) => n.row),
+    /*
+     * Totals come from the counts that produced the score, never from the
+     * length of a capped array.
+     */
+    checkedSample: {
+      records: evaluatedRecords.slice(0, RECORD_SAMPLE_LIMIT),
+      total: base.evaluated,
+    },
+    passingSample: {
+      records: passingRecords.slice(0, RECORD_SAMPLE_LIMIT),
+      total: base.evaluated - base.failing,
+    },
     // Only where the division is meaningful. An empty list renders nothing.
     failureBreakdown: (breakdowns.failure ?? []).filter((b) => b.count > 0),
     exclusionBreakdown: (breakdowns.exclusion ?? []).filter((b) => b.count > 0),
@@ -315,6 +361,7 @@ export function missingFirmographics(
       Data_Quality_Detail__c: l.Data_Quality_Detail__c,
     })),
     notEvaluated,
+    population.map(refOf),
     {
       failure: [
         { label: 'Missing Country', count: missingCountry.length },
@@ -395,6 +442,7 @@ export function routingExceptions(leads: LeadRecord[]): CheckResult {
       Id: l.Id,
     })),
     notEvaluated,
+    population.map(refOf),
   );
 }
 
@@ -505,6 +553,7 @@ export function slaRisk(leads: LeadRecord[]): CheckResult {
       Id: l.Id,
     })),
     notEvaluated,
+    population.map(refOf),
   );
 }
 
@@ -585,6 +634,7 @@ export function ambiguousMatch(leads: LeadRecord[]): CheckResult {
       Id: l.Id,
     })),
     notEvaluated,
+    population.map(refOf),
   );
 }
 
@@ -670,6 +720,7 @@ export function missingTerritory(leads: LeadRecord[]): CheckResult {
       Id: l.Id,
     })),
     notEvaluated,
+    population.map(refOf),
   );
 }
 
@@ -741,6 +792,7 @@ export function staleOpportunities(opps: OpportunityRecord[], today: Date): Chec
       Id: o.Id,
     })),
     notEvaluated,
+    population.map(refOf),
   );
 }
 
@@ -846,6 +898,7 @@ export function segmentConsistency(leads: LeadRecord[]): CheckResult {
       Result: 'Mismatch',
     })),
     notEvaluated,
+    population.map(({ lead }) => refOf(lead)),
     {
       failure: tally(failing, drift).map(([label, count]) => ({ label, count })),
       exclusion: [
@@ -990,6 +1043,7 @@ export function opportunityConversionIntegrity(leads: LeadRecord[]): CheckResult
       Result: 'Not substantiated',
     })),
     notEvaluated,
+    population.map(refOf),
   );
 }
 
@@ -1071,7 +1125,8 @@ export function mqlQualificationIntegrity(
     });
   };
 
-  let evaluated = 0;
+  /* The judged set, in judgement order. Its length is the old counter. */
+  const evaluatedRecords: RecordRef[] = [];
 
   for (const l of population) {
     // 1. No governed evidence at all - predates the qualification foundation.
@@ -1165,7 +1220,7 @@ export function mqlQualificationIntegrity(
         'MQL Basis': dash(l.MQL_Basis__c),
         Result: `Not substantiated \u2014 ${list(violations)}`,
       });
-      evaluated += 1;
+      evaluatedRecords.push(refOf(l));
       continue;
     }
     if (unprovable.length > 0) {
@@ -1178,7 +1233,7 @@ export function mqlQualificationIntegrity(
       );
       continue;
     }
-    evaluated += 1;
+    evaluatedRecords.push(refOf(l));
   }
 
   for (const l of outside) {
@@ -1196,6 +1251,7 @@ export function mqlQualificationIntegrity(
     });
   }
 
+  const evaluated = evaluatedRecords.length;
   const failing = failingRows.length;
 
   return build(
@@ -1240,6 +1296,7 @@ export function mqlQualificationIntegrity(
     },
     failingRows,
     notEvaluated,
+    evaluatedRecords,
     {
       failure: tally(failureCauses, (c) => c).map(([label, count]) => ({ label, count })),
       exclusion: tally(exclusionCauses, (c) => c).map(([label, count]) => ({ label, count })),
@@ -1315,7 +1372,8 @@ export function lifecycleProgressionIntegrity(
   const notEvaluated: NotEvaluatedRecord[] = [];
   const failureCauses: string[] = [];
   const exclusionCauses: string[] = [];
-  let evaluated = 0;
+  /* The judged set, in judgement order. Its length is the old counter. */
+  const evaluatedRecords: RecordRef[] = [];
 
   const dash = (v: string | null) => (v === null || v === '' ? '\u2014' : v);
 
@@ -1434,7 +1492,7 @@ export function lifecycleProgressionIntegrity(
           evidenceHeld.length === 0 ? '\u2014' : evidenceHeld.map((e) => e.stage).join(', '),
         Result: `Progression conflict \u2014 ${list(contradictions)}`,
       });
-      evaluated += 1;
+      evaluatedRecords.push(refOf(l));
       continue;
     }
 
@@ -1460,9 +1518,10 @@ export function lifecycleProgressionIntegrity(
       continue;
     }
 
-    evaluated += 1;
+    evaluatedRecords.push(refOf(l));
   }
 
+  const evaluated = evaluatedRecords.length;
   const failing = failingRows.length;
 
   return build(
@@ -1505,6 +1564,7 @@ export function lifecycleProgressionIntegrity(
     },
     failingRows,
     notEvaluated,
+    evaluatedRecords,
     {
       failure: tally(failureCauses, (c) => c).map(([label, count]) => ({ label, count })),
       exclusion: tally(exclusionCauses, (c) => c).map(([label, count]) => ({ label, count })),
@@ -1761,7 +1821,8 @@ export function salesAcceptanceSqlIntegrity(
   const notEvaluated: NotEvaluatedRecord[] = [];
   const failureCauses: string[] = [];
   const exclusionCauses: string[] = [];
-  let evaluated = 0;
+  /* The judged set, in judgement order. Its length is the old counter. */
+  const evaluatedRecords: RecordRef[] = [];
 
   for (const l of leads) {
     const sal = evaluateSalesAcceptance(l);
@@ -1809,7 +1870,7 @@ export function salesAcceptanceSqlIntegrity(
         'SQL Basis': dash(l.SQL_Basis__c),
         Result: `Handoff evidence conflict — ${list(contradictions)}`,
       });
-      evaluated += 1;
+      evaluatedRecords.push(refOf(l));
       continue;
     }
 
@@ -1842,9 +1903,10 @@ export function salesAcceptanceSqlIntegrity(
       continue;
     }
 
-    evaluated += 1;
+    evaluatedRecords.push(refOf(l));
   }
 
+  const evaluated = evaluatedRecords.length;
   const failing = failingRows.length;
   const versions = [
     `Sales Acceptance Policy ${acceptancePolicy.version ?? '(unversioned)'}`,
@@ -1895,6 +1957,7 @@ export function salesAcceptanceSqlIntegrity(
     },
     failingRows,
     notEvaluated,
+    evaluatedRecords,
     {
       failure: tally(failureCauses, (c) => c).map(([label, count]) => ({ label, count })),
       exclusion: tally(exclusionCauses, (c) => c).map(([label, count]) => ({ label, count })),

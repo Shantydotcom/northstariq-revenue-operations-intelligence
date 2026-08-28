@@ -4,6 +4,7 @@ import FindingRow from '@/components/FindingRow';
 import Notice, { DisconnectedNotice } from '@/components/Notice';
 import { formatObservedAt } from '@/lib/presentation';
 import ExportLinks from '@/components/ExportLinks';
+import { applyAreaFilter, readAreaFilter } from '@/lib/area-filter';
 import type { AssessmentResult } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -17,7 +18,18 @@ export const dynamic = 'force-dynamic';
  * belong on the finding itself, so nothing here duplicates the Overview or the
  * detail page.
  */
-export default async function FindingsPage() {
+export default async function FindingsPage({
+  searchParams,
+}: {
+  /**
+   * `?area=` narrows the queue to one Assessment Area, so a reader arriving
+   * from Assessment lands on that area's findings rather than all of them.
+   * The value is the Category itself - see lib/area-filter.ts.
+   */
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = (await searchParams) ?? {};
+  const filter = readAreaFilter(params.area);
   const status = await getStatus();
   if (!status.connected) {
     return (
@@ -46,9 +58,15 @@ export default async function FindingsPage() {
     );
   }
 
-  const high = result.findings.filter((f) => f.severity === 'High').length;
-  const medium = result.findings.filter((f) => f.severity === 'Medium').length;
-  const low = result.findings.filter((f) => f.severity === 'Low').length;
+  /*
+   * Everything below counts the SHOWN findings, so the summary can never
+   * disagree with the rows beneath it. `result.findings.length` stays
+   * available as the unfiltered total, which is what the clear action offers.
+   */
+  const shown = applyAreaFilter(result.findings, filter);
+  const high = shown.filter((f) => f.severity === 'High').length;
+  const medium = shown.filter((f) => f.severity === 'Medium').length;
+  const low = shown.filter((f) => f.severity === 'Low').length;
 
   return (
     <>
@@ -66,23 +84,45 @@ export default async function FindingsPage() {
         <span className="footnote">
           Observed from Salesforce at {formatObservedAt(result.ranAt)}.
         </span>
-        {result.findings.length > 0 ? (
+        {result.findings.length > 0 && filter.kind !== 'area' ? (
           <ExportLinks base="/api/export/findings" label="all findings" />
         ) : null}
       </p>
       </div>
 
-      {result.findings.length === 0 ? (
+      {/* The filter states itself, and offers the way back to the full queue. */}
+      {filter.kind === 'area' ? (
+        <p className="area-filter" data-testid="area-filter">
+          <span className="area-filter-label">Assessment area</span>
+          <span className="area-filter-value">{filter.area}</span>
+          <span className="area-filter-count">
+            {shown.length} of {result.findings.length} findings
+          </span>
+          <a className="area-filter-clear" href="/findings">
+            Show all findings
+          </a>
+        </p>
+      ) : null}
+
+      {filter.kind === 'unknown' ? (
+        <Notice title="That assessment area was not recognised">
+          Nothing matches “{filter.requested}”, so every finding is shown. The area must be one
+          NorthstarIQ reports.
+        </Notice>
+      ) : null}
+
+      {shown.length === 0 ? (
         <Notice tone="ok" title="No findings detected">
-          No assessed records failed the current controls. That is a statement about the seven checks
-          NorthstarIQ runs, not about the whole org.
+          {filter.kind === 'area'
+            ? `No finding in ${filter.area} needs attention. Other assessment areas may still have findings.`
+            : 'No assessed records failed the current checks. That is a statement about the checks NorthstarIQ runs, not about the whole org.'}
         </Notice>
       ) : (
         <div className="panel">
           <dl className="queue-summary">
             <div>
               <dt>Findings</dt>
-              <dd>{result.findings.length}</dd>
+              <dd>{shown.length}</dd>
             </div>
             {high > 0 ? (
               <div>
@@ -105,7 +145,7 @@ export default async function FindingsPage() {
           </dl>
 
           <div className="queue">
-            {result.findings.map((f) => (
+            {shown.map((f) => (
               <FindingRow key={f.id} finding={f} />
             ))}
           </div>
