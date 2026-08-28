@@ -18,6 +18,7 @@ import {
   objectPhrase,
 } from '@/lib/presentation';
 import ScoreMeter, { healthLabel, meterClass } from './ScoreMeter';
+import RunAssessment from './RunAssessment';
 import Notice, { DisconnectedNotice } from './Notice';
 
 interface State {
@@ -164,6 +165,32 @@ export default function AssessmentPanel({ status }: { status: SalesforceStatus }
     </p>
   );
 
+  /*
+   * Two experiences, not one page with an empty state.
+   *
+   * Before a result exists the page IS "Run a New Assessment" - hero, scope
+   * and one action. The Overview head belongs to the post-assessment page and
+   * is not rendered underneath it, because a reader starting an assessment
+   * has no result for it to describe.
+   *
+   * Phase 3 replaces what follows the `result` branch. This split is what lets
+   * it do so without touching the pre-assessment experience.
+   */
+  if (status.connected && !result) {
+    return (
+      <>
+        {liveRegion}
+        {error ? (
+          <Notice tone="error" title="The assessment could not be completed">
+            {error.message} No partial or estimated result is shown — an assessment either read the
+            org or it did not.
+          </Notice>
+        ) : null}
+        <RunAssessment status={status} running={running} onRun={run} />
+      </>
+    );
+  }
+
   return (
     <>
       {liveRegion}
@@ -284,7 +311,7 @@ function FirstRun({ running }: { running: boolean }) {
       <h2>Not yet assessed</h2>
       <p className="conclusion-lead">
         Nothing is shown until the org has been read. Running an assessment queries Leads and
-        Opportunities, applies six checks and scores five areas.
+        Opportunities, applies seven checks and scores five areas.
       </p>
       {running ? <p className="footnote">Querying Salesforce and evaluating checks…</p> : null}
     </section>

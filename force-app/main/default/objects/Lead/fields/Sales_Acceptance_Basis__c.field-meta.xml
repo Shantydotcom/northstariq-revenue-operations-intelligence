@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Sales_Acceptance_Basis__c</fullName>
+    <description>BR-15, BR-16, PD-12. Why this acceptance was permitted: the requirements the active acceptance policy declared, and the policy version in force at the time. EVIDENCE, NOT POLICY - it explains a decision and defines none. Kept separate from MQL_Basis__c so the Marketing claim and the Sales acknowledgement stay independently readable; neither ever overwrites the other. Same shape as MQL_Basis__c, Segment_Basis__c and Routing_Reason__c.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Why Sales acceptance was permitted. Set by automation - do not edit.</inlineHelpText>
+    <label>Sales Acceptance Basis</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

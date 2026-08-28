@@ -4,10 +4,17 @@ import { notFound } from 'next/navigation';
 import { getStatus, toSafeError } from '@/lib/salesforce';
 import { runCheck } from '@/lib/assessment';
 import { isCheckId } from '@/lib/checks';
-import { PRESENTATION, evidenceUrl, explainControl, formatObservedAt } from '@/lib/presentation';
+import {
+  AREAS,
+  PRESENTATION,
+  evidenceUrl,
+  explainControl,
+  formatObservedAt,
+} from '@/lib/presentation';
 import { TRACEABILITY } from '@/lib/traceability';
 import { resolveSetupLinks, setupLinkFor, fieldLinkFor } from '@/lib/setup-links';
 import EvidenceTable from '@/components/EvidenceTable';
+import { meterClass } from '@/components/ScoreMeter';
 import Notice, { DisconnectedNotice } from '@/components/Notice';
 import type { CheckResult } from '@/lib/types';
 
@@ -120,7 +127,8 @@ export default async function FindingDetailPage({
       <div className="finding-head">
         <h1>{p.label}</h1>
         <p className="finding-context">
-          {check.category} · <span className={`sev ${check.severity}`}>{priority}</span>
+          {AREAS[check.category].label} ·{' '}
+          <span className={`sev ${check.severity}`}>{priority}</span>
         </p>
         <p className="finding-result">
           {check.failing === 0
@@ -154,7 +162,7 @@ export default async function FindingDetailPage({
             </div>
             <div>
               <dt>Score</dt>
-              <dd className={check.failing > 0 ? 'bad' : undefined}>{check.score}/100</dd>
+              <dd className={meterClass(check.score)}>{check.score}/100</dd>
             </div>
           </dl>
           <p className="explain">{explainControl(check, p.explain)}</p>

@@ -274,3 +274,16 @@ next-env.d.ts
 # version controlled alongside docs/.
 # -----------------------------------------------------------------------------
 .impeccable/
+
+# -----------------------------------------------------------------------------
+# Local design reference material
+# The visual mockups the assessment UI was built against - roughly 5 MB of PNG
+# kept on disk so the design intent stays available while working, and out of
+# the repository because nothing references them: no document, no component and
+# no validator reads them, and the repository otherwise tracks no binaries.
+#
+# Anchored to the repository root and scoped to this one directory on purpose.
+# A blanket *.png rule would also silence genuine future repository evidence -
+# an architecture diagram, say - which is a different decision and not this one.
+# -----------------------------------------------------------------------------
+/design-references/

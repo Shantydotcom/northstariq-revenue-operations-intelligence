@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Is_Active__c</fullName>
+    <description>Whether this policy version is in force. Exactly one record is expected to be active.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Whether this policy version is in force.</inlineHelpText>
+    <label>Is Active</label>
+    <required>false</required>
+    <defaultValue>true</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

@@ -41,6 +41,7 @@ export default async function IntegrationsPage() {
 
   return (
     <>
+      <div className="page-head summit">
       <div className="row-between" style={{ marginBottom: 18 }}>
         <h1>Integrations</h1>
         <ConnectionPill status={status} />
@@ -50,6 +51,7 @@ export default async function IntegrationsPage() {
         NorthstarIQ connects to one Salesforce org over the OAuth 2.0 Client Credentials Flow. The
         connection is server-side only and read-only.
       </p>
+      </div>
 
       <div className="stack">
         {status.connected ? (

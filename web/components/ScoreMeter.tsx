@@ -1,21 +1,11 @@
-/** Colour is a reading aid, never the only signal — the number is always shown. */
-export function meterClass(score: number): string {
-  if (score < 70) return 'bad';
-  if (score < 90) return 'warn';
-  return '';
-}
+import { meterClass } from '@/lib/score-bands';
 
-/**
- * A word for the number, on the same two breakpoints the meter already uses.
- *
- * It is a reading aid for a score the reader can see, not a grade and not a
- * threshold the business agreed. No band claims anything the score does not.
+/*
+ * The bands live in lib/score-bands.ts and are re-exported here, so every
+ * existing `from './ScoreMeter'` import keeps working while a test can reach
+ * the rules without loading React.
  */
-export function healthLabel(score: number): string {
-  if (score < 70) return 'Needs attention';
-  if (score < 90) return 'Needs review';
-  return 'Healthy';
-}
+export { healthLabel, meterClass } from '@/lib/score-bands';
 
 /**
  * The bar is decoration over a number that is always rendered beside it, so it

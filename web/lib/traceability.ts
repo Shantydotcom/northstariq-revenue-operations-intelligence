@@ -24,7 +24,15 @@ import type { CheckId } from './types.ts';
  * the metadata that references it.
  */
 
-export type UsageType = 'Flow' | 'Formula field' | 'Custom Metadata' | 'Queue' | 'Report';
+export type UsageType =
+  | 'Flow'
+  | 'Formula field'
+  | 'Custom Metadata'
+  | 'Queue'
+  | 'Report'
+  /* A governed picklist taxonomy. Distinct from Custom Metadata: it
+   * constrains a standard field's values rather than holding rule rows. */
+  | 'Standard value set';
 
 export interface Usage {
   /** The Salesforce object the field lives on. */
@@ -154,6 +162,161 @@ export const TRACEABILITY: Record<CheckId, Traceability> = {
         evidencePath: CMDT,
       },
     ],
+  },
+
+  'lifecycle-progression': {
+    fields: ['Status', 'Lifecycle_Stage_Entered__c', 'MQL_Basis__c', 'Sales_Accepted_At__c', 'SQL_Basis__c', 'ConvertedDate'],
+    usages: [
+      {
+        object: 'Lead',
+        field: 'Status',
+        name: 'Lifecycle_Transition__mdt',
+        type: 'Custom Metadata',
+        purpose:
+          'Source Evidence \u2014 the governed set of permitted stage-to-stage transitions. The only definition of the lifecycle model, read by this control and by the preventive Flow.',
+        evidencePath: 'force-app/main/default/customMetadata',
+      },
+      {
+        object: 'Lead',
+        field: 'Status',
+        name: 'LeadStatus',
+        type: 'Standard value set',
+        purpose: 'Source Evidence \u2014 the governed stage taxonomy the transitions are expressed in',
+        evidencePath: 'force-app/main/default/standardValueSets/LeadStatus.standardValueSet-meta.xml',
+      },
+      flow(
+        'Lifecycle_Stage_Entered__c',
+        'Implementation Evidence \u2014 the preventive safeguard. The intake Flow blocks a status change the policy does not permit, and stamps this timestamp on every transition it allows. It is the only writer, and its presence is how this control tells a governed record from one that progressed before governance existed.',
+      ),
+    ],
+    noneEstablished:
+      'Salesforce retains no complete lifecycle history, and nothing ever did. Field history is bounded, was not tracked from the beginning, and never records a Lead\u2019s initial status \u2014 so for most baseline records the earlier progression simply cannot be reconstructed. Those Leads are reported as unmeasurable rather than as failures, because missing history is absence of evidence and not evidence of a breach.',
+  },
+
+  'mql-integrity': {
+    fields: ['LeadSource', 'Segment__c', 'Territory__c', 'Match_Status__c', 'MQL_Basis__c', 'Status'],
+    usages: [
+      {
+        object: 'Lead',
+        field: 'MQL_Basis__c',
+        name: 'MQL_Qualification_Policy__mdt',
+        type: 'Custom Metadata',
+        purpose:
+          'Source Evidence \u2014 the governed definition of MQL: which requirements apply, which stage they govern, and the version in force. Read by this control and by the preventive Flow, so both consume one definition.',
+        evidencePath:
+          'force-app/main/default/customMetadata/MQL_Qualification_Policy.NorthstarIQ_MQL_v1_1.md-meta.xml',
+      },
+      {
+        object: 'Lead',
+        field: 'LeadSource',
+        name: 'Routing_Readiness_Source__mdt',
+        type: 'Custom Metadata',
+        purpose:
+          'Source Evidence \u2014 which acquisition sources are held to a routing-readiness standard',
+        evidencePath: 'force-app/main/default/customMetadata',
+      },
+      {
+        object: 'Lead',
+        field: 'Segment__c',
+        name: 'Segment_Band__mdt',
+        type: 'Custom Metadata',
+        purpose: 'Source Evidence \u2014 which segments the business qualifies for a seller-led motion',
+        evidencePath: 'force-app/main/default/objects/Segment_Band__mdt/fields/MQL_Eligible__c.field-meta.xml',
+      },
+      flow(
+        'MQL_Basis__c',
+        'Implementation Evidence \u2014 the preventive safeguard. The intake Flow evaluates the same policy before permitting entry to the qualified stage, and writes this field only when every declared requirement passed. It is the only writer; the field is read-only in every permission set.',
+      ),
+    ],
+    noneEstablished:
+      'Nothing enforces that a Lead which claimed MQL *before* this architecture existed carries any evidence at all \u2014 the field did not exist when those records were created. Those Leads are reported as unmeasurable rather than as failures, because missing evidence is a gap in coverage and not a demonstrated violation.',
+  },
+
+  'sales-acceptance-sql': {
+    fields: [
+      'Status',
+      'MQL_Basis__c',
+      'Sales_Accepted_At__c',
+      'Sales_Accepted_By__c',
+      'Sales_Acceptance_Basis__c',
+      'SQL_Basis__c',
+      'Qualified_Need__c',
+      'Next_Step_Date__c',
+      'Lifecycle_Stage_Entered__c',
+    ],
+    usages: [
+      {
+        object: 'Lead',
+        field: 'Sales_Acceptance_Basis__c',
+        name: 'Sales_Acceptance_Policy__mdt',
+        type: 'Custom Metadata',
+        purpose:
+          'Source Evidence — the governed definition of Sales acceptance: which requirements apply, which stage they govern, and the version in force. Read by this control and by the preventive Flow, so both consume one definition.',
+        evidencePath:
+          'force-app/main/default/customMetadata/Sales_Acceptance_Policy.NorthstarIQ_SAL_v1.md-meta.xml',
+      },
+      {
+        object: 'Lead',
+        field: 'SQL_Basis__c',
+        name: 'SQL_Qualification_Policy__mdt',
+        type: 'Custom Metadata',
+        purpose:
+          'Source Evidence — the governed definition of sales qualification, held separately from acceptance because they are separate business events with separate requirements and separate versions.',
+        evidencePath:
+          'force-app/main/default/customMetadata/SQL_Qualification_Policy.NorthstarIQ_SQL_v1.md-meta.xml',
+      },
+      flow(
+        'Sales_Accepted_At__c',
+        'Implementation Evidence — the preventive acceptance safeguard. The intake Flow evaluates the acceptance policy before permitting the accepted stage, and writes the time, the accepting identity and the basis in one assignment only when every declared requirement passed. It is the only writer; all three are read-only in every permission set.',
+      ),
+      flow(
+        'SQL_Basis__c',
+        'Implementation Evidence — the preventive qualification safeguard. The intake Flow evaluates the SQL policy before permitting the qualified stage and records the business need and the next-step date as they stood at that moment. It is the only writer, which is what makes the recorded next-step date safe to judge historically.',
+      ),
+      flow(
+        'Lifecycle_Stage_Entered__c',
+        'Implementation Evidence — the stage-entry stamp. Read here for one purpose only: establishing when a Lead entered the qualified stage, so its recorded next-step date is judged against the decision it belonged to rather than against today.',
+      ),
+    ],
+    noneEstablished:
+      'The seller inputs behind these decisions — `Sales_Accepted__c`, `Qualified_Need__c` and `Next_Step_Date__c` — have no automation preserving them. They are editable after the fact, so their current values are not evidence of what was true when the handoff was made, and no NorthstarIQ configuration makes them so. That is why the control judges the immutable basis fields instead. Nothing enforces that a Lead which claimed the Sales handoff **before** this architecture existed carries any evidence at all; those Leads are reported as unmeasurable rather than as failures.',
+  },
+
+  'lifecycle-conversion': {
+    fields: [
+      'Status',
+      'IsConverted',
+      'ConvertedDate',
+      'ConvertedAccountId',
+      'ConvertedContactId',
+      'ConvertedOpportunityId',
+    ],
+    usages: [
+      {
+        object: 'Lead',
+        field: 'Status',
+        name: 'LeadStatus',
+        type: 'Standard value set',
+        purpose:
+          'Source Evidence \u2014 the governed status taxonomy, one value of which carries Salesforce\u2019s converted marker',
+        evidencePath: 'force-app/main/default/standardValueSets/LeadStatus.standardValueSet-meta.xml',
+      },
+      {
+        object: 'Lead',
+        field: 'Status',
+        name: 'Lifecycle_Transition__mdt',
+        type: 'Custom Metadata',
+        purpose:
+          'Source Evidence \u2014 the governed set of permitted stage-to-stage transitions, including the routes into the converted stage. It decides whether entry into that stage is PERMITTED. It does not, and cannot, establish whether Salesforce actually converted the Lead \u2014 that is the platform\u2019s own fact, and it is what this control judges.',
+        evidencePath: 'force-app/main/default/customMetadata',
+      },
+      flow(
+        'Status',
+        'Implementation Evidence \u2014 the preventive safeguard. A change of status is an entry condition of the intake Flow, which checks the move against the governed transition policy and blocks the save when no permitted transition matches. Native Salesforce Lead Conversion was verified to take the same path: an unsupported conversion is refused and the whole transaction rolls back. The Flow never writes Status, and it writes none of the conversion fields.',
+      ),
+    ],
+    noneEstablished:
+      'The conversion fields themselves have no NorthstarIQ configuration behind them: `IsConverted`, `ConvertedDate`, `ConvertedAccountId`, `ConvertedContactId` and `ConvertedOpportunityId` are written by the Salesforce platform during Lead Conversion and by nothing in this repository. That is precisely why the control treats them as authoritative, and why no row above claims to govern them. **A preventive safeguard now exists for the transition into the converted stage** \u2014 the intake Flow enforcing `Lifecycle_Transition__mdt`, verified against native Lead Conversion on 2026-08-27 \u2014 but it governs new transitions only. It could not reach the records that already held a converted status when it was built, which is why an independent detective control still has work to do.',
   },
 
   'routing-exceptions': {

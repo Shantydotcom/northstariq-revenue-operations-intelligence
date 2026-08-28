@@ -10,7 +10,7 @@
 
 ## ⚠️ Status of Every Field in This Document
 
-**21 custom fields are deployed and in source control**, alongside **3 Custom Metadata Types holding 16 configuration records** (§2b — configuration, not CRM data). — Lead 14 (validated across Increments 2-4),
+**22 custom fields are deployed and in source control**, alongside **4 Custom Metadata Types holding 26 configuration records** (§2b — configuration, not CRM data). — Lead 14 (validated across Increments 2-4),
 Account 4 (deployed; `Normalized_Domain__c` validated), User 3 (**deployed, unconsumed**). The status
 column below is current; [`implementation-log.md`](implementation-log.md) records each transition.
 
@@ -128,7 +128,20 @@ reduced it, Increment 3 rejected `Match_Basis__c`, and Increment 3 added `Accoun
 |---|---|---|---|---|
 | `Lead.Exception_Type__c` | Picklist | Exception classification | `BR-13` | **Approved — Inc 1.** Kept separate from `Data_Quality_Status__c`: exception class and data-quality state are different concepts, and the one-queue design depends on this field. |
 | `Lead.SLA_Status__c` | **Formula(Text)** | Met · Breached · Pending · Unmeasurable | `BR-11`, `BR-12` | ✅ **DELIVERED in Increment 4** — VALIDATED, zero mutation. Originally deferred because its inputs (`SLA_Target_DateTime__c`, `First_Touch_DateTime__c`) carried no values until then, and formulas are non-destructive to add later. |
-| `Lead.Lifecycle_Stage_Entered__c` | Date/Time | Stage entry timestamp | `BR-16` | **Deferred — replaced by standard field history.** `LeadHistory` confirmed available; `PD-09` is satisfied by enabling tracking on `Status`, at zero field cost. |
+| `Lead.Lifecycle_Stage_Entered__c` | Date/Time | Stage entry timestamp | `BR-15`, `BR-16`, `PD-09` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Originally deferred in favour of `LeadHistory`, and built once enforcement gave it a writer. It answers the question history does not: **when the current stage began**. One field, not one per stage, and not a history model — field history on `Status` remains the transition trail. Written **only** by `Lead_Inbound_Before_Save`, on create and on an allowed transition; `editable=false` in every permission set, so no principal edits it by hand. |
+
+| `Lead.MQL_Basis__c` | Text(255) | Why this Lead qualified as MQL | `BR-17`, `PD-14` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Evidence, never policy: it explains a qualification and defines none. Written **only** by `Lead_Inbound_Before_Save` on entry to MQL, and left in place afterwards so a later stage still carries the reason it was reached. `editable=false` in every permission set. Assembled from **only the requirements the active policy declares**, so it stays truthful when the policy changes. Carries the policy version, exactly as `Segment_Basis__c` carries the rule version — which is why no separate `MQL_Policy_Version__c` field exists. |
+
+
+| `Lead.Sales_Accepted__c` | Checkbox | **INPUT** — the seller's explicit acceptance | `BR-15`, `BR-16` | ✅ **DELIVERED and VALIDATED (2026-08-27).** The one field in the acceptance model a human writes. Editable by seller and RevOps, read-only to the integration. Ticking it moves nothing on its own; entering SAL without it is refused. |
+| `Lead.Sales_Accepted_At__c` | Date/Time | **EVIDENCE** — when Sales accepted | `BR-15`, `BR-16` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Separate from `Lifecycle_Stage_Entered__c` on purpose: that field is overwritten on the next transition and stops answering when SAL was accepted the moment the Lead reaches SQL. This one never moves. `editable=false` everywhere. |
+| `Lead.Sales_Accepted_By__c` | Lookup(User) | **EVIDENCE** — who accepted | `BR-15` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Captured from the authenticated identity at the moment of acceptance. Deliberately **not** `OwnerId` (ownership is reassignable) and **not** `LastModifiedById` (any later edit overwrites it). `editable=false` everywhere. |
+| `Lead.Sales_Acceptance_Basis__c` | Text(255) | **EVIDENCE** — why acceptance was permitted | `BR-15` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Assembled from only the requirements the active acceptance policy declares, and carries the policy version. Kept separate from `MQL_Basis__c` so the Marketing claim and the Sales acknowledgement stay independently readable; neither overwrites the other. |
+
+| `Lead.Qualified_Need__c` | **Picklist, restricted** | **INPUT** — the confirmed business need | `BR-15`, `BR-17` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Four governed values. Field-level value set, **not** a Global Value Set — no second object consumes this vocabulary, and reusable metadata is not created for hypothetical reuse. Restriction proven: Salesforce rejected an out-of-vocabulary value. |
+| `Lead.Next_Step_Date__c` | Date | **INPUT** — the agreed forward motion | `BR-15`, `BR-17` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Required to be today or later **at qualification time**. Not `Opportunity.CloseDate` (no Opportunity exists yet) and not a buying timeline (a prediction, not a fact). |
+| `Lead.Next_Step__c` | Text(255) | **CONTEXT** — what the next action is | `BR-15` | ✅ **DELIVERED (2026-08-27).** **Never a qualification requirement** — blank does not prevent SQL, no Flow condition reads it, no control will interpret it. It exists so a reader sees *what* was agreed, not only that a date exists. |
+| `Lead.SQL_Basis__c` | Text(255) | **EVIDENCE** — why SQL was permitted | `BR-15`, `BR-17` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Records the need and next-step date **as they stood at qualification**, plus the policy version. Written once on entry to SQL; verified to survive native Lead Conversion. `editable=false` everywhere. |
 
 ### Formula fields
 
@@ -198,7 +211,152 @@ inert; a Lead Source with no record here is simply not assessed by that control.
 and neither is prevented — which is why the assessment reports the sources it excluded, by name,
 rather than reporting a smaller population without saying so.
 
-**The other two types are automation configuration** — `Segment_Band__mdt` and `Routing_Rule__mdt`
+### `Lifecycle_Transition__mdt` — which Lead lifecycle transitions are allowed
+
+| Field API name | Type | Meaning, from the artifact | Manageability |
+|---|---|---|---|
+| `From_Stage__c` | Text(40) | The exact `Lead.Status` value the transition starts from. Exact equality against the prior value. | `SubscriberControlled` |
+| `To_Stage__c` | Text(40) | The exact `Lead.Status` value the transition moves to. Exact equality against the new value. | `SubscriberControlled` |
+| `Is_Active__c` | Checkbox, default `true` | Whether the transition is currently allowed. Unchecking withdraws it while keeping the record. | `SubscriberControlled` |
+| `Rule_Version__c` | Text(20) | Version recorded on records evaluated under this policy. | `SubscriberControlled` |
+
+**Record semantics.** One record per allowed transition; **10 deployed**, all active at `v1.0`. The
+policy is a **whitelist** — a pair absent from this type is not allowed, so silence is a refusal
+rather than an omission. As with the other Custom Metadata here, there is **no relationship to
+`Lead`**: `From_Stage__c` and `To_Stage__c` are compared by value against `Lead.Status` at evaluation
+time.
+
+✅ **Enforced since 2026-08-27.** `Lead_Inbound_Before_Save` reads these records on every
+`Status` change and blocks a save whose pair is absent — including a save attempted through native
+Salesforce Lead Conversion. No validation rule exists and the Flow holds no second copy of the
+policy. The NorthstarIQ detective control that consumes *these* records rather than holding its
+own copy is **Lifecycle Progression Integrity** (implemented, validated, deliberately
+**unscored**). **Opportunity Conversion Integrity** asks a different question and reads none of
+them: it compares `Lead.Status` against the platform’s own `IsConverted`, because whether a
+transition was *permitted* and whether conversion actually *happened* are two separate facts.
+Mechanism in [`architecture.md`](architecture.md) §3; evidence in
+[`testing-strategy.md`](testing-strategy.md) §2i.
+
+### `MQL_Qualification_Policy__mdt` — the governed definition of MQL
+
+**This record *is* the MQL definition.** Reading it answers *"what is the MQL policy?"* without
+reconstructing the answer from Flow branches.
+
+| Field API name | Type | Meaning, from the artifact | Manageability |
+|---|---|---|---|
+| `Policy_Version__c` | Text(20) | The version stamped into `MQL_Basis__c`. | `SubscriberControlled` |
+| `Qualified_Stage__c` | Text(40) | The exact `Lead.Status` value this policy governs. | `SubscriberControlled` |
+| `Require_Governed_Source__c` | Checkbox | Qualification eligibility — the source must be governed. | `SubscriberControlled` |
+| `Require_MQL_Eligible_Segment__c` | Checkbox | Qualification eligibility — the segment must be qualifiable. | `SubscriberControlled` |
+| `Require_Routable_Territory__c` | Checkbox | Handoff readiness — coverage must be resolved. | `SubscriberControlled` |
+| `Require_Unambiguous_Match__c` | Checkbox | Handoff readiness — the match state must not be ambiguous. | `SubscriberControlled` |
+| `Is_Active__c` | Checkbox | Whether this version is in force. | `SubscriberControlled` |
+
+**Records deployed: 2.** `NorthstarIQ MQL v1.1` **active**, governing `MQL`; `NorthstarIQ MQL v1.0
+(superseded)` retained **inactive** as implementation history.
+
+⚠️ **SYNTHETIC BASELINE.** Authored for reproducible demonstration of lifecycle governance. It is
+**not** an originally validated client business requirement.
+
+**Each flag declares that a requirement applies. It does not restate the requirement.**
+
+| Requirement | Declared by | Defined by |
+|---|---|---|
+| Governed acquisition source | `Require_Governed_Source__c` | `Routing_Readiness_Source__mdt` — which sources |
+| Segment eligible | `Require_MQL_Eligible_Segment__c` | `Segment_Band__mdt.MQL_Eligible__c` — which segments |
+| Resolved governed coverage | `Require_Routable_Territory__c` | `Routing_Rule__mdt` → `Lead.Territory__c` |
+| Unambiguous account match | `Require_Unambiguous_Match__c` | `Lead.Match_Status__c` |
+
+**Two groups, one test.** Requirements 1–2 are **qualification eligibility** — is this the kind of
+prospect the business qualifies? Requirements 3–4 are **handoff readiness** — can Sales actually
+act on it? A resolved territory is not evidence of a good buyer; it is evidence that the handoff has
+somewhere to land. All four must pass. There are no groups in the schema and no partial credit; the
+distinction exists to explain the business logic, not to score it.
+
+**Why this is still not a rules engine.** The requirement set is a **fixed schema of named
+checkboxes** — no expressions, no field names, no operators, no weights, no nested groups, no JSON.
+Adding a requirement is a schema change, deliberately: that is the line between a governed policy and
+a configurable engine.
+
+**Selection is deterministic.** The Flow looks the policy up by `Qualified_Stage__c` matching the
+stage being entered, so a future SAL or SQL policy cannot be picked up by the MQL gate. Salesforce
+cannot enforce *one active record per stage* on Custom Metadata, so the convention is enforced by the
+**repository validator** instead, and the lookup is ordered by version descending so selection stays
+defined even if the convention were broken. That is a governance convention, not a platform
+guarantee — stated rather than implied.
+
+### `Sales_Acceptance_Policy__mdt` — the governed definition of Sales acceptance
+
+**A separate type from `MQL_Qualification_Policy__mdt`, deliberately.** That type is named for, and
+scoped to, Marketing qualification. Stretching it to cover Sales acceptance would have started the
+slide toward a generic lifecycle policy object. **Two small explicit types beat one abstract one.**
+
+| Field API name | Type | Meaning, from the artifact | Manageability |
+|---|---|---|---|
+| `Policy_Version__c` | Text(20) | The version stamped into `Sales_Acceptance_Basis__c`. | `SubscriberControlled` |
+| `Accepted_Stage__c` | Text(40) | The exact `Lead.Status` value this policy governs. | `SubscriberControlled` |
+| `Require_Explicit_Acceptance__c` | Checkbox | Whether the seller must have ticked `Sales_Accepted__c`. | `SubscriberControlled` |
+| `Require_MQL_Evidence__c` | Checkbox | Whether the Lead must carry substantiating MQL evidence. | `SubscriberControlled` |
+| `Is_Active__c` | Checkbox, default `true` | Whether this version is in force. | `SubscriberControlled` |
+
+**Record semantics.** **One record deployed** — `NorthstarIQ Sales Acceptance v1.0`, governing `SAL`,
+active, both requirements declared.
+
+⚠️ **SYNTHETIC BASELINE.** Authored for reproducible demonstration of lifecycle governance. It is
+**not** an originally validated client business requirement.
+
+**The second requirement is an evidence-chain check, not a re-evaluation.** `Require_MQL_Evidence__c`
+asks only whether `MQL_Basis__c` is present — the SAL gate never re-tests source, segment, coverage or
+match, so **the MQL definition is not duplicated here**. Whether that Marketing evidence still holds
+is the business of the detective controls, not of a preventive gate running on one record — and
+**Sales Acceptance / SQL Integrity** preserves the same boundary, consuming `MQL_Basis__c` as an
+evidence-chain prerequisite and never re-testing what MQL Qualification Integrity owns.
+
+**Selection is deterministic**, by `Accepted_Stage__c` matching the stage being entered, with the
+same one-active-record-per-stage convention the MQL policy uses — enforced by the repository
+validator rather than by the platform.
+
+### `SQL_Qualification_Policy__mdt` — the governed definition of SQL
+
+**The third narrowly scoped lifecycle policy type**, alongside `MQL_Qualification_Policy__mdt` and
+`Sales_Acceptance_Policy__mdt`. Each models a genuinely different business decision, so each stays
+explicit. ⚠️ **Architecture watch: if a fourth becomes necessary, review whether explicitness has
+crossed into duplication before creating it.** Not refactored now.
+
+| Field API name | Type | Meaning, from the artifact | Manageability |
+|---|---|---|---|
+| `Policy_Version__c` | Text(20) | The version stamped into `SQL_Basis__c`. | `SubscriberControlled` |
+| `Qualified_Stage__c` | Text(40) | The exact `Lead.Status` value this policy governs. | `SubscriberControlled` |
+| `Require_Acceptance_Evidence__c` | Checkbox | Whether SQL requires Sales acceptance evidence. | `SubscriberControlled` |
+| `Require_Confirmed_Need__c` | Checkbox | Whether SQL requires a governed `Qualified_Need__c`. | `SubscriberControlled` |
+| `Require_Next_Step__c` | Checkbox | Whether SQL requires a next-step date of today or later. | `SubscriberControlled` |
+| `Is_Active__c` | Checkbox, default `true` | Whether this version is in force. | `SubscriberControlled` |
+
+**Record semantics.** **One record deployed** — `NorthstarIQ SQL Qualification v1.0`, governing `SQL`,
+active, all three requirements declared.
+
+⚠️ **SYNTHETIC BASELINE.** Authored for reproducible demonstration of lifecycle governance. It is
+**not** an originally validated client business requirement.
+
+**Prior stages are consumed, never re-tested.** `Require_Acceptance_Evidence__c` checks only that
+`Sales_Accepted_At__c` is present. The Sales Acceptance Policy is not re-run and the MQL policy is not
+re-run — governed source, segment, territory and match state are **not** re-evaluated at SQL. A prior
+stage is consumed through its evidence chain.
+
+**The governed need vocabulary.**
+
+| Value | The buyer problem it names |
+|---|---|
+| `Forecast Accuracy` | The prospect cannot trust its own forecast |
+| `Pipeline Visibility` | The prospect cannot see the true state of its pipeline |
+| `Revenue Reporting Consolidation` | The prospect gets different answers to the same revenue question |
+| `Sales Process Governance` | The prospect cannot enforce a consistent sales process |
+
+Derived from what the business case already states NorthstarIQ sells — revenue intelligence and
+forecasting software — rather than invented as a new product taxonomy. It names the **buyer's
+problem**, never a product, a contract scope, an intent score or a seller opinion.
+
+**The remaining two types are automation configuration** — `Segment_Band__mdt` and `Routing_Rule__mdt`
 are read by `Lead_Inbound_Before_Save`, not by the assessment, and their rule content is documented
 in [`architecture.md`](architecture.md) §4 rather than repeated here.
 
@@ -232,7 +390,7 @@ The Phase 0C data dictionary proposed **49 fields across 5 objects**. The candid
 
 | Removed | Count | Why |
 |---|---:|---|
-| ICP scoring fields | 4 | `BR-17` deferred; `OD-03` unresolved. **No scoring model will be invented to justify fields.** |
+| ICP scoring fields | 4 | `BR-17` deferred. **No scoring model will be invented to justify fields** — and `OD-03` was closed on 2026-08-27 by removing weighting entirely (`PD-14`), so no scoring field will ever be needed. |
 | Duplicate-handling fields | 3 | Evaluate standard Duplicate Rules first |
 | Lifecycle history fields | 3 | Standard field history tracking (`PD-09`) |
 | Separate assignment timestamp | 1 | Standard `LastModifiedDate` plus history may suffice |

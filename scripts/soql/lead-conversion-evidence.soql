@@ -1,0 +1,44 @@
+-- NorthstarIQ — Authoritative Salesforce Lead conversion evidence
+--
+-- ⚠️ NEW REPRODUCIBILITY ARTIFACT, created 2026-08-27 after the native Lead
+-- conversion experiment. It was NOT used in any earlier validation, and it is
+-- not historical evidence: it is the query that lets the conversion invariant
+-- be re-checked on demand.
+--
+-- Purpose: separate the two things that are easy to conflate.
+--
+--   1. SALESFORCE CONVERSION INTEGRITY — did the platform actually convert
+--      this Lead? The platform's own answer is IsConverted, and it sets
+--      ConvertedDate, ConvertedAccountId and ConvertedContactId in the same
+--      transaction. Status is a claim; IsConverted is the fact. Where the two
+--      disagree, the claim is wrong.
+--
+--   2. NORTHSTARIQ BUSINESS POLICY — should an Opportunity exist? Salesforce
+--      allows conversion WITHOUT one: the native Convert modal carries a
+--      "Don't create an opportunity upon conversion" checkbox, verified on
+--      2026-08-27. So a null ConvertedOpportunityId is a valid converted Lead,
+--      not a defect, unless NorthstarIQ policy separately requires the
+--      Opportunity. Do not fold that requirement into the integrity test.
+--
+-- Expected on 2026-08-27 against the loaded fixture set: 3 rows, all of them
+-- Status = 'Closed - Converted' with IsConverted = false and every Converted*
+-- field null. Those three are the deliberate baseline defect that
+-- Opportunity Conversion Integrity detects. A row with IsConverted = true is
+-- a genuinely converted Lead and should not appear in this result.
+--
+-- Read-only. Safe to run against any org.
+
+SELECT Id,
+       Name,
+       Company,
+       Status,
+       IsConverted,
+       ConvertedDate,
+       ConvertedAccountId,
+       ConvertedContactId,
+       ConvertedOpportunityId,
+       Lifecycle_Stage_Entered__c
+FROM Lead
+WHERE Status = 'Closed - Converted'
+   OR IsConverted = true
+ORDER BY IsConverted DESC, Company

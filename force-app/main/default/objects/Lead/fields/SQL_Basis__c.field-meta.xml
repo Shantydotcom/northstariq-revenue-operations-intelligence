@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>SQL_Basis__c</fullName>
+    <description>BR-15, BR-17. Why this Lead was permitted to become SQL: the requirements the active SQL policy declared, the values that satisfied them, and the policy version in force. EVIDENCE, NOT POLICY - it explains a decision and defines none. Written only by Lead_Inbound_Before_Save on entry to SQL and never afterwards, so it survives later transitions and native conversion. Deliberately does NOT restate the Marketing or acceptance evidence: MQL_Basis__c and Sales_Acceptance_Basis__c still hold those, and the chain is read across the fields rather than duplicated into each one.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Why this Lead qualified as SQL. Set by automation - do not edit.</inlineHelpText>
+    <label>SQL Basis</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_Explicit_Acceptance__c</fullName>
+    <description>Whether SAL requires the seller to have explicitly ticked Sales_Accepted__c. This is the requirement that stops acceptance being inferred from the Status change itself.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Require Explicit Sales Acceptance.</inlineHelpText>
+    <label>Require Explicit Sales Acceptance</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

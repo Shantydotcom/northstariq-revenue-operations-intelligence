@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_MQL_Evidence__c</fullName>
+    <description>Whether SAL requires the Lead to carry MQL qualification evidence (MQL_Basis__c). An EVIDENCE-CHAIN check, not a re-evaluation: this Flow never re-tests the MQL requirements, so the MQL definition is not duplicated here. It asks only whether the Marketing claim was substantiated when it was made.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Require Substantiated MQL Handoff.</inlineHelpText>
+    <label>Require Substantiated MQL Handoff</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

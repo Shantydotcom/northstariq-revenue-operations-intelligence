@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>From_Stage__c</fullName>
+    <description>The exact Lead.Status value the transition starts from. Matched on exact equality against the prior value of Status.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>The Lead Status this transition starts from.</inlineHelpText>
+    <label>From Stage</label>
+    <required>false</required>
+    <length>40</length>
+    <unique>false</unique>
+    <type>Text</type>
+</CustomField>

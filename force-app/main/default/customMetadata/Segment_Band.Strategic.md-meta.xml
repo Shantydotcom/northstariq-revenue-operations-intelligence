@@ -27,6 +27,10 @@
         <value xsi:type="xsd:string">v1.0</value>
     </values>
     <values>
+        <field>MQL_Eligible__c</field>
+        <value xsi:type="xsd:boolean">true</value>
+    </values>
+    <values>
         <field>Is_Active__c</field>
         <value xsi:type="xsd:boolean">true</value>
     </values>

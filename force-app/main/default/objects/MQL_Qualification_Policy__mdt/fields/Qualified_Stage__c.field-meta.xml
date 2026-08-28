@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Qualified_Stage__c</fullName>
+    <description>The exact Lead.Status value this qualification policy governs. Held here so Lead_Inbound_Before_Save can ask whether the stage being entered is the governed one WITHOUT naming a stage in a Flow condition - the same property that keeps Lifecycle_Transition__mdt the single definition of an allowed transition. A blank or inactive policy means no qualification requirement applies and MQL entry falls back to transition governance alone.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>The Lead Status value this policy governs.</inlineHelpText>
+    <label>Qualified Stage</label>
+    <length>40</length>
+    <required>false</required>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

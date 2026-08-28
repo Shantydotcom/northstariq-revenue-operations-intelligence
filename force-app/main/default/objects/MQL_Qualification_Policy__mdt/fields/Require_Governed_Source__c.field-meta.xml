@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_Governed_Source__c</fullName>
+    <description>QUALIFICATION ELIGIBILITY. Whether MQL requires the Lead Source to be one NorthstarIQ holds to a routing-readiness standard. The SET of governed sources is owned by Routing_Readiness_Source__mdt and is not restated here - this flag states only that the requirement applies to MQL.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Require Governed Acquisition Source.</inlineHelpText>
+    <label>Require Governed Acquisition Source</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

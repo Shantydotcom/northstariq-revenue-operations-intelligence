@@ -5,22 +5,66 @@
  */
 
 :root {
-  --bg: #f6f7f9;
+  /*
+   * The palette, taken from the approved mockups.
+   *
+   * Five surface levels, in order of depth: navy rail, pale blue canvas, white
+   * content, tinted panel, navy feature band. That ladder is what stops the
+   * application reading as a white page with boxes on it, and it is the single
+   * most load-bearing part of this file.
+   *
+   * Every text pairing below was measured against its own background rather
+   * than assumed. Values are annotated with the ratio they actually achieve on
+   * --canvas; WCAG 2.2 AA wants 4.5:1 for body text and 3:1 for non-text.
+   */
+
+  /* application canvas - deliberately not white */
+  --canvas: #eaf0f8;
+  --bg: var(--canvas);
   --surface: #ffffff;
-  --border: #dfe3e8;
-  --border-strong: #c8cdd4;
-  --ink: #14213d;
-  --ink-muted: #5b6472;
-  --ink-faint: #67707f;
-  --accent: #1b3a6b;
-  --accent-soft: #eaf0f9;
-  --high: #b42318;
+  --surface-muted: #f3f7fc;
+
+  /* the navy family: rail, feature bands, deep accents */
+  --navy-deep: #071427;
+  --navy: #0c1e3c;
+  --navy-2: #14294c;
+  --navy-line: rgba(255, 255, 255, 0.09);
+
+  /* cobalt. --blue fills a surface; --accent sets text on a light one. */
+  --blue: #1668e0;
+  --blue-strong: #0f55c4;
+  --accent: #14549e; /* 6.56:1 - link and heading blue */
+  --accent-soft: #e4edfb;
+
+  --border: #d5e0ef;
+  --border-strong: #bccbe0;
+
+  --ink: #102647; /* 13.18:1 */
+  --ink-muted: #4d5c78; /* 5.88:1 */
+  --ink-faint: #5b6a84; /* 4.77:1 */
+
+  /* on-navy text, measured against --navy */
+  --on-navy: #ffffff; /* 16.58:1 */
+  --on-navy-muted: #a8b8d2; /* 8.25:1 */
+  --on-navy-faint: #8fa2c2; /* 6.41:1 */
+
+  --high: #b42318; /* 5.73:1 */
   --high-soft: #fdecea;
-  --medium: #b54708;
+  --medium: #b54708; /* 4.73:1 */
   --medium-soft: #fdf1e3;
-  --ok: #17683f;
+  --ok: #17683f; /* 5.93:1 */
   --ok-soft: #e8f4ed;
-  --radius: 8px;
+
+  --radius: 10px;
+  --radius-sm: 7px;
+  --radius-lg: 14px;
+
+  /* restrained elevation. Separation comes from the border, not the shadow. */
+  --shadow-sm: 0 1px 2px rgba(16, 38, 71, 0.05);
+  --shadow: 0 1px 3px rgba(16, 38, 71, 0.07), 0 6px 16px -8px rgba(16, 38, 71, 0.14);
+
+  --rail: 264px;
+  --rail-collapsed: 76px;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 
   /*
@@ -48,7 +92,7 @@
   --w-medium: 600;
   --w-bold: 700;
 
-  --focus: var(--accent);
+  --focus: var(--blue);
 }
 
 * {
@@ -77,78 +121,1026 @@ a {
 
 /* ------------------------------------------------------------ shell */
 
-.masthead {
-  background: var(--ink);
+/*
+ * A permanent enterprise shell: navy rail on the left, everything else in a
+ * column beside it. Grid rather than fixed positioning, so the main column
+ * cannot slide under the rail at any width and no content needs a magic
+ * left margin to clear it.
+ */
+
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 50;
+  background: var(--blue);
   color: #fff;
-  border-bottom: 1px solid #0d1628;
+  padding: 10px 16px;
+  border-radius: 0 0 var(--radius-sm) 0;
+  font-size: var(--t-ui);
+  font-weight: var(--w-medium);
 }
 
-.masthead-inner,
-.page {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 0 24px;
+.skip-link:focus {
+  left: 0;
 }
 
-.masthead-inner {
+.app {
+  display: grid;
+  grid-template-columns: var(--rail) minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.app-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--canvas);
+}
+
+/* ------------------------------------------------------------ sidebar */
+
+.sidebar {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 14px 14px;
+  color: var(--on-navy);
+  /*
+   * A long vertical wash rather than a flat fill. It is what gives the rail
+   * the atmospheric depth the mockups have, and it costs nothing.
+   */
+  background: linear-gradient(180deg, var(--navy) 0%, var(--navy) 55%, var(--navy-deep) 100%);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.brand {
   display: flex;
   align-items: center;
-  gap: 32px;
-  height: 60px;
+  gap: 12px;
+  padding: 4px 8px 20px;
+  text-decoration: none;
+  color: inherit;
+  border-bottom: 1px solid var(--navy-line);
+  margin-bottom: 18px;
 }
 
-.wordmark {
-  font-size: var(--t-lede);
+.brand-star {
+  flex: none;
+  color: #4d94ff;
+  /* The one glow in the interface, on the identity mark alone. */
+  filter: drop-shadow(0 0 6px rgba(77, 148, 255, 0.55));
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.brand-name {
+  font-size: 1.0625rem;
   font-weight: var(--w-bold);
-  letter-spacing: -0.01em;
-  color: #fff;
-  text-decoration: none;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
   white-space: nowrap;
 }
 
-.wordmark span {
-  color: #7fa6dd;
+.brand-name span {
+  font-weight: var(--w-normal);
 }
 
-.masthead nav {
+.brand-sub {
+  font-size: var(--t-meta);
+  color: var(--on-navy-muted);
+  line-height: 1.3;
+  margin-top: 3px;
+  white-space: nowrap;
+}
+
+/*
+ * The nav never shrinks below its own content. With `flex: 1 1 auto` a short
+ * viewport compressed it and the connection panel drew straight over the last
+ * two items; the rail scrolls as a whole instead.
+ */
+.side-nav {
+  flex: 1 0 auto;
+}
+
+.nav-group + .nav-group {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--navy-line);
+}
+
+.nav-heading {
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--on-navy-faint);
+  margin: 0 0 8px;
+  padding: 0 8px;
+}
+
+.side-nav ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav-item {
   display: flex;
-  gap: 4px;
-}
-
-.masthead nav a {
-  color: #b9c3d4;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
   text-decoration: none;
+  color: var(--on-navy);
+  margin-bottom: 2px;
+}
+
+.nav-icon {
+  flex: none;
+  color: var(--on-navy-muted);
+}
+
+.nav-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.nav-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: var(--t-ui);
-  padding: 6px 12px;
-  border-radius: 6px;
+  font-weight: var(--w-medium);
+  line-height: 1.25;
 }
 
-.masthead nav a:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.08);
+.nav-hint {
+  font-size: var(--t-meta);
+  color: var(--on-navy-muted);
+  line-height: 1.3;
+  margin-top: 1px;
 }
 
-.masthead nav a[aria-current="page"] {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.14);
+a.nav-item:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+a.nav-item:hover .nav-icon {
+  color: var(--on-navy);
+}
+
+/*
+ * The active state is a solid cobalt panel, not a pill. A large radius here
+ * was the single change that made early drafts read as a generic template.
+ */
+.nav-item.is-active {
+  background: var(--blue);
+}
+
+.nav-item.is-active .nav-icon,
+.nav-item.is-active .nav-hint {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/*
+ * Approved architecture, not built. Non-interactive, out of the tab order,
+ * and it says so - see the note in AppSidebar.tsx.
+ */
+.nav-item.is-planned {
+  cursor: default;
+}
+
+.nav-item.is-planned .nav-label,
+.nav-item.is-planned .nav-icon {
+  color: var(--on-navy-faint);
+}
+
+.nav-item.is-planned .nav-hint {
+  color: #7186a6;
+}
+
+.nav-planned {
+  font-size: 0.625rem;
+  font-weight: var(--w-medium);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--on-navy-faint);
+  border: 1px solid var(--navy-line);
+  border-radius: 4px;
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------- sidebar connection */
+
+.side-conn {
+  margin-top: auto;
+  padding-top: 12px;
+  flex: none;
+  padding: 12px 14px;
+  border: 1px solid var(--navy-line);
+  border-radius: var(--radius);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.side-conn p {
+  margin: 0;
+}
+
+.side-conn-top {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: var(--t-ui);
+  font-weight: var(--w-medium);
+}
+
+.side-conn-cloud {
+  flex: none;
+  color: #6fb0f5;
+}
+
+.side-conn-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--t-small);
+  color: var(--on-navy-muted);
+  margin-top: 6px !important;
+}
+
+.side-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2ecc71;
+  flex: none;
+}
+
+.side-conn.is-down .side-dot {
+  background: #f0913a;
+}
+
+.side-conn-note {
+  font-size: var(--t-meta);
+  color: var(--on-navy-faint);
+  margin-top: 6px !important;
+}
+
+.side-collapse {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin-top: 14px;
+  flex: none;
+  padding: 9px 10px;
+  background: none;
+  border: 0;
+  border-top: 1px solid var(--navy-line);
+  padding-top: 16px;
+  color: var(--on-navy-muted);
+  font-size: var(--t-small);
+  font-family: inherit;
+  cursor: pointer;
+  border-radius: 0;
+}
+
+.side-collapse:hover {
+  color: var(--on-navy);
+}
+
+.side-collapse-icon {
+  flex: none;
+}
+
+/* ------------------------------------------------- collapsed sidebar */
+
+.sidebar.is-collapsed {
+  padding-left: 10px;
+  padding-right: 10px;
+}
+
+.app:has(.sidebar.is-collapsed) {
+  grid-template-columns: var(--rail-collapsed) minmax(0, 1fr);
+}
+
+.sidebar.is-collapsed .brand-text,
+.sidebar.is-collapsed .nav-text,
+.sidebar.is-collapsed .nav-heading,
+.sidebar.is-collapsed .side-conn-top span,
+.sidebar.is-collapsed .side-conn-state,
+.sidebar.is-collapsed .side-conn-note,
+.sidebar.is-collapsed .side-collapse-text {
+  display: none;
+}
+
+.sidebar.is-collapsed .brand,
+.sidebar.is-collapsed .nav-item,
+.sidebar.is-collapsed .side-collapse,
+.sidebar.is-collapsed .side-conn-top {
+  justify-content: center;
+}
+
+.sidebar.is-collapsed .nav-item.is-planned {
+  opacity: 0.55;
+}
+
+.sidebar.is-collapsed .side-conn {
+  padding: 10px 6px;
+}
+
+.sidebar.is-collapsed .side-collapse-icon {
+  transform: rotate(180deg);
+}
+
+/* ------------------------------------------------------ header + canvas */
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 16px 32px;
+  background: var(--canvas);
+}
+
+.app-conn {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 0;
+}
+
+.app-conn-mark {
+  display: flex;
+  color: var(--ok);
+  flex: none;
+}
+
+.app-conn.is-down .app-conn-mark {
+  color: var(--medium);
+}
+
+.app-conn-label,
+.app-conn-sub {
+  display: block;
+  line-height: 1.3;
+}
+
+.app-conn-label {
+  font-size: var(--t-ui);
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+
+.app-conn-sub {
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+}
+
+.app-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .page {
-  padding-top: 32px;
-  padding-bottom: 64px;
+  flex: 1 1 auto;
+  padding: 0 32px 40px;
+  max-width: 1320px;
+  width: 100%;
 }
 
-.demo-banner {
-  background: var(--accent-soft);
-  border-bottom: 1px solid #d3dff0;
-  color: var(--accent);
+.app-foot {
+  margin: 0;
+  padding: 14px 32px 26px;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  max-width: 1320px;
+}
+
+/*
+ * The Northstar summit, as a background treatment rather than an image.
+ *
+ * Two soft radial washes for atmosphere and a faint contour sweep for the
+ * topographic character. Original CSS, no asset, no dependency, and it sits
+ * behind content at low opacity so it supports the identity instead of
+ * competing with the data. Applied deliberately - not to every surface.
+ */
+.summit:not(.page-head) {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.summit:not(.page-head)::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 150% at 88% 118%, rgba(22, 104, 224, 0.16) 0%, transparent 58%),
+    radial-gradient(60% 90% at 78% 6%, rgba(77, 148, 255, 0.14) 0%, transparent 62%),
+    repeating-linear-gradient(
+      118deg,
+      transparent 0 22px,
+      rgba(16, 38, 71, 0.035) 22px 23px
+    );
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nav-item,
+  .side-collapse {
+    transition:
+      background-color 120ms ease,
+      color 120ms ease;
+  }
+}
+
+/* --------------------------------------------------- surface hierarchy */
+
+/*
+ * The ladder, applied once to the structure every route already has.
+ *
+ * This is the shared foundation rather than a page design: the existing
+ * markup is untouched, and lifting `.overview-head` and each top-level
+ * `section` onto a real surface is what makes the canvas read as a canvas.
+ * Without it the pages are text on a tinted background, which is flatter than
+ * the approved references and reads as an unfinished template.
+ *
+ * Page bodies themselves are deliberately NOT redesigned here.
+ */
+
+.overview-head,
+.page-head,
+.panel,
+.page > section,
+.detail > section,
+.finding-head {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: 26px 30px;
+  margin-bottom: 18px;
+}
+
+/* The page's opening surface carries the Northstar treatment. Once, at the
+ * top - repeating it down the page would make the motif the subject. */
+.overview-head,
+.page-head,
+.finding-head {
+  background:
+    linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
+}
+
+.overview-head::before,
+.page-head.summit::before,
+.finding-head::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 160% at 92% 130%, rgba(22, 104, 224, 0.13) 0%, transparent 55%),
+    radial-gradient(46% 80% at 84% -10%, rgba(77, 148, 255, 0.13) 0%, transparent 60%),
+    repeating-linear-gradient(118deg, transparent 0 26px, rgba(16, 38, 71, 0.028) 26px 27px);
+  mask-image: linear-gradient(90deg, transparent 38%, #000 78%);
+  -webkit-mask-image: linear-gradient(90deg, transparent 38%, #000 78%);
+}
+
+.overview-head,
+.page-head,
+.finding-head {
+  position: relative;
+  overflow: hidden;
+}
+
+.overview-head > *,
+.page-head > *,
+.finding-head > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* The last element inside a surface should not push a second gap below it. */
+.page-head > :last-child,
+.panel > :last-child,
+.page > section > :last-child {
+  margin-bottom: 0;
+}
+
+/*
+ * The feature surface - the deep navy band the mockups use for Assessment
+ * Scope. Part of the shared ladder so Phase 2 inherits it instead of
+ * inventing a second dark treatment.
+ */
+.surface-dark {
+  background:
+    radial-gradient(120% 180% at 88% 120%, rgba(22, 104, 224, 0.3) 0%, transparent 60%),
+    linear-gradient(160deg, var(--navy-2) 0%, var(--navy) 60%, var(--navy-deep) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-lg);
+  color: var(--on-navy);
+  padding: 26px 30px;
+}
+
+.surface-dark :where(h1, h2, h3, dt, strong) {
+  color: var(--on-navy);
+}
+
+.surface-dark :where(p, dd, li, .muted, .footnote) {
+  color: var(--on-navy-muted);
+}
+
+.surface-dark :where(a) {
+  color: #8fbcff;
+}
+
+/* The tinted rung, between white and navy. */
+.surface-muted {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+/* A nested section is a division of its parent, not another floating box. */
+.page > section section,
+.detail > section section {
+  background: none;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+}
+
+/* The page's own heading sits on the canvas, above the surfaces. */
+.page > .sr-only + .overview-head {
+  margin-top: 0;
+}
+
+/* -------------------------------------------------- run a new assessment */
+
+/*
+ * The pre-assessment page, composed to the approved reference: hero, dark
+ * scope band, supporting panels beside a steps column, and one action.
+ *
+ * The vertical rhythm is the composition. Four surfaces at 18px apart, each a
+ * different rung of the ladder - white hero, navy band, white panels, navy
+ * action - is what stops this reading as a stack of cards.
+ */
+
+.run {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ------------------------------------------------------------- hero */
+
+.run-hero {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 0.62fr);
+  align-items: center;
+  gap: 24px;
+  min-height: 292px;
+  padding: 44px 46px;
+  background: linear-gradient(158deg, #ffffff 0%, #f7fbff 46%, #eef5fd 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/*
+ * The summit, drawn rather than imported.
+ *
+ * Three overlapping clip-path ridges in receding blues, a pale sky wash and a
+ * faint contour sweep. No asset, no dependency, nothing extracted from the
+ * mockup - and it sits under a left-to-right mask so it never reaches the
+ * text. Original work in the reference's visual character.
+ */
+/* The summit is an SVG (Summit.tsx). This only places it. */
+.run-hero-art {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 62%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  border-top-right-radius: var(--radius-lg);
+  border-bottom-right-radius: var(--radius-lg);
+}
+
+.run-hero-body {
+  position: relative;
+  z-index: 1;
+  max-width: 44rem;
+}
+
+.run-hero h1 {
+  font-size: clamp(2rem, 2.6vw, 2.6rem);
+  line-height: 1.08;
+  letter-spacing: -0.028em;
+  font-weight: var(--w-bold);
+  color: var(--ink);
+  margin: 0 0 12px;
+}
+
+.run-lede {
+  font-size: var(--t-lede);
+  line-height: 1.5;
+  color: var(--ink-muted);
+  margin: 0 0 22px;
+  max-width: 36rem;
+}
+
+/* The read-only notice: an inset tinted panel, not a floating card. */
+.run-safe {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin: 0;
+  padding: 14px 18px;
+  background: rgba(228, 237, 251, 0.82);
+  border: 1px solid #c9dcf6;
+  border-radius: var(--radius);
   font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-muted);
+  max-width: 40rem;
 }
 
-.demo-banner div {
-  max-width: 1080px;
-  margin: 0 auto;
-  padding: 8px 24px;
+.run-safe-icon {
+  flex: none;
+  margin-top: 1px;
+  color: var(--accent);
+}
+
+.run-safe strong {
+  color: var(--accent);
+  font-weight: var(--w-bold);
+  letter-spacing: 0.05em;
+  margin-right: 8px;
+}
+
+/* -------------------------------------------------- assessment scope band */
+
+.scope {
+  position: relative;
+  overflow: hidden;
+  padding: 26px 32px 30px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--on-navy);
+  background:
+    radial-gradient(90% 150% at 86% 116%, rgba(22, 104, 224, 0.32) 0%, transparent 62%),
+    linear-gradient(158deg, var(--navy-2) 0%, var(--navy) 58%, var(--navy-deep) 100%);
+}
+
+/* A faint dotted field, the band's only texture. */
+.scope::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.11) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: linear-gradient(105deg, transparent 52%, #000 100%);
+  mask-image: linear-gradient(105deg, transparent 52%, #000 100%);
+}
+
+.scope > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* These land on <h2> so the heading order is unbroken; the look is unchanged. */
+h2.eyebrow,
+h2.scope-eyebrow {
+  font-size: var(--t-label);
+  line-height: 1.4;
+}
+
+.scope-eyebrow {
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--on-navy);
+  margin: 0 0 6px;
+}
+
+.scope-lede {
+  font-size: var(--t-small);
+  color: var(--on-navy-muted);
+  margin: 0 0 24px;
+}
+
+/*
+ * Five columns divided by hairlines - one surface, not five floating cards.
+ * The divider is what makes it read as a single band.
+ */
+.scope-areas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.scope-areas li {
+  padding: 0 22px;
+  border-left: 1px solid rgba(255, 255, 255, 0.11);
+}
+
+.scope-areas li:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.scope-areas li:last-child {
+  padding-right: 0;
+}
+
+.scope-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  margin-bottom: 14px;
+}
+
+/* Tinted discs. A reading aid across five columns; the label carries meaning. */
+.tone-blue {
+  background: rgba(45, 122, 232, 0.22);
+  color: #7db2ff;
+  box-shadow: inset 0 0 0 1px rgba(125, 178, 255, 0.34);
+}
+.tone-green {
+  background: rgba(29, 158, 96, 0.2);
+  color: #58cf94;
+  box-shadow: inset 0 0 0 1px rgba(88, 207, 148, 0.32);
+}
+.tone-violet {
+  background: rgba(132, 96, 224, 0.22);
+  color: #ab92f5;
+  box-shadow: inset 0 0 0 1px rgba(171, 146, 245, 0.32);
+}
+.tone-amber {
+  background: rgba(214, 142, 24, 0.22);
+  color: #f0b852;
+  box-shadow: inset 0 0 0 1px rgba(240, 184, 82, 0.32);
+}
+.tone-red {
+  background: rgba(214, 68, 56, 0.22);
+  color: #f38b80;
+  box-shadow: inset 0 0 0 1px rgba(243, 139, 128, 0.32);
+}
+
+.scope-areas h3 {
+  font-size: var(--t-ui);
+  font-weight: var(--w-bold);
+  line-height: 1.28;
+  color: var(--on-navy);
+  margin: 0 0 8px;
+}
+
+.scope-areas p {
+  font-size: var(--t-meta);
+  line-height: 1.45;
+  color: var(--on-navy-muted);
+  margin: 0;
+}
+
+/* ------------------------------------------------ supporting + action */
+
+.run-lower {
+  display: grid;
+  grid-template-columns: minmax(0, 1.92fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+
+.run-lower-main {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.run-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.run-fact {
+  margin-bottom: 0;
+}
+
+.run-fact p {
+  font-size: var(--t-small);
+  line-height: 1.55;
+  color: var(--ink-muted);
+  margin: 0 0 14px;
+}
+
+.run-fact-list {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.run-fact-list div {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.run-fact-list dt {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+}
+
+.run-fact-list dd {
+  margin: 0;
+  font-size: var(--t-meta);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+  text-align: right;
+}
+
+.run-formula {
+  display: block;
+  padding: 10px 14px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--ink) !important;
+  margin-bottom: 10px !important;
+}
+
+/* The action band: the page's one primary decision, on the deep rung. */
+.run-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 30px 32px;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    radial-gradient(80% 140% at 50% 130%, rgba(22, 104, 224, 0.34) 0%, transparent 66%),
+    linear-gradient(160deg, var(--navy-2) 0%, var(--navy) 62%, var(--navy-deep) 100%);
+}
+
+.run-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 30px;
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+}
+
+.run-go-icon {
+  flex: none;
+}
+
+.run-cta-note {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--on-navy-muted);
+  text-align: center;
+}
+
+/* --------------------------------------------------------- steps column */
+
+.run-steps {
+  margin-bottom: 0;
+}
+
+.run-steps ol {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+
+.run-steps li {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-muted);
+}
+
+.run-step-n {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--t-meta);
+  font-weight: var(--w-bold);
+}
+
+/* ------------------------------------------------------ run: narrow */
+
+@media (max-width: 1180px) {
+  .scope-areas {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 24px 0;
+  }
+
+  /* Restart the divider on each new row rather than leaving an orphan rule. */
+  .scope-areas li:nth-child(3n + 1) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .run-lower {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .run-hero {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    padding: 30px 26px;
+  }
+
+  /* The summit becomes a band behind the text rather than a column. */
+  .run-hero-art {
+    inset: 0;
+    opacity: 0.4;
+  }
+
+  .run-hero-star {
+    display: none;
+  }
+
+  .scope-areas {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .scope-areas li,
+  .scope-areas li:nth-child(3n + 1) {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .run-facts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 620px) {
+  .scope-areas {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .scope,
+  .run-cta {
+    padding-left: 22px;
+    padding-right: 22px;
+  }
+
+  .run-go {
+    width: 100%;
+    justify-content: center;
+  }
 }
 
 /* ------------------------------------------------------------ type */
@@ -228,11 +1220,11 @@ h3 {
 
 button.primary,
 a.primary {
-  background: var(--accent);
+  background: var(--blue);
   color: #fff;
-  border: 1px solid var(--accent);
-  border-radius: 6px;
-  padding: 9px 18px;
+  border: 1px solid var(--blue);
+  border-radius: var(--radius-sm);
+  padding: 10px 18px;
   font-size: var(--t-ui);
   font-weight: var(--w-medium);
   font-family: inherit;
@@ -241,8 +1233,10 @@ a.primary {
   display: inline-block;
 }
 
-button.primary:hover:not(:disabled) {
-  background: #16305a;
+button.primary:hover:not(:disabled),
+a.primary:hover {
+  background: var(--blue-strong);
+  border-color: var(--blue-strong);
 }
 
 button.primary:disabled {
@@ -1548,6 +2542,88 @@ th {
 
 /* ------------------------------------------------------------ narrow screens */
 
+/*
+ * Below 1040px the rail stops being a column. Squeezing a 264px navy panel
+ * into a phone leaves neither the navigation nor the content usable, so the
+ * shell reflows to a horizontal band and the page takes the full width.
+ * The desktop design is not compromised to get there - this is a different
+ * arrangement of the same parts, below a width the mockups never addressed.
+ */
+@media (max-width: 1040px) {
+  .app,
+  .app:has(.sidebar.is-collapsed) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar,
+  .sidebar.is-collapsed {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 20px;
+    padding: 14px 20px;
+  }
+
+  .brand {
+    border-bottom: 0;
+    margin-bottom: 0;
+    padding: 0;
+  }
+
+  .side-nav {
+    flex: 1 1 100%;
+  }
+
+  .side-nav ul {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+
+  .nav-group + .nav-group {
+    margin-top: 10px;
+    padding-top: 10px;
+  }
+
+  /* One line per item: the hint is the first thing a band has no room for. */
+  .sidebar .nav-hint,
+  .sidebar.is-collapsed .nav-hint {
+    display: none;
+  }
+
+  .sidebar .nav-text,
+  .sidebar.is-collapsed .nav-text {
+    display: block;
+  }
+
+  .side-conn {
+    margin-top: 0;
+    flex: 1 1 100%;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .side-conn-state,
+  .side-conn-note {
+    margin-top: 0 !important;
+  }
+
+  /* Collapsing a band it no longer applies to would be a dead control. */
+  .side-collapse {
+    display: none;
+  }
+
+  .app-header,
+  .page,
+  .app-foot {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+}
+
 @media (max-width: 900px) {
   /* The rail stops being a column and becomes a band beneath the intro. */
   .overview-head {
@@ -1813,10 +2889,10 @@ ul.verification li {
   border-radius: 3px;
 }
 
-/* The masthead is near-black; an accent ring would disappear into it. */
-.masthead :where(a):focus-visible,
-.demo-banner :where(a):focus-visible {
+/* The rail is near-black; a cobalt ring would disappear into it. */
+.sidebar :where(a, button):focus-visible {
   outline-color: #fff;
+  outline-offset: 1px;
 }
 
 ::selection {

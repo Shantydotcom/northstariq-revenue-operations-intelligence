@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Next_Step_Date__c</fullName>
+    <description>BR-15, BR-17. THE SELLER INPUT evidencing that Sales and the prospect have an agreed forward motion. A need with no next step is an observation, not a pursuit - which is why this is required alongside the need rather than instead of it. Deliberately NOT Opportunity.CloseDate: no Opportunity exists at SQL, and at conversion Salesforce sets that date itself. Deliberately NOT a buying timeline - a target decision date at this stage is a prediction rather than an established fact.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The date of the next step agreed with the prospect.</inlineHelpText>
+    <label>Next Step Date</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Date</type>
+</CustomField>

@@ -334,6 +334,85 @@ objects, not which grant is responsible.
 
 ---
 
+### Lifecycle stage evidence — no principal writes it by hand
+
+Verified in the permission-set artifacts, not assumed:
+
+| Principal | `Lifecycle_Stage_Entered__c` | `MQL_Basis__c` | `Lifecycle_Transition__mdt` | `MQL_Qualification_Policy__mdt` |
+|---|---|---|---|---|
+| `NIQ_Integration_Read` | `readable=true`, **`editable=false`** | `readable=true`, **`editable=false`** | read | read |
+| `NIQ_Revenue_Seller` | `readable=true`, **`editable=false`** | `readable=true`, **`editable=false`** | none | none |
+| `NIQ_Revenue_Operations` | `readable=true`, **`editable=false`** | `readable=true`, **`editable=false`** | none | none |
+| `NIQ_Rule_Configuration` | no FLS grant | no FLS grant | **write** | **write** |
+| System Administrator | **no FLS grant at all** | **no FLS grant at all** | — | — |
+
+⚠️ **`NIQ_Revenue_Operations` read was added to the repository on 2026-08-28 and is NOT DEPLOYED.** The two fields were the only system-generated Lead evidence this permission set could not read: it already reads `Segment_Basis__c`, `Routing_Reason__c`, `SLA_Basis__c`, `Sales_Acceptance_Basis__c` and `SQL_Basis__c`, all read-only. The gap was an omission from the increments that created these two fields, not a narrower grant by design — RevOps resolves routing exceptions and duplicate review, and the acceptance evidence it already reads *points at* MQL evidence it could not. `editable=false`, like every other evidence field: read to investigate, never to assert.
+
+**The integration principal reads the policy, and now the segment bands too.** Granting
+`Segment_Band__mdt` read to `NIQ_Integration_Read` (2026-08-27) is what makes the future **MQL
+Qualification Integrity** control possible without recreating the business definition in TypeScript:
+it can already read the active policy record, the governed source list and the transition policy, and
+segment eligibility was the one governed input it could not see. Read-only, on configuration the
+assessment is meant to reason about — no write was granted, and `NIQ_Rule_Configuration` remains the
+only identity that can change any of it.
+
+### Sales qualification — the same split, one stage later
+
+| Principal | `Qualified_Need__c` · `Next_Step_Date__c` · `Next_Step__c` (inputs) | `SQL_Basis__c` (evidence) |
+|---|---|---|
+| `NIQ_Revenue_Seller` | `readable=true`, **`editable=true`** | `readable=true`, **`editable=false`** |
+| `NIQ_Revenue_Operations` | `readable=true`, **`editable=true`** | `readable=true`, **`editable=false`** |
+| `NIQ_Integration_Read` | `readable=true`, `editable=false` | `readable=true`, `editable=false` |
+
+Sellers supply what they learned; they cannot write the record of why it was accepted as sufficient.
+`NIQ_Integration_Read` also gained read on `SQL_Qualification_Policy__mdt`, so the future detective
+control can read the governed definition rather than reimplementing it. No other Lead permission was
+widened.
+
+### Sales acceptance — the input is human, the evidence is not
+
+| Principal | `Sales_Accepted__c` (input) | `Sales_Accepted_At__c` · `_By__c` · `Sales_Acceptance_Basis__c` (evidence) |
+|---|---|---|
+| `NIQ_Revenue_Seller` | `readable=true`, **`editable=true`** | `readable=true`, **`editable=false`** |
+| `NIQ_Revenue_Operations` | `readable=true`, **`editable=true`** | `readable=true`, **`editable=false`** |
+| `NIQ_Integration_Read` | `readable=true`, `editable=false` | `readable=true`, `editable=false` |
+
+**This split is the whole security argument for the acceptance model.** A seller can *assert* an
+acceptance — that is their decision to make — but cannot write who accepted, when, or under which
+policy. Those come from the authenticated identity and the Flow clock, in system context. So
+acceptance evidence can be **created** by a human decision and never **rewritten** by one, which is
+what stop-condition 8 of this increment required.
+
+RevOps holds the same shape rather than more: they may record an acceptance on behalf of the
+business, and are equally unable to alter the resulting evidence.
+
+**A seller cannot assert their own qualification evidence.** `MQL_Basis__c` is readable and not
+editable wherever it is granted, so the reason a Lead is an MQL is written by the Flow or not at
+all — Marketing cannot type a justification into it, and Sales cannot amend one. That is the whole
+point of holding qualification evidence in a governed field rather than a note.
+
+**Editable is false everywhere it is readable.** Both fields are written only by
+`Lead_Inbound_Before_Save`, which runs in system context — so the stage timestamp is automation
+evidence rather than a value a seller or an integration can assert. This is the same separation
+`SP-4` applies to configuration capability, expressed as field-level access.
+
+**The administrator running the CLI cannot read it.** A SOQL query for the field returns
+`INVALID_FIELD`, because FLS was granted only to the three permission sets above and none of them is assigned to that administrator. Every assertion in
+[`testing-strategy.md`](testing-strategy.md) §2i was therefore verified through the NorthstarIQ
+integration identity — the same identity the assessment uses. Least privilege made the test harder
+to write, which is the point.
+
+**The policy is configuration, not runtime user input.** `Lifecycle_Transition__mdt` is readable by
+the integration principal and writable only through `NIQ_Rule_Configuration`, which remains
+**unassigned to any principal**. Nothing a user submits on a Lead can widen what transitions are
+allowed.
+
+**The assessment application still mutates nothing.** The governed lifecycle mutation is performed
+by the Salesforce Flow during the user's own save. NorthstarIQ reads the result; it does not write
+it, and §4b establishes that its principal could not write it if it tried.
+
+---
+
 ## 5. Queues — Superseded by the implemented design
 
 **Candidate design — 2 queues:** `Routing_Exception_Queue` for unassignable records;

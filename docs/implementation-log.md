@@ -1552,6 +1552,1378 @@ has a relationship to `Lead`** — the association is made by value at read time
 
 ---
 
+### 2026-08-27 — Lifecycle Governance decisions closed · Opportunity Conversion Integrity proven
+
+```
+Requirement:   BR-15 (governed lifecycle taxonomy, P1) and the qualification
+               half of BR-17. This entry CLOSES OD-03 and records PD-14.
+Metadata:      NONE. 0 Salesforce metadata created, modified or deployed.
+               0 records mutated. 0 permission changes.
+Component:     web/ - lib/checks/index.ts (opportunityConversionIntegrity),
+               lib/soql.ts, lib/types.ts, lib/score.ts, lib/presentation.ts,
+               lib/traceability.ts, lib/export-model.ts,
+               components/RunAssessment.tsx, components/Icons.tsx,
+               test/checks.test.ts, test/fixtures.ts
+Deployment:    None.
+Validation:    63/63 unit tests (10 new) - tsc --noEmit clean - production
+               `next build` clean from a cleared .next - live assessment run -
+               live read-only execution of the control against 49 org Leads
+Test result:   Live, 2026-08-27T17:53:30Z. 49 Leads read - 3 evaluated -
+               3 failing - 46 not evaluated - score 0. Reconciles exactly.
+               The three: Andy Young, Jack Rogers, Pat Stumuller, each
+               Status = "Closed - Converted", IsConverted = false, and all
+               four conversion fields null. Org-wide IsConverted = true: 0.
+               Existing assessment unchanged - 7 controls, 5 areas,
+               overall health 62.
+Commit:        NOT COMMITTED - held for human review
+Deferred:      Wiring the control into runAllChecks - see below. The whole
+               Salesforce lifecycle foundation. MQL/SAL/SQL automation.
+```
+
+**The contradiction this proves NorthstarIQ can find.** Three Leads carry a status
+Salesforce itself marks as *converted*, while `IsConverted` — the flag the platform sets during
+conversion and which cannot be edited afterwards — says the conversion never happened. No Account,
+Contact or Opportunity was produced. **A lifecycle label was set; nothing substantiates it.** That is
+the qualification-trust problem in one record, and it was already sitting in the org before this
+increment.
+
+**What the control deliberately does not claim.** It does not require a converted Lead to have
+produced an Opportunity. Salesforce supports conversion with *"don't create an opportunity"*, so a
+null `ConvertedOpportunityId` is a legitimate outcome and is never on its own a failure. A test pins
+that boundary. The failing condition is narrower and harder to argue with: **status claims converted
+AND `IsConverted` is false.**
+
+**Population.** Only Leads that make the claim — 3 of 49. The other 46 are `outside`, not
+unmeasurable: a Lead in *Open - Not Contacted* asserts nothing about conversion, so there is nothing
+to substantiate. Each carries its own reason naming its own status.
+
+**IT IS IMPLEMENTED AND NOT SCORED, AND THAT IS THE POINT.** `opportunityConversionIntegrity` is
+absent from `runAllChecks` and from `CHECK_IDS`. Adding it would create Assessment Area #6, and
+because `overallHealth` is an unweighted mean of areas, **every existing area would fall from a fifth
+of the score to a sixth and overall health would move without a single existing control changing.**
+That is a user-visible scoring change and the break between Assessment Model v1 and v2. It is one
+line, and it is held for approval rather than taken quietly. Two tests assert the boundary: the
+scored run still returns **7 controls across 5 areas**, and declaring the sixth category changes
+nothing while it holds no result.
+
+### Assessment Model versioning
+
+| | Areas | Controls | State |
+|---|---:|---:|---|
+| **Model v1** | 5 | 7 | **Current.** Every score in this repository was produced under it. |
+| **Model v2** | 6 | 11 | **Not reached.** Applies only once Lifecycle Governance and its four approved controls are all implemented. |
+
+**A Model v1 score is not comparable with a Model v2 score.** Adding a sixth area re-weights the
+five that exist from 20% to ~16.67% each, so overall health would move for structural reasons alone.
+No historical result will be recalculated to make the two comparable — the earlier figure was
+correct for the model that produced it.
+
+### Decisions closed
+
+| Decision | Resolution |
+|---|---|
+| **Assessment Area number** | Lifecycle Governance is **#6**, not #7. The repository has **5** areas and **7 controls**; earlier planning language conflated the two. |
+| **`OD-03`** | **Closed** by `PD-14`. Weighting is not answered, it is **removed**: qualification becomes a set of deterministic conditions that must all hold. No points, no threshold, no scoring model. Marked **Synthetic Baseline**. |
+| **Control set** | All four Lifecycle Governance controls remain approved. Only Opportunity Conversion Integrity is built. |
+| **Scoring** | Unchanged. The area, not the control, is the weighting unit; four lifecycle controls would each carry a quarter of one sixth. Accepted. |
+| **Record Types** | Investigated, **not justified**. No structural business distinction found; `PD-08` already places the taxonomy on standard `Lead.Status`. |
+
+### Transition enforcement — architecture resolved, not built
+
+`Lifecycle_Transition__mdt` must remain the single allowed-transition policy. Three mechanisms were
+compared against that requirement:
+
+| Option | Verdict |
+|---|---|
+| **Validation Rule** | **Rejected.** A validation rule can reference Custom Metadata only through `$CustomMetadata.Type__mdt.RecordName.Field__c` — **a specific record named at authoring time**. It cannot look a record up dynamically from the values on the row being saved. Enforcing a matrix would mean enumerating every from→to pair inside the rule, which is a **second copy of the policy** — exactly the competing definition that must not be created. |
+| **Existing before-save Flow** | **Recommended.** `Lead_Inbound_Before_Save` is already `RecordBeforeSave` / `CreateAndUpdate` on Lead at API 67.0, and **already carries `ISCHANGED($Record.Status)` in its entry criteria** for first-touch stamping. It can `Get Records` on the CMDT filtered by prior and new stage — a genuine dynamic lookup — and block an unlisted transition with a Custom Error element. CMDT stays the only definition; the Flow reads it. |
+| **Apex** | **Rejected.** No capability here is unavailable declaratively, and `CLAUDE.md` holds the Apex target at zero. |
+
+**Two things to validate before building it:** the Custom Error element behaves as expected in a
+before-save Flow at this API version, and adding a bulk `Get Records` to a Flow that currently
+performs none does not compromise its bulk safety. Both are implementation-time tests, not
+assumptions to carry forward.
+
+**Salesforce safety.** 0 metadata deployed · 0 permissions changed · 0 records mutated. The
+extended `LEAD_SOQL` adds five standard conversion fields and was confirmed readable by the
+least-privilege integration identity — the live assessment ran and returned unchanged results.
+NorthstarIQ remains read-only: its only Salesforce operation is still a SOQL query.
+
+---
+
+### 2026-08-27 — Salesforce Lifecycle Foundation deployed: taxonomy and evidence
+
+```
+Requirement:   BR-15 (governed lifecycle taxonomy, transitions recorded -
+               P1), PD-08, PD-09, PD-12. BR-16 is served only to the extent
+               PD-09 requires: capture now, measurement later.
+Metadata:      DEPLOYED to northstariq-dev, 37/37 components, 0 errors.
+               MODIFIED  LeadStatus standard value set (+MQL, +SAL, +SQL)
+               NEW       Lead.Lifecycle_Stage_Entered__c (DateTime)
+               NEW       Lifecycle_Transition__mdt + 4 fields + 10 records
+               MODIFIED  NIQ_Integration_Read, NIQ_Revenue_Seller,
+                         NIQ_Rule_Configuration
+               0 Flows changed. 0 validation rules. 0 Record Types. 0 Apex.
+               0 Lead records mutated.
+Deployment:    Validate-only run first (0Afaj00000iD2gzCAC) - succeeded.
+               Deploy 0Afaj00000iBRBeCAO - Succeeded, 37/37, 0 errors.
+Validation:    Read-only SOQL and describe against the org after deploy -
+               63/63 web unit tests - tsc clean - live assessment unchanged
+Test result:   Lead.Status now carries 7 values in lifecycle order. Exactly
+               one still carries the converted flag. 10 transition records
+               readable BY THE LEAST-PRIVILEGE INTEGRATION IDENTITY.
+               Lifecycle_Stage_Entered__c present, null on all 49 Leads,
+               createable=false and updateable=false for that identity.
+               49 Leads, status spread 28/14/3/4 - unchanged. The three
+               Closed - Converted / IsConverted=false contradictions intact.
+               Assessment: overall 62, 5 areas, 7 controls - unchanged.
+Commit:        NOT COMMITTED - held for human review
+Deferred:      ALL enforcement. The Flow was not touched.
+```
+
+**What was built: a definition, not a mechanism.** The taxonomy and the transition policy now exist
+in source control and in the org. **Nothing enforces them and nothing stamps anything.** That
+separation is deliberate — the policy can be reviewed before it is allowed anywhere near a Lead save
+path.
+
+**The object boundary is respected.** The lifecycle is
+**Lead → MQL → SAL → SQL → *Salesforce Lead Conversion* → Opportunity**, and the italicised step is a
+**platform transition, not a stage**. No `Opportunity` value was added to Lead Status, because an
+Opportunity is a different object and a status value pretending otherwise would be a diagram tidied
+at the expense of the model. The Lead-side lifecycle terminates at **SQL**; `Closed - Converted`
+remains the single value carrying Salesforce's `converted` flag, and `SQL → Closed - Converted` is
+the one governed route into it.
+
+| Lead Status, as deployed | Converted flag |
+|---|---|
+| Open - Not Contacted *(default)* | — |
+| Working - Contacted | — |
+| **MQL** | — |
+| **SAL** | — |
+| **SQL** | — |
+| Closed - Converted | ✅ **the only one** |
+| Closed - Not Converted | — |
+
+**The transition policy — 10 records, `Rule_Version__c` v1.0, all active.**
+
+| Forward path | Exit path |
+|---|---|
+| Open → Working | Open → Closed - Not Converted |
+| Working → MQL | Working → Closed - Not Converted |
+| MQL → SAL | MQL → Closed - Not Converted |
+| SAL → SQL | SAL → Closed - Not Converted |
+| SQL → Closed - Converted | SQL → Closed - Not Converted |
+
+The forward path is the governed progression. The exit path exists because a Lead can be
+disqualified at any point, and a policy that forbade closure would be wrong rather than strict.
+
+**Deliberately excluded, recorded as Candidate rather than invented:**
+
+| Candidate transition | Why it was not created |
+|---|---|
+| Open - Not Contacted → MQL | Plausible for a high-intent inbound arriving already qualified, but whether the process permits skipping contact is a **business decision nobody has made**. |
+| MQL → Working - Contacted · SAL → MQL · SQL → SAL | Lead recycling is common in real orgs. Which backward moves are legitimate, and under what conditions, is policy — and inventing it would put a rule into the org that no one agreed. |
+
+**Single source of truth, verified.** `Lifecycle_Transition__mdt` is the **only** executable
+definition of an allowed transition introduced anywhere. No transition matrix was added to a
+validation rule, a Flow formula, a TypeScript constant or a documentation table. The tables above
+**describe** the policy; the Custom Metadata **is** the policy.
+
+**`Lifecycle_Stage_Entered__c` is empty on every record, and that is correct.** One timestamp, as
+`PD-09` requires — not one per stage and not a custom history object, because Salesforce field
+history on `Status` already carries the transition trail and this answers the different question of
+when the *current* stage began. The automation that will maintain it is a later increment, so its
+emptiness means **"not yet captured"**, never "entered at an unknown time". It was left off the Lead
+page layout for exactly that reason: an always-blank field teaches an evaluator nothing.
+
+**Access, deliberately narrow.** Read-only in both permission sets that received it — the
+integration identity reads it as future evidence, and a seller reads a value automation will set.
+Confirmed by describe: `createable=false`, `updateable=false` for the integration identity, and the
+`Lead` object write boundary is unchanged at create/update/delete all false. `NIQ_Rule_Configuration`
+received the Custom Metadata type because that permission set exists precisely to hold write access
+to governed rule configuration; it remains **unassigned to any principal**.
+
+**Status: Implemented and validated as a definition. NOT enforced.** Nothing prevents an invalid
+transition today, and nothing stamps the timestamp. Both are the next increment.
+
+---
+
+### 2026-08-27 — Lifecycle transition enforcement: the policy becomes preventive
+
+```
+Requirement:   BR-15 (transitions governed and recorded), PD-09 (one
+               stage-entry timestamp), PD-12 (validation on transition).
+Metadata:      MODIFIED  Lead_Inbound_Before_Save - EXTENDED, not rewritten.
+                         +2 assignments, +1 customErrors, +2 decisions,
+                         +4 formulas, +1 recordLookups. Exactly ONE existing
+                         element changed: the start connector.
+               0 new Flows. 0 validation rules. 0 Record Types. 0 Apex.
+               0 fields, 0 CMDT, 0 permission, 0 layout changes.
+               0 baseline records mutated.
+Deployment:    Validate-only first - Succeeded. Deploy - Succeeded, 1/1, 0 errors.
+Validation:    9-scenario controlled behavioural matrix against purpose-built
+               test records, then full cleanup. 63/63 web unit tests. tsc
+               clean. Live assessment unchanged.
+Test result:   9 passed / 0 failed. Org returned to exactly 49 Leads,
+               13 Accounts, 32 Opportunities; the 3 Closed - Converted
+               contradictions intact. Assessment: 62, 5 areas, 7 controls.
+Commit:        NOT COMMITTED - held for human review
+Deferred:      Salesforce Lead conversion behaviour - UNVERIFIED, see below.
+```
+
+**The governance chain is now closed on the Lead side.**
+
+```
+BR-15  →  Lifecycle_Transition__mdt  →  Lead_Inbound_Before_Save  →  Lifecycle_Stage_Entered__c
+business rule    governed metadata          preventive safeguard      observable evidence
+```
+
+**The Flow asks one question and states no policy.** On a Status change it runs a single selective
+lookup ` — ` `From_Stage__c` = prior, `To_Stage__c` = new, `Is_Active__c` = true, first record
+only ` — ` and branches on whether a record came back. **No stage name appears in any lifecycle
+decision condition**, verified by scanning the deployed Flow: `Lifecycle_Transition__mdt` remains the
+only executable definition of an allowed transition, and the Flow holds no second copy of it.
+
+Deliberately not a retrieve-all-and-loop. The segment and territory elements loop because they
+compare ranges and resolve precedence; a transition is exact equality on two fields, so the filter
+does the whole job and no collection is created.
+
+**Bulk safety, from the actual execution model rather than an assertion.** The Flow already
+performed **four** Get Records before this change — two of them Custom Metadata — and its own
+element descriptions already record that *Custom Metadata reads do not consume SOQL query limits*.
+The new lookup is the fifth and the third against Custom Metadata. A record-triggered Flow processes
+the whole trigger batch in one interview set and Get Records elements are executed once per batch
+rather than once per record. Tested at batch volume: 4 creates and 4 updates with no Flow or
+governor failure.
+
+**No fault connector on the new lookup, by design.** An unhandled fault blocks the save. For a
+preventive safeguard that is the correct direction to fail — a fault path that continued would let
+an unvalidated transition through at exactly the moment the policy could not be read.
+
+**Creation stamps the timestamp.** Creation *is* entry into the initial stage, so leaving it null
+until the first transition would make the first computable duration start at the wrong moment. It
+records when the record entered the stage **in this system**: a loaded record carries the load time,
+which is true and is not a claim about when the business event happened. Verified that stamping on
+create does not disturb segmentation, matching, territory or SLA — a created test Lead came out with
+`Segment__c` Mid-Market, `Territory__c` NA-West and `SLA_Status__c` Unmeasurable exactly as before.
+
+**Controlled test matrix — 9 passed, 0 failed.**
+
+| # | Scenario | Result |
+|---|---|---|
+| A | Create | stamped; existing automation unaffected |
+| B | Unrelated update (Title) | saved; timestamp unchanged |
+| C | Open → Working | saved; timestamp updated |
+| D | Working → MQL | saved; timestamp updated |
+| E | MQL → Closed - Not Converted | saved; timestamp updated |
+| F | **Open → SQL** | **blocked**; Status and timestamp unchanged |
+| G | Full path to SQL, then **SQL → SAL** | forward all 4 succeeded; **backward blocked** |
+| H | Re-save, Status unchanged | saved; timestamp unchanged |
+| I | Batch: 4 creates + 3 transitions + 1 unrelated update | all succeeded; all stamped |
+
+Operator-facing error, verbatim from the org:
+
+> This lifecycle transition is not allowed by the governed NorthstarIQ lifecycle policy:
+> Open - Not Contacted to SQL.
+
+Record-level rather than field-level, so the same message is returned through the UI, the API and a
+data load. The whole save is rolled back: in both blocked cases `Status` and
+`Lifecycle_Stage_Entered__c` were both verified unchanged afterwards.
+
+**A least-privilege detail worth recording.** The System Administrator running the CLI **cannot read
+`Lifecycle_Stage_Entered__c`** — a query returns `INVALID_FIELD` — because FLS was granted only to
+`NIQ_Integration_Read` and `NIQ_Revenue_Seller`. Every assertion above was therefore verified
+through the NorthstarIQ integration identity, which is the same identity the assessment uses. The
+narrow grant is doing real work.
+
+### ⚠️ Salesforce Lead conversion: UNVERIFIED
+
+> **RESOLVED the same day, 2026-08-27** — see *Native Lead conversion verified
+> against the lifecycle safeguard* below. Conversion **does** traverse the
+> safeguard, and a Custom Error **does** block it. All six questions below were
+> answered. This section is left as written because it records what was
+> genuinely established at the time the enforcement increment closed; it is
+> history, not current status.
+
+`SQL → Closed - Converted` is in the policy and **an ordinary Status edit to that value is
+enforced**. What is *not* established is whether Salesforce's own **Lead conversion process** takes
+the same path.
+
+The REST resource `/sobjects/LeadConvert` returned **HTTP 404** at API 67.0 in this org, and the
+remaining routes are the SOAP `convertLead()` call, the Lightning UI, or Apex — none available
+inside this increment's boundary. **No conversion was performed and nothing was inferred.**
+
+Open questions, all still open:
+
+1. Does Lead conversion invoke this before-save Flow at all?
+2. Is `$Record__Prior.Status` the pre-conversion stage during conversion?
+3. When exactly does the platform set the converted status?
+4. Can a Custom Error block a conversion?
+5. Is stamping the timestamp during conversion valid?
+6. Does any platform restriction affect editing the Lead mid-conversion?
+
+**Why this matters, and why it is not a blocker.** If conversion bypasses the before-save Flow, an
+unenforced route into `Closed - Converted` exists. That is precisely the gap **Opportunity Conversion
+Integrity** detects — and it is the argument for having both a preventive safeguard and an
+independent detective control rather than trusting either alone. The three existing contradictions
+in the org are what that gap looks like in practice.
+
+**Layout: still not added.** All 49 baseline Leads have the timestamp null, because none of them has
+transitioned since the field existed. A field that is blank on every record an evaluator opens
+teaches nothing. Revisit when lifecycle fixtures exist.
+
+**Rollback.** The previous Flow version is retained by Salesforce as an inactive version;
+reverting is activating it. No data migration is involved because the Flow writes only the new
+timestamp field.
+
+**Status: transition enforcement is Implemented and Validated for ordinary Status edits.** Conversion
+is **not** covered by that claim.
+
+---
+
+### 2026-08-27 — Native Lead conversion verified against the lifecycle safeguard
+
+```
+Requirement:   BR-15. Closes the conversion question left open by the
+               enforcement increment earlier the same day.
+Metadata:      NONE. 0 Flows, 0 fields, 0 CMDT, 0 permissions, 0 layouts
+               changed. This was a verification experiment, not a build.
+Mechanism:     Native Lightning Convert action. Not simulated, not Apex,
+               not a custom Flow.
+Fixtures:      2 purpose-built synthetic Leads, both deleted afterwards.
+               0 baseline records mutated.
+Test result:   Conversion traverses the preventive safeguard. OUTCOME A.
+Repository:    NEW  scripts/soql/lead-conversion-evidence.soql
+Commit:        NOT COMMITTED - held for human review
+```
+
+**The question.** The enforcement increment proved that an ordinary `Status`
+edit is governed. It did not establish whether Salesforce's own conversion
+transaction takes the same path. Conversion is an object boundary, and the
+governed lifecycle is `Lead → MQL → SAL → SQL → conversion → Opportunity`,
+not an Opportunity-shaped Lead Status.
+
+**Which mechanisms are actually reachable in this org** — established before
+touching a record, and worth recording because it constrains any future
+automated conversion test:
+
+| Route | Result |
+|---|---|
+| REST `/sobjects/LeadConvert` | HTTP 404 |
+| Standard invocable action `actions/standard/convertLead` | HTTP 404, `Invalid Action Type` — the Actions API is present, this action is not |
+| Integration principal | `createable=false` on Lead, Account, Contact and Opportunity — it cannot convert anything |
+| Apex | excluded by the increment boundary |
+| **Lightning Convert action** | **available and used** |
+
+**The decisive evidence.** The fixture reached `SQL` through the governed path
+(`Open → Working → MQL → SAL → SQL`, each transition matched to an active
+policy record, each stamping the timestamp). Immediately before conversion it
+held `Lifecycle_Stage_Entered__c = 19:05:06Z`, `IsConverted = false` and every
+`Converted*` field null. After one native conversion:
+
+```
+Lifecycle_Stage_Entered__c   19:05:06Z  →  19:08:43Z
+Lead.LastModifiedDate                       19:08:43Z
+LeadHistory                  Status: SQL → Closed - Converted at 19:08:43Z
+```
+
+That timestamp is written by exactly one element, `asgnStageEnteredOnTransition`,
+and that element is reachable only after `getLifecycleTransition` returns a
+record. **A changed timestamp therefore proves the whole chain in one
+observation**: the before-save Flow ran inside the conversion transaction, saw
+`Status` as changed, held `SQL` as the prior stage and `Closed - Converted` as
+the new one, executed the Custom Metadata lookup, and found the active
+`SQL → Closed - Converted` rule. None of that is inferred from documentation.
+
+**The control that proves blocking, without touching the policy.** Deleting the
+`SQL → Closed - Converted` record to watch a conversion fail would have meant
+editing the authoritative policy. Instead a second fixture was parked at `MQL`,
+a stage the policy gives no route to `Closed - Converted`, and converted
+natively. The Convert modal returned:
+
+> Validation error on Lead: This lifecycle transition is not allowed by the
+> governed NorthstarIQ lifecycle policy: MQL to Closed - Converted.
+
+The entire conversion transaction rolled back: `Status` still `MQL`,
+`IsConverted` still false, timestamp unchanged, and **zero** Accounts, Contacts
+or Opportunities created. A Custom Error in a before-save Flow can block a
+native Lead conversion, and it blocks the whole transaction rather than leaving
+half-built child records behind.
+
+**Two platform behaviours observed in the native modal**, both of which
+constrain how a future control must be written:
+
+1. The **Converted Status** picklist offered exactly one value,
+   `Closed - Converted`. The platform derives that list from the
+   `converted` flag in the standard value set, so `MQL`, `SAL` and `SQL` are
+   structurally incapable of being conversion statuses. The taxonomy is
+   enforced by Salesforce itself, not only by NorthstarIQ.
+2. The modal carries a **"Don't create an opportunity upon conversion"**
+   checkbox. Opportunity creation is optional at the platform level.
+
+**The conversion invariant, stated precisely.** These are two different tests
+and must not be folded together:
+
+| Claim | Authoritative evidence |
+|---|---|
+| Salesforce converted this Lead | `IsConverted = true`, and in the same transaction `ConvertedDate`, `ConvertedAccountId` and `ConvertedContactId` are all populated |
+| An Opportunity resulted | `ConvertedOpportunityId != null` — **a NorthstarIQ business-policy question, not a platform-integrity one** |
+
+`Status` is a claim; `IsConverted` is the fact. The three baseline records where
+`Status = Closed - Converted` and `IsConverted = false` are exactly that
+disagreement, which is what **Opportunity Conversion Integrity** detects. A
+converted Lead with no Opportunity is **not** a defect unless NorthstarIQ policy
+separately requires one, and that policy does not yet exist.
+
+**What conversion created, and cleanup.** Account, Contact and Opportunity
+(`Prospecting`, close date +30 days, `Amount` null, `LeadSource` carried from
+the Lead) — all named from the fixture, matching no existing Account
+(`0 Account Matches`), so no business record was touched. Deleted children
+first, then the Account, then both Leads. **The converted Lead deleted without
+incident**, which is worth recording: converted Leads are deletable in this org.
+Everything went to the Recycle Bin and **the Recycle Bin was deliberately not
+emptied** — Salesforce's own recovery path is left open rather than replaced
+with anything custom.
+
+Org returned to exactly **49 Leads, 13 Accounts, 20 Contacts, 32
+Opportunities**, `IsConverted = true` back to 0, stage timestamps back to 0, the
+three contradictions unmodified (`LastModifiedDate` still 2026-08-17), and the
+policy still 10 active v1.0 records.
+
+**What this changes architecturally, and what it does not.** The preventive
+safeguard covers the conversion boundary as well as ordinary edits, so the
+governed lifecycle is enforced end to end for edits made through the platform.
+It does **not** make the detective control redundant: prevention only governs
+saves that reach the Flow, and the three baseline contradictions are records
+that already hold an unsupported state. Prevention stops new ones; detection
+finds the ones already there.
+
+**Status: Validated.** Native Lightning conversion, one experiment, both
+directions (allowed and blocked), all fixtures removed.
+
+---
+
+### 2026-08-27 — MQL qualification: a stage label becomes an earned claim
+
+```
+Requirement:   BR-17 (one governed fit definition, basis recorded, definition is
+               configuration), PD-14 (required conditions, never a weighted score).
+Metadata:      NEW  MQL_Qualification_Policy__mdt + 3 fields + 1 record
+               NEW  Segment_Band__mdt.MQL_Eligible__c  (on the EXISTING type)
+               NEW  Lead.MQL_Basis__c
+               MOD  Lead_Inbound_Before_Save - EXTENDED. +1 assignment,
+                    +1 customErrors, +2 decisions, +10 formulas, +3 recordLookups.
+                    Exactly ONE existing element changed: where "Allowed" goes next.
+               MOD  4 Segment_Band records; 3 permission sets; 1 field description.
+               0 new Flows. 0 validation rules. 0 Record Types. 0 Apex.
+               0 baseline records mutated. 0 Leads retroactively qualified.
+Deployment:    Validate-only first - FAILED, then succeeded. Deploy - Succeeded,
+                    16 components, 0 errors. Deployed by explicit component list
+                    rather than --source-dir, so nothing unrelated was pushed.
+Test result:   10 scenarios, 10 passed / 0 failed. Org returned to exactly 49 / 13 /
+               20 / 32; the 3 contradictions intact; MQL_Basis__c populated on 0
+               records. Assessment: 62, 5 areas, 7 controls - unchanged.
+Commit:        NOT COMMITTED - held for human review
+```
+
+⚠️ **SYNTHETIC BASELINE.** The MQL qualification policy was authored now, for the fictional
+NorthstarIQ business, to demonstrate lifecycle governance reproducibly. It is **not** an originally
+validated client business requirement and no historical evidence for it was manufactured.
+
+**The gap this closes.** `Working - Contacted → MQL` was already a governed transition, which
+established only that the *move* was structurally permitted. It said nothing about whether the Lead
+had **earned** MQL. Marketing could relabel a record and Sales had no governed answer to *"why is
+this an MQL?"* beyond *"because someone changed the status."*
+
+**Two questions, kept apart.**
+
+| Question | Answered by | Enforced by |
+|---|---|---|
+| May this stage follow the previous one? | `Lifecycle_Transition__mdt` | `errInvalidLifecycleTransition` |
+| Has this Lead earned the stage? | the five required conditions | `errMQLNotQualified` |
+
+Scenario D proves they are genuinely separate: a Lead satisfying **every** qualification condition
+was still refused `Open - Not Contacted → MQL`, and the message named the transition policy, not
+the qualification policy.
+
+**Five required conditions, none weighted.** `PD-14` removed weighting rather than resolving it, so
+there is no score, no threshold and no partial credit — one unsatisfied condition means not
+qualified. Four of the five consume a source that **already governs them**:
+
+| # | Condition | Source | New? |
+|---|---|---|---|
+| 1 | Governed acquisition source | `Routing_Readiness_Source__mdt` | existing |
+| 2 | Routing readiness | `Lead.Territory__c` from `Routing_Rule__mdt` | existing |
+| 3 | Segment eligible for qualification | `Segment_Band__mdt.MQL_Eligible__c` | **new field on an existing type** |
+| 4 | Unambiguous account match | `Lead.Match_Status__c` | existing |
+| 5 | Seller engagement occurred | `Lead.First_Touch_DateTime__c` | existing |
+
+**Only one genuinely new business decision was needed** — which segments the company qualifies. It
+lives on the band that already defines the segment, so no second type restates the segment list.
+Deployed: Strategic, Enterprise and Mid-Market eligible; **SMB not**.
+
+**Why a new Custom Metadata type at all, given that.** `MQL_Qualification_Policy__mdt` holds no
+criteria — no expressions, no field names, no weights. It holds the version stamped onto
+qualified records and the stage the policy governs. Two jobs nothing else owned: proving *which*
+definition produced a historical qualification, and letting the Flow ask *"is this the governed
+stage?"* without a stage name appearing in a Flow condition — the same property that keeps
+`Lifecycle_Transition__mdt` the single definition of an allowed transition. Deactivating the record
+withdraws the requirement and returns MQL entry to transition governance alone; it does not block
+every Lead.
+
+**Deliberately not built:** an expression parser, a configurable boolean DSL, nested rule groups, a
+generic qualification engine. Five named formulas an administrator can read one line at a time beat
+an abstraction that can express rules nobody asked for.
+
+**Evidence, and what was deliberately not created.** `MQL_Basis__c` carries the explanation and the
+policy version:
+
+> Qualified: source Web; territory NA-West; Mid-Market segment eligible; match No Match; first touch
+> recorded | MQL Policy v1.0
+
+Same shape as `Segment_Basis__c` and `Routing_Reason__c`. **No `MQL_Qualified_At__c`** —
+`Lifecycle_Stage_Entered__c` already records when MQL was entered and the only way to hold MQL is to
+have transitioned into it, so a second timestamp would duplicate it. **No `MQL_Policy_Version__c`**
+— the version travels inside the basis, exactly as the segment rule version does, and the segment
+model has no separate version field either.
+
+**The failure message is built from the same five formulas as the pass test**, so it cannot disagree
+with the decision:
+
+> This Lead does not meet the governed NorthstarIQ MQL qualification requirements (MQL Policy v1.0).
+> Not satisfied: segment eligible for qualification;
+
+**A platform constraint that changed the design mid-increment.** Routing readiness was written first
+as `Data_Quality_Status__c = "Complete"` — the existing governed definition of routing-critical
+completeness. The validate-only deploy **failed**:
+
+> field integrity exception: unknown (When the TriggerType field is set to "RecordBeforeSave", the
+> $Record.Data_Quality_Status__c field isn't supported.)
+
+Salesforce does not allow a formula field to be referenced from a before-save Flow. Restating that
+formula's test inside the Flow would have created a **second definition of routing readiness**, so
+the criterion was rewritten to consume the **derived** value instead: `Territory__c` exists only
+because a present country was mapped by `Routing_Rule__mdt`. The two agree in every case tested but
+they are not the same expression, and that is recorded rather than smoothed over.
+
+**The stale field description was corrected.** `Lifecycle_Stage_Entered__c` still claimed *"NOT YET
+STAMPED: the automation that will maintain it is a later, separately approved increment"*. It now
+describes what the field actually does, and was redeployed with the rest of this increment — the
+last stale lifecycle claim in the repository.
+
+**Controlled test matrix — 10 passed, 0 failed.** Each of the five criteria was failed
+independently, so none is carried by its neighbours. 12 synthetic Leads and 2 synthetic Accounts
+created and all deleted; org back to 49 / 13 / 20 / 32 with the three contradictions untouched.
+Details in [`testing-strategy.md`](testing-strategy.md) §2j.
+
+**Nothing was retroactively qualified.** `MQL_Basis__c` is populated on **0** records. The foundation
+operates prospectively by design: existing records are the business of the future **MQL
+Qualification Integrity** detective control, which is **planned and unbuilt**.
+
+**Preventive and detective, again.** Salesforce now blocks a new unsupported MQL claim. NorthstarIQ
+does not yet identify existing MQL records whose evidence fails to substantiate the stage — and
+the org holds no MQL records at all, so there is currently nothing for such a control to find. Both
+halves remain necessary for the same reason they do at the conversion boundary.
+
+**Status: Implemented and Validated for MQL entry.** SAL acceptance and SQL qualification are
+**unbuilt**, Lifecycle Governance is **not** complete, and Assessment Model v1 is unchanged at 62 —
+5 areas, 7 scored controls.
+
+---
+
+### 2026-08-27 — MQL policy reconciliation: the definition moves out of the Flow, and Sales stops gating Marketing
+
+```
+Requirement:   BR-17, PD-14. Resolves two findings from human review of the
+               MQL foundation entry immediately below. That entry is left
+               exactly as written - it records what was true when it closed.
+Metadata:      NEW  4 x Require_*__c on MQL_Qualification_Policy__mdt
+               NEW  MQL_Qualification_Policy.NorthstarIQ_MQL_v1_1 (active)
+               MOD  v1.0 record - deactivated, relabelled "(superseded)"
+               MOD  Lead_Inbound_Before_Save - 4 criterion formulas now
+                    policy-gated; fxMQLFirstTouch REMOVED; basis rebuilt;
+                    policy selected by the stage being entered.
+               MOD  NIQ_Integration_Read + Segment_Band__mdt read
+               MOD  repository validator: one active policy per stage
+               0 new Flows. 0 validation rules. 0 Apex. 0 Record Types.
+               0 baseline records mutated.
+Deployment:    Validate-only FAILED (object description over 1000 chars),
+               then succeeded. Deploy - Succeeded, 13 components, 0 errors.
+Test result:   11 scenarios, 11 passed / 0 failed. Org back to 49 / 13 / 20 / 32;
+               3 contradictions intact; MQL_Basis__c on 0 records.
+               Assessment: 62, 5 areas, 7 controls - unchanged.
+Commit:        NOT COMMITTED - held for human review
+```
+
+⚠️ **SYNTHETIC BASELINE**, unchanged in status: the policy was authored for reproducible
+demonstration and v1.0 was never a client requirement either. Reclassifying it does not make it
+historical evidence.
+
+**Finding 1 — seller activity was gating Marketing.** v1.0 required
+`First_Touch_DateTime__c`. That field's own definition says it captures *"when the **seller** first
+acted"* (`BR-11`), stamped on the first Status change into a working or closed value. Requiring it
+for MQL inverted the handoff: **Sales had to act before Marketing could validly produce the thing
+Sales is being handed.** Confirmed against the field artifact, not assumed.
+
+**Removed from the policy, not from the org.** The field keeps its `BR-11` SLA purpose and its
+stamping behaviour is untouched. It is now a **candidate evidence source for Sales acceptance /
+SAL**, where seller action actually belongs.
+
+**Nothing replaced it.** No engagement score, no intent model, no campaign activity, no behavioural
+event infrastructure. The org contains no credible Marketing-engagement signal, so the policy is
+**four conditions and honest** rather than five and invented.
+
+**Finding 2 — the definition was in the wrong layer.** v1.0's policy record said only *"MQL v1.0 is
+active"*; the requirement set lived in Flow formulas. Changing what MQL means meant editing Flow
+logic — which makes the Flow materially part of the policy, and guarantees the future detective
+control would have had to recreate the business definition in TypeScript.
+
+**The record now declares the requirements.** Four checkboxes:
+`Require_Governed_Source__c`, `Require_MQL_Eligible_Segment__c`, `Require_Routable_Territory__c`,
+`Require_Unambiguous_Match__c`. Each criterion formula reads its flag first, so a requirement the
+policy does not declare evaluates true and drops out — and the evidence string and the failure
+message are assembled from the same policy-gated formulas, so neither can describe a requirement that
+was not tested.
+
+**Still not a rules engine.** A fixed schema of named checkboxes: no expressions, no field names, no
+operators, no weights, no nested groups, no JSON. Each flag declares that a requirement **applies**;
+the requirement itself stays owned by the metadata that already governs it — `Routing_Readiness_Source__mdt`, `Segment_Band__mdt.MQL_Eligible__c`, `Routing_Rule__mdt` through
+`Territory__c`, and `Match_Status__c`. Adding a requirement is a schema change, deliberately.
+
+**Two groups, one test.** Requirements 1–2 are **qualification eligibility**; 3–4 are **handoff
+readiness**. A resolved territory is not evidence of a good buyer — it is evidence the handoff has
+somewhere to land, and the portfolio story is weaker if those are conflated. All four are required;
+the grouping explains, it does not score.
+
+**Account match, stated precisely.** MQL requires an **unambiguous** match state, **not** a matched
+Account. `No Match` passes — a genuinely net-new prospect is what Marketing is meant to find. Only
+`Review` fails, because two or more candidate Accounts leave ownership unresolved at handoff.
+Verified both ways (F and E).
+
+**Policy selection became deterministic, not merely ordered.** The lookup now filters on
+`Qualified_Stage__c` matching the stage being entered, so a future SAL or SQL policy cannot be picked
+up by the MQL gate — and the same gate will serve those stages with no structural change. Salesforce
+cannot enforce *one active record per stage* on Custom Metadata, so the **repository validator** now
+asserts it (50 checks, up from 49) and the lookup is ordered by version descending as a backstop.
+**A convention enforced by a test is weaker than a database constraint**, and is recorded as such.
+
+**Versioning, honestly.** v1.0 is **deactivated and relabelled "(superseded)"**, not overwritten —
+its four `Require_*` flags are set true, which is accurate for the four conditions it shared with
+v1.1. The fifth, seller first touch, is deliberately **not** expressible in the new schema, so that
+difference lives in this entry rather than in a flag for a criterion that no longer exists. **No
+record anywhere was qualified under v1.0**: the v1.0 fixtures were deleted at the end of that
+increment and `MQL_Basis__c` is populated on 0 Leads, so no historical evidence needed migrating.
+
+**One permission was widened, for a reason.** `NIQ_Integration_Read` gained **read** on
+`Segment_Band__mdt`. Without it the future detective control could read the policy but not
+`MQL_Eligible__c`, and would have had to hard-code the eligible segment list — exactly the
+duplication this increment exists to prevent. Read-only, on configuration the assessment is meant to
+reason about; `NIQ_Rule_Configuration` remains the only identity that can change it.
+
+**The critical test needed no manual field manipulation.** A Lead **created** at
+`Working - Contacted` never has first touch stamped, because that stamp requires a Status *change*.
+The identical fixture that v1.0 refused for *"seller first touch"* is granted under v1.1. Full matrix
+in [`testing-strategy.md`](testing-strategy.md) §2k.
+
+**Future detective control: feasible, and still unbuilt.** It would read the active policy record
+(which requirements, which version), the governed sources, and the Lead's own values, and reach the
+same deterministic result. Every one of those is now readable by the integration principal. Nothing
+was implemented, `runAllChecks` and `CHECK_IDS` are untouched, and the assessment remains **62 —
+5 areas, 7 scored controls**.
+
+**Status: Implemented and Validated for MQL entry, v1.1.** SAL acceptance and SQL qualification
+remain **unbuilt**; Lifecycle Governance is **not** complete.
+
+---
+
+### 2026-08-27 — Sales acceptance: the handoff acquires a second signature
+
+```
+Requirement:   BR-15 (transitions recorded with timestamp AND CAUSE; invalid
+               transitions prevented), BR-16 (stage duration answerable
+               retrospectively), PD-12.
+Metadata:      NEW  Lead.Sales_Accepted__c            - the seller INPUT
+               NEW  Lead.Sales_Accepted_At__c         - EVIDENCE
+               NEW  Lead.Sales_Accepted_By__c         - EVIDENCE (Lookup User)
+               NEW  Lead.Sales_Acceptance_Basis__c    - EVIDENCE
+               NEW  Sales_Acceptance_Policy__mdt + 5 fields + 1 record
+               MOD  Lead_Inbound_Before_Save - EXTENDED. +1 assignment,
+                    +1 customErrors, +2 decisions, +6 formulas, +1 recordLookups.
+                    Exactly ONE existing connector changed.
+               MOD  3 permission sets; repository validator generalized.
+               0 new Flows. 0 validation rules. 0 Apex. 0 Record Types.
+               0 approval processes. 0 baseline records mutated.
+Deployment:    Validate-only succeeded. Deploy - Succeeded, 0 errors.
+               Redeployed after a requirement-tag correction (below).
+Test result:   9 scenarios, 9 passed / 0 failed. Org back to 49 / 13 / 20 / 32;
+               3 contradictions intact; acceptance evidence on 0 records.
+               Assessment: 62, 5 areas, 7 controls - unchanged.
+Commit:        NOT COMMITTED - held for human review
+```
+
+⚠️ **SYNTHETIC BASELINE.** This acceptance policy was authored for reproducible demonstration of
+lifecycle governance. It is **not** an originally validated client business requirement.
+
+**The question this closes.** `MQL → SAL` was a governed transition, which established only that the
+move was permitted. Nothing established that **Sales had accepted anything**. `Status = SAL` was both
+the claim and its only evidence — which is circular.
+
+**Two facts, two sets of evidence, neither overwriting the other.**
+
+| Fact | Evidence |
+|---|---|
+| Marketing qualified this Lead | `MQL_Basis__c` |
+| Sales accepted responsibility | `Sales_Accepted_At__c` · `Sales_Accepted_By__c` · `Sales_Acceptance_Basis__c` |
+
+**Input and evidence are deliberately different fields.** The seller writes exactly one thing:
+`Sales_Accepted__c`, a checkbox whose only meaning is *"I accept responsibility for this
+Marketing-qualified Lead."* The actor, the time and the basis are written by the Flow from the
+authenticated identity and the Flow clock. **An acceptance can therefore be asserted by a human and
+never back-dated, re-attributed or rewritten by one** — `editable=false` on all three evidence
+fields in every permission set that grants them.
+
+**Why this counts as explicit acceptance rather than an inference.** Ticking the box is a separate,
+deliberate act from moving the stage; the stage move without it is refused. Acceptance is never
+derived from the picklist change.
+
+**Why a separate policy type.** `MQL_Qualification_Policy__mdt` is named for, and scoped to, Marketing
+qualification. The previous increment's report suggested the pattern would generalise; on inspection,
+stretching that type over Sales acceptance would have been the first step toward a generic lifecycle
+policy object. **Two small explicit types beat one abstract one**, so
+`Sales_Acceptance_Policy__mdt` was created narrowly instead: version, governed stage, two requirement
+flags, active.
+
+**Two requirements, none weighted.** Explicit acceptance · substantiated Marketing handoff. The
+second checks only that `MQL_Basis__c` is present — an **evidence-chain** check, deliberately not a
+re-run of the MQL policy, so that definition is not duplicated in a second gate. Whether the
+Marketing evidence still holds is the business of the future detective control.
+
+**Three new fields, each answering a question nothing else could.**
+
+| Field | Why not something existing |
+|---|---|
+| `Sales_Accepted_At__c` | `Lifecycle_Stage_Entered__c` is overwritten on the next transition, so it stops answering when SAL was accepted the moment the Lead reaches SQL |
+| `Sales_Accepted_By__c` | `OwnerId` is ownership and is reassignable; `LastModifiedById` is overwritten by any later edit |
+| `Sales_Acceptance_Basis__c` | Nothing else records which acceptance policy version applied |
+
+**First Touch was inspected and rejected as acceptance evidence.** The previous increment listed it
+as a candidate; inspection settled it. `First_Touch_DateTime__c` records when the *seller first
+acted* (`BR-11`) and is stamped on entry to `Working - Contacted` — **before MQL exists**. It cannot
+evidence accepting a handoff that has not yet happened. Proven both ways: a Lead with First Touch and
+no acceptance was **refused**; a Lead with acceptance and no First Touch was **granted**. Its SLA
+purpose and stamping behaviour are untouched.
+
+**A requirement tag was wrong and was corrected mid-increment.** The new metadata initially cited
+`BR-19`, which is already taken — it governs integration and analytics principals. Sales acceptance
+traces to **`BR-15`** (*transitions recorded with timestamp **and cause**; invalid transitions
+prevented*) and **`BR-16`** (*stage duration answerable retrospectively* — precisely why the
+acceptance timestamp is separate from the overwritten one). All 13 references were retagged and
+redeployed, and the behaviour re-proved afterwards.
+
+**A permission was widened, narrowly.** `NIQ_Revenue_Operations` gained **edit** on
+`Sales_Accepted__c` and **read-only** on the three evidence fields. RevOps may record an acceptance on
+behalf of the business and, like the seller, cannot alter the resulting evidence. No runtime security
+assignment was made and no broad Lead edit access was granted.
+
+**Rejection is not modelled, and that is stated rather than fudged.** `Closed - Not Converted` is
+reachable from MQL, but it carries no reason and no actor — it is a disqualification, not a recorded
+*Sales rejection of a handoff*. Equating them would be wrong. An explicit rejection disposition is a
+**future candidate**, deliberately not built here.
+
+**Controlled test matrix — 9 passed, 0 failed**, including a scenario that required deactivating the
+MQL policy for a few seconds to manufacture an unsubstantiated handoff, with the restore verified.
+Details in [`testing-strategy.md`](testing-strategy.md) §2l.
+
+**Nothing retroactive.** Acceptance evidence is populated on **0** records. The foundation operates
+prospectively; existing records are the business of the future **Sales Acceptance / SQL Integrity**
+detective control, which is **planned and unbuilt**.
+
+**Status: Implemented and Validated for SAL entry.** SQL qualification remains **unbuilt**, Lifecycle
+Governance is **not** complete, and Assessment Model v1 is unchanged at **62 — 5 areas, 7 scored
+controls**.
+
+---
+
+### 2026-08-27 — SQL qualification: the lifecycle tells four different stories
+
+```
+Requirement:   BR-15 (transitions recorded with timestamp and cause), BR-17
+               (one governed definition, basis recorded, definition is
+               configuration), PD-14 (required conditions, never a score).
+               Option A, approved by human decision after investigation.
+Metadata:      NEW  Lead.Qualified_Need__c      - INPUT, restricted picklist
+               NEW  Lead.Next_Step_Date__c      - INPUT, Date
+               NEW  Lead.Next_Step__c           - CONTEXT, never a requirement
+               NEW  Lead.SQL_Basis__c           - EVIDENCE
+               NEW  SQL_Qualification_Policy__mdt + 6 fields + 1 record
+               MOD  Lead_Inbound_Before_Save - EXTENDED. +1 assignment,
+                    +1 customErrors, +2 decisions, +7 formulas, +1 recordLookups.
+                    Exactly ONE existing connector changed.
+               MOD  4 permission sets; validator extended by one glob.
+               NEW  scripts/soql/lifecycle-evidence-chain.soql
+               0 new Flows. 0 validation rules. 0 Apex. 0 Record Types.
+               0 Global Value Sets. 0 baseline records mutated.
+Deployment:    Validate-only succeeded. Deploy succeeded, 0 errors. Flow v12 Active.
+Test result:   11 scenarios, 11 passed / 0 failed, including native conversion.
+               Org back to 49 / 13 / 20 / 32; 3 contradictions intact; all
+               lifecycle evidence on 0 records. Assessment: 62, 5 areas,
+               7 controls - unchanged.
+Commit:        NOT COMMITTED - held for human review
+```
+
+⚠️ **SYNTHETIC BASELINE.** The SQL qualification policy and its need vocabulary were authored for
+reproducible demonstration of lifecycle governance. They are **not** originally validated client
+business requirements.
+
+**What was missing.** SAL proved Sales took the handoff. Nothing proved Sales had **learned**
+anything. Without SQL, `SAL → SQL` was provably just "SAL plus elapsed time".
+
+**The investigation found no reusable evidence, and that finding shaped the design.** The org held
+**zero** commercial-qualification fields; `Opportunity` and `Contact` had no custom fields at all.
+Three tempting candidates were rejected on inspection rather than on taste:
+
+| Rejected | Why |
+|---|---|
+| `ProductInterest__c` | Values are `GC1000 / GC3000 / GC5000 series` — **Salesforce demo-org generator products**, not NorthstarIQ's software |
+| `Lead.Description` | A long text area. **Not filterable in SOQL** — a future control could not query it at all |
+| `Lead.Rating` | Hot/Warm/Cold is a seller opinion, populated on 2 of 49. This is exactly the weighting `PD-14` removed |
+
+**Three required conditions, none weighted.**
+
+| # | Requirement | Source | Why it belongs |
+|---|---|---|---|
+| 1 | Substantiated Sales acceptance | `Sales_Accepted_At__c` | Evidence chain. The acceptance and MQL policies are **not** re-run |
+| 2 | Confirmed business need | `Qualified_Need__c` | **The only evidence that could not have existed before Sales spoke to the prospect** |
+| 3 | Agreed next step | `Next_Step_Date__c` today or later | A need with no next step is an observation, not a pursuit |
+
+**A restricted picklist, not notes.** Governed vocabulary is assessable; prose is not. Proven rather
+than asserted: Salesforce rejected `Budget Approved` with *bad value for restricted picklist field*,
+and **no restriction was disabled to run that test**. Field-level value set rather than a Global
+Value Set, because no second object consumes the vocabulary — reusable metadata is not created for
+hypothetical reuse.
+
+**What was deliberately NOT built, and why.** No budget and no decision-maker requirement: Salesforce
+needs only `Name`, `StageName` and `CloseDate` to create an Opportunity, conversion lands at
+`Prospecting`, and the platform's own stage list puts `Id. Decision Makers` several stages later.
+Demanding those before the Opportunity exists would be methodology cosplay. No buying timeline
+either — a target decision date at this stage is a prediction, and it duplicates
+`Opportunity.CloseDate` days later. **No BANT, no MEDDIC, no scoring.**
+
+**One field exists purely for readability.** `Next_Step__c` is short text, is **never** a
+requirement, and no Flow or control reads it. It is there because the project thesis is
+explainability: a reader should see *what* was agreed, not only that a date exists.
+
+**Date semantics, made unambiguous.** `Next_Step_Date__c` is compared to `$Flow.CurrentDate` —
+Date to Date, never `$Flow.CurrentDateTime`. Yesterday blocked, **today permitted**, future
+permitted; all three tested.
+
+⚠️ **And a warning recorded now for the control that does not exist yet.** That comparison is a
+**qualification-time** test. A next-step date that was valid at entry will naturally fall into the
+past. A future detective control must **not** flag `Next_Step_Date__c < TODAY` on historical
+records — it must judge against the recorded qualification event. `SQL_Basis__c` carries the date as
+it stood, and Status field history carries when SQL was entered. Designing that wrong would turn
+every correctly-qualified Lead into a false finding within days.
+
+**The test-governance improvement asked for was delivered.** The SAL increment had briefly
+deactivated the MQL policy to manufacture one invalid state. **No policy was deactivated here** —
+every invalid state came from omitting an input. One scenario (SQL without acceptance evidence) is
+**not constructible at all**, because the SAL gate stamps the acceptance timestamp as the condition
+of entry; it was proven architecturally and labelled as such rather than forced.
+
+**The chain now survives the whole lifecycle**, verified on a fixture taken through native
+conversion:
+
+```
+MQL         why Marketing qualified it
+SAL         who accepted responsibility, when, under which policy
+SQL         what Sales established with the prospect
+Conversion  what Salesforce actually did
+```
+
+All four still readable on the converted record. Query:
+[`lifecycle-evidence-chain.soql`](../scripts/soql/lifecycle-evidence-chain.soql) — a **new
+reproducibility artifact created after this implementation**, not evidence of original validation.
+
+⚠️ **Architecture watch.** This is the **third** explicit lifecycle policy type. Each models a
+genuinely different business decision, so the repetition is still explicitness. **If a fourth becomes
+necessary, review whether it has crossed into duplication before creating it.** Not refactored now,
+and deliberately so — the abstraction would be premature at three.
+
+**Nothing retroactive.** All lifecycle evidence is populated on **0** records. Existing records are
+the business of the future detective controls, all of which remain **planned and unbuilt**.
+
+**Status: Implemented and Validated for SQL entry.** SQL and Salesforce Lead Conversion remain
+separate events — SQL does not convert anything. Lifecycle Governance is **not** complete: no
+detective control exists, and Assessment Model v1 is unchanged at **62 — 5 areas, 7 scored
+controls**.
+
+---
+
+### 2026-08-27 — MQL Qualification Integrity: the governance loop closes
+
+```
+Requirement:   BR-17 AC1/AC2 (one governed definition, basis recorded), PD-14.
+               The first lifecycle DETECTIVE control, and the first increment
+               to bring the governed Salesforce evidence back into the
+               NorthstarIQ product.
+Repository:    NEW  web/lib/checks/mql-policy.ts      - policy shape + resolver
+               NEW  web/test/mql-integrity.test.ts    - 22 scenarios
+               MOD  checks/index.ts, soql.ts, types.ts, assessment.ts,
+                    presentation.ts, traceability.ts, export-model.ts,
+                    test/fixtures.ts
+Salesforce:    0 metadata changes. 0 deployments. 0 record mutations.
+               READ-ONLY throughout.
+Validation:    22/22 targeted, 85/85 full suite, tsc clean, live read-only run.
+               Assessment: 62, 5 areas, 7 controls, 7 findings - UNCHANGED.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**IMPLEMENTED · DETECTIVE · DELIBERATELY UNSCORED.** Absent from `CHECK_IDS` and from
+`runAllChecks`, exactly like `opportunityConversionIntegrity`. Lifecycle Governance is **not** an
+active Assessment Area and Assessment Model v2 is **not** activated. Wiring it in would move every
+existing area from a fifth of the score to a sixth and change overall health without a single
+existing control changing — a user-visible scoring change, held for approval rather than taken
+quietly.
+
+**What this closes.** Four increments built preventive governance the product could not see. This is
+the first control that reads the governed Salesforce definition back out and judges records against
+it:
+
+```
+Business Context  →  governed policy in Salesforce  →  preventive Flow
+                                   ↓
+                    NorthstarIQ reads the SAME policy  →  judges existing records
+                                   ↓
+                            Finding + Source Evidence
+```
+
+**The definition is not duplicated in TypeScript.** Three reads at assessment time:
+`MQL_Qualification_Policy__mdt` for which requirements apply, `Routing_Readiness_Source__mdt` for
+which sources are governed, `Segment_Band__mdt.MQL_Eligible__c` for which segments qualify —
+the same three the Flow consults. **Switch a requirement off in Salesforce and the control stops
+testing it, with no code change**, proven by unit test. What the TypeScript holds is execution logic
+for four known requirement types; what it does not hold is the decision that MQL means those four.
+
+**The blank-match question, resolved as evidence sufficiency rather than policy.** The preventive
+Flow blocks only a known ambiguity, so a blank `Match_Status__c` passes there — correct for a gate
+deciding whether to refuse a save. The detective control asks a different question: *is the claim
+substantiated?* A match that was never evaluated substantiates nothing, so blank is **insufficient
+evidence** here: not a pass, not a failure. **No Salesforce behaviour and no business policy was
+changed** — the same policy, the same field, a different question. It maps onto the assessment
+engine's existing `unmeasurable` state, whose contract is already *"the control applies, but the
+process that produces its evidence never ran"*. No engine change was needed.
+
+**Precedence, because it matters.** A demonstrated violation outranks an unprovable condition on the
+same record — otherwise a real defect could hide behind a blank field. Unit-tested.
+
+**Missing evidence is not a violation.** Every baseline Lead predates `MQL_Basis__c`. Reporting those
+as *"Marketing broke the policy"* would be a fabrication, so they are reported as unprovable. The
+distinction between **contradictory evidence** and **absent evidence** is the whole reason this
+control has a third outcome.
+
+**Three temporal traps, all declined rather than papered over.** Every input the policy reads is
+current-state and derived, so a Lead that has reached SAL, SQL or conversion cannot be re-judged from
+today's values — a segment that legitimately changed afterwards is not evidence of a bad
+qualification. A record under a superseded policy version is not judged against the current one. And
+`MQL_Basis__c` alone never earns a pass: it proves a decision was made, not that it still holds.
+
+**Live result: 0 evaluated, 0 failing, 3 unmeasurable, no finding.** That is the honest answer for an
+org where no Lead has ever been through the governed lifecycle, and **no data was altered to make it
+more interesting**. The three unmeasurable records are the existing `Closed - Converted` /
+`IsConverted = false` contradictions, reached by a second independent route. Failure detection is
+proven by 22 fixture scenarios.
+
+**Failing safely.** A missing policy, two active policies, or a policy naming no stage all **throw**.
+Absence of governance is a diagnostic failure, never a population that all passes. The control is
+unscored and outside `runAllChecks`, so a throw cannot destabilise the live assessment.
+
+**Not duplicating Account Match Confidence.** That control asks whether the org's account matching is
+reliable. This one asks whether the match evidence was sufficient *for the MQL policy*. The same
+Salesforce fact answers two different business questions; neither makes the other redundant.
+
+**Status: Implemented and Validated, unscored.** Lifecycle Governance holds **one** of its four
+approved controls, plus Opportunity Conversion Integrity implemented-but-unscored. Lifecycle
+Progression Integrity and Sales Acceptance / SQL Integrity remain **planned and unbuilt**, and
+Assessment Model v1 is unchanged at **62 — 5 areas, 7 scored controls**.
+
+---
+
+### 2026-08-27 — Lifecycle Progression Integrity: reasoning honestly over evidence that no longer exists
+
+```
+Requirement:   BR-15 (transitions governed and recorded), BR-16, PD-12.
+               Lifecycle Governance detective control 2 of 4.
+Repository:    NEW  web/lib/checks/lifecycle-graph.ts        - policy as a graph
+               NEW  web/test/lifecycle-progression.test.ts   - 28 scenarios
+               MOD  checks/index.ts, soql.ts, types.ts, assessment.ts,
+                    presentation.ts, traceability.ts, export-model.ts,
+                    test/fixtures.ts
+Salesforce:    0 metadata changes. 0 deployments. 0 record mutations.
+               READ-ONLY throughout.
+Validation:    28/28 targeted, 113/113 full suite, tsc clean, live read-only run.
+               Assessment: 62, 5 areas, 7 controls, 7 findings - UNCHANGED.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**IMPLEMENTED · DETECTIVE · DELIBERATELY UNSCORED.** Absent from `CHECK_IDS` and
+`runAllChecks`, like the two controls before it. Lifecycle Governance is still not an active
+Assessment Area and Model v2 is still not activated.
+
+**The evidence investigation came first, and it changed the design.** Salesforce retains **8 Status
+history rows across 3 of 49 Leads**, and **zero** Leads carry a stage-entry timestamp or any stage
+evidence. Field history is bounded, was not tracked from the beginning, and never records a Lead's
+first status. So the control was built on the premise that **full historical reconstruction is
+impossible**, rather than discovering that later.
+
+**The question, and how it differs from its neighbours.** Not *was this Lead well qualified* —
+that is MQL Qualification Integrity, which re-tests source, segment, territory and match. Not *was
+this conversion real* — that is Opportunity Conversion Integrity, which compares `Status` against
+`IsConverted`. This asks whether the **progression itself** is internally consistent: did the record
+move in ways the policy permits, does its evidence belong to stages it could have passed through, do
+its timestamps order sensibly.
+
+**The policy is consumed, not copied.** `lifecycle-graph.ts` turns the active
+`Lifecycle_Transition__mdt` records into an adjacency map and answers three questions against it:
+is this exact move permitted, can stage A still reach stage B, and does *every* governed route to a
+stage pass through some other stage. **It holds no transition of its own** — hand it an empty
+policy and it knows nothing, which is unit-tested. Seven stages and ten edges, computed inline; no
+state-machine library and no workflow engine.
+
+**Five invariants, each earned by available evidence.** A retained move the policy forbids · a
+stage entered before the Lead existed · acceptance recorded before the Lead existed · a
+conversion dated before the Lead existed · evidence for a stage the policy gives no route from to
+the current one · and evidence absent for a stage every governed route must cross. A sixth
+candidate — re-testing qualification quality — was **not** implemented, because that is the MQL
+control's job.
+
+**The line between a breach and a blind spot, drawn without inventing a date.** A transition the
+policy forbids is a **failure** only on a record the safeguard actually ran on. How that is known:
+the Flow stamps `Lifecycle_Stage_Entered__c` on every transition it governs, so its absence is the
+record's own proof that governance never applied to it. **No effective date exists in code, in
+metadata, or in the control.** The record decides.
+
+**What that produced live: 15 evaluated, 0 failing, 6 unmeasurable, 28 outside.**
+
+And the six unmeasurable are the point of the whole increment. Three of them carry **real, retained
+transitions the governed policy does not permit**: two Leads reopened from
+`Closed - Not Converted → Working - Contacted`, and one stepped backwards
+`Working - Contacted → Open - Not Contacted`. NorthstarIQ surfaces the exact moves — and
+declines to call them violations, because the rules did not exist when they happened. The other
+three are the `Closed - Converted` records, which every governed route reaches through SQL, SAL and
+MQL, none of whose evidence existed then.
+
+**That restraint is the deliverable.** The control could trivially have reported three violations and
+produced a satisfying finding. It reports what it can prove and names what it cannot, which is the
+difference between a diagnostic tool and a plausible-looking one.
+
+**Failing safely.** A missing policy, a policy with no active records, a transition record missing a
+stage, and a policy where every stage has an inbound transition (so no lifecycle can begin) all
+**throw**. An unreadable governed model is a diagnostic failure, never a population that all passes.
+
+**Not duplicating Opportunity Conversion Integrity.** The three `Closed - Converted` /
+`IsConverted = false` contradictions appear in both controls' populations, but reach different
+verdicts for different reasons: the conversion control **fails** them on the platform fact, while
+this one reports them **unmeasurable** on the absence of progression evidence. Two questions, two
+answers, no duplicate finding — and this control never asserts the conversion contradiction, which
+is the other control's to report.
+
+**Status: Implemented and Validated, unscored.** Lifecycle Governance now holds **two** of its four
+approved controls plus Opportunity Conversion Integrity, all three implemented-but-unscored. Sales
+Acceptance / SQL Integrity remains **planned and unbuilt**. Assessment Model v1 unchanged at
+**62 — 5 areas, 7 scored controls**.
+
+---
+
+### 2026-08-27 — Sales Acceptance / SQL Integrity: one control, two business events
+
+```
+Requirement:   BR-15 (handoff governed and recorded), BR-16, BR-17, PD-12, PD-14.
+               Lifecycle Governance detective control 3 of 4.
+Repository:    NEW  web/lib/checks/sales-qualification-policy.ts - two policies,
+                    and the readers for the evidence they leave behind
+               NEW  web/test/sales-acceptance-sql.test.ts          - 37 scenarios
+               MOD  checks/index.ts, soql.ts, types.ts, assessment.ts,
+                    presentation.ts, traceability.ts, export-model.ts,
+                    test/fixtures.ts
+               MOD  docs/architecture.md, docs/data-model.md,
+                    docs/testing-strategy.md, docs/implementation-log.md
+Salesforce:    0 metadata changes. 0 deployments. 0 record mutations.
+               READ-ONLY throughout.
+Validation:    37/37 targeted, 150/150 full suite, tsc clean, live read-only run.
+               Assessment: 62, 5 areas, 7 controls, 7 findings - UNCHANGED.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**IMPLEMENTED · DETECTIVE · DELIBERATELY UNSCORED.** Absent from `CHECK_IDS` and `runAllChecks`,
+like the three controls before it. Lifecycle Governance is still not an active Assessment Area and
+Model v2 is still not activated.
+
+**One control, because the reader asks one question — and two evaluations, because the business has
+two events.** SAL is Sales acknowledging a handoff: a named person took responsibility, at a
+recorded time, for a Marketing claim that was itself substantiated. SQL is what Sales learned
+*afterwards*: a business problem confirmed with the prospect, and an agreed forward step. Splitting
+these into two scored controls would have inflated the control count; merging them into one generic
+"qualification" idea would have hidden the step Sales is actually accountable for. They are
+evaluated separately, against their own policies, and roll into **one population, one failing set,
+one finding.**
+
+**The evidence investigation came first, and it decided what the control could honestly claim.**
+Across the 49 baseline Leads: **0 at MQL, 0 at SAL, 0 at SQL**; `MQL_Basis__c`,
+`Sales_Accepted_At__c`, `Sales_Accepted_By__c`, `Sales_Acceptance_Basis__c`, `SQL_Basis__c`,
+`Qualified_Need__c`, `Next_Step_Date__c` and `Lifecycle_Stage_Entered__c` all **empty on every
+record**; `Sales_Accepted__c` ticked on **none**; and **no retained Status transition into SAL or
+SQL**. No baseline Lead has ever been through the governed handoff. The control was built knowing
+its live population would be empty, rather than discovering it afterwards.
+
+**Two policies are consumed, neither is copied.** `Sales_Acceptance_Policy__mdt` v1.0 declares
+explicit acceptance and substantiated MQL evidence; `SQL_Qualification_Policy__mdt` v1.0 declares
+substantiated acceptance, a confirmed need and an agreed next step. Both are read at assessment
+time — the same two records `Lead_Inbound_Before_Save` consults. **Switch a requirement off in
+Salesforce and the control stops testing it, with no code change**, which is unit-tested three
+different ways.
+
+**MQL is consumed, never re-evaluated.** `MQL_Basis__c` is tested for presence and nothing else.
+Source, segment, territory and match are never re-read here — whether the Marketing qualification
+was itself valid belongs to MQL Qualification Integrity, and duplicating it would have produced two
+findings for one defect.
+
+**Input is not evidence, and the distinction is load-bearing.** `Sales_Accepted__c` is a checkbox a
+seller ticks; `Qualified_Need__c` and `Next_Step_Date__c` are fields they edit. All three describe
+the Lead **now**, not the moment the decision was made. The control judges the immutable,
+automation-written basis fields instead, and reads the need and the next-step date **back out of
+`SQL_Basis__c`** where the Flow recorded them as they stood. A ticked checkbox on a Lead with no
+acceptance evidence is reported **unmeasurable, never a pass** — and `First_Touch_DateTime__c` is
+never read at all, because a seller working a Lead is activity, not Sales accepting a handoff.
+
+**The historical next-step problem, solved rather than avoided.** The preventive gate required
+`Next_Step_Date__c >= TODAY` **at qualification**, so a correctly qualified Lead's date inevitably
+falls into the past. **The detective control never compares against TODAY.** It reads the recorded
+date out of `SQL_Basis__c`, establishes when the Lead entered SQL — from `Lifecycle_Stage_Entered__c`
+while it still sits there, otherwise from a retained transition into SQL — and fails the record only
+when the recorded date was already past **on the recorded qualification date**. Where that event
+cannot be established, the requirement is reported **unmeasurable**. The unit fixtures use dates
+that are already historical, and one test asserts that they are, so a regression to
+TODAY-comparison cannot pass silently.
+
+**The line between a breach and a blind spot, drawn without inventing a date.** A record is governed
+for acceptance when it carries `Sales_Accepted_At__c`, and governed for qualification when it
+carries `SQL_Basis__c` — the Flow is the only writer of either, so their presence is the record's
+own proof the safeguard ran and their absence is proof it did not. **No effective date exists in
+code, in metadata, or in the control.** `2026-08-27` appears nowhere as a policy boundary.
+
+**What that produced live: 0 evaluated, 0 failing, 3 unmeasurable, 46 outside.**
+
+The 46 outside claim neither the handoff nor sales qualification. The 3 unmeasurable are the
+`Closed - Converted` records, which under the governed lifecycle claim both SAL and SQL by status
+and carry none of the evidence either claim requires. **An empty evaluated population is the correct
+result and it is stated plainly.** No Lead was created in the org to manufacture a finding, and no
+evidence standard was weakened to produce one — failure detection is proven by 37 fixture
+scenarios instead, which is what fixtures are for.
+
+**Failing safely.** A missing acceptance policy, a missing SQL policy, two active records of either,
+and a policy naming no governed stage all **throw**. An unreadable governed definition is a
+diagnostic failure, never a population that all passes — the same contract the MQL and lifecycle
+policies already carry, reusing their pattern rather than adding a second error architecture.
+
+**Not duplicating its neighbours.** Lifecycle Progression Integrity reasons from the transition
+graph about whether a record could have reached where it stands; this reasons from the two sales
+policies about whether the evidence for the claim holds together. Opportunity Conversion Integrity
+owns `Status` versus `IsConverted`; this control never asserts that contradiction, and a converted
+Lead is in scope here only because acceptance and qualification evidence deliberately survive
+conversion. The three `Closed - Converted` records appear in all three populations and reach three
+different verdicts for three different reasons.
+
+**Status: Implemented and Validated, unscored.** Lifecycle Governance now holds **three** of its
+four approved controls plus Opportunity Conversion Integrity — all four implemented-but-unscored.
+Assessment Model v1 unchanged at **62 — 5 areas, 7 scored controls, 7 findings**, verified by a live
+run after implementation.
+
+⚠️ **Known stale statement carried forward, not corrected here.** Opportunity Conversion Integrity's
+traceability record still describes the preventive half of that control as proposed and not built,
+which the lifecycle transition safeguard has since overtaken. That truth-sync is the **next**
+increment and is deliberately out of scope for this one.
+
+> **Resolved in the next increment, same day** — see *Opportunity Conversion Integrity:
+> truth-sync, and the lifecycle set closes* below.
+
+---
+
+### 2026-08-27 — Opportunity Conversion Integrity: truth-sync, and the lifecycle set closes
+
+```
+Requirement:   BR-15. Reconciliation only. Lifecycle Governance control 4 of 4,
+               already implemented and validated - NOT reimplemented here.
+Repository:    MOD  web/lib/presentation.ts     - stale safeguard copy
+               MOD  web/lib/traceability.ts     - safeguard + evidence roles
+               MOD  web/lib/checks/index.ts     - doc comment, one evidence column
+               MOD  web/test/checks.test.ts     - assert the added column
+               MOD  docs/data-model.md, docs/testing-strategy.md,
+                    docs/implementation-log.md
+Detector:      EVALUATION LOGIC UNCHANGED. Not one predicate was rewritten.
+Salesforce:    0 metadata changes. 0 deployments. 0 record mutations.
+               READ-ONLY throughout. No conversion fixture re-run.
+Validation:    150/150 full suite, tsc clean, all four lifecycle controls
+               executed read-only against the org.
+               Assessment: 62, 5 areas, 7 controls, 7 findings - UNCHANGED.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**This increment changed no behaviour. It changed what the repository claims.**
+
+**The stale claims, and why they were false.** Two statements in the application described
+Opportunity Conversion Integrity's preventive half as unbuilt:
+
+| Where | Said | Truth since 2026-08-27 |
+|---|---|---|
+| `traceability.ts` | *"the preventive half of this control is proposed and not built"* | The safeguard exists and was validated |
+| `presentation.ts` | *"A preventive safeguard is part of the proposed lifecycle foundation and is **not built**"*, under the heading *"Nothing in Salesforce prevents the claim"*, `kind: 'detective'` | `Lifecycle_Transition__mdt` + `Lead_Inbound_Before_Save` prevent an unsupported transition into the converted stage, **including through native Lead Conversion** |
+
+Both were written before the native-conversion experiment ran. The experiment answered the question
+the same day and nothing went back to correct the copy. **That is the whole defect this increment
+fixes** — the repository was understating what it had built, which is a less common failure than
+overstating it and no more acceptable.
+
+**A third stale claim was found in `data-model.md`, and it was worse than out of date — it named
+the wrong control.** It said Opportunity Conversion Integrity *"is designed to read these
+[`Lifecycle_Transition__mdt`] records rather than its own copy."* It does not, and should not. That
+sentence describes **Lifecycle Progression Integrity**, which did not exist when it was written.
+Corrected, because it blurs the exact boundary this increment exists to make legible.
+
+**Four roles, now stated separately everywhere they appear.**
+
+| Role | Owner |
+|---|---|
+| Did conversion actually happen? | Salesforce platform fields — `IsConverted`, and in the same transaction `ConvertedDate`, `ConvertedAccountId`, `ConvertedContactId` |
+| Was entry into the converted stage permitted? | `Lifecycle_Transition__mdt` |
+| What enforces that permission? | `Lead_Inbound_Before_Save` — the preventive safeguard |
+| What finds claims that already contradict the platform? | Opportunity Conversion Integrity — the detective control |
+
+**The detector was inspected and deliberately left alone.** Its population is Leads whose `Status`
+claims conversion; its failing predicate is `IsConverted = false`. `ConvertedOpportunityId` is
+**not** required, was never required, and is unit-tested as never being a failure — Salesforce's own
+conversion screen offers *"don't create an opportunity"*. No predicate changed.
+
+**One presentation change inside the detector, and the reason for it.** The evidence table showed
+Converted Date, Account and Opportunity, with Contact absent — an ordering that quietly reads as
+though the Opportunity were the expected companion to the Account. Conversion always produces an
+Account **and** a Contact; only the Opportunity is optional. A `Converted Contact` column was added
+and the Opportunity column relabelled *"Converted Opportunity (optional)"*. **Display only** — the
+failing predicate is untouched, and the existing column test was extended rather than a new one
+invented.
+
+**Prior validated evidence, not evidence created here.** The allowed and blocked native conversions
+were established on **2026-08-27 by the conversion experiment**, using two purpose-built fixtures
+that were deleted afterwards, with zero baseline records mutated. This increment **re-ran nothing**
+and created no fixture. Where that evidence now appears in operator-facing copy it is labelled as
+prior validation, and the detective control is still stated as having played no part in it.
+
+**History was annotated, not rewritten.** The dated *"Salesforce Lead conversion: UNVERIFIED"*
+section already carried a RESOLVED banner and was left exactly as written. A limitation paragraph in
+`testing-strategy.md` §2i — *"only one of the four Lifecycle Governance controls exists"* — was true
+when written and has been given a **Superseded** pointer to §2n, §2o and §2p rather than being
+edited. The `63 tests` snapshot in that section is likewise left alone: it records what passed during
+that increment, and overwriting it with today's 150 would destroy evidence rather than update it.
+
+**Severity left at High, on purpose.** The three newer lifecycle controls are Medium because they
+report an evidence chain that cannot be substantiated. This one reports a **direct contradiction of
+a platform fact** — the status says converted and Salesforce says it was not — which is a stronger
+claim and stays High. It was reviewed and deliberately not levelled down for consistency.
+
+**The cross-control result is the architecture proof, and it came from execution rather than
+assumption.** The same three baseline Leads, read by all four controls in one run:
+
+| Control | Verdict on the three `Closed - Converted` records | Why |
+|---|---|---|
+| Lifecycle Progression Integrity | **unmeasurable** | Every governed route to the converted stage crosses MQL, SAL and SQL; none of that evidence existed when these records were created |
+| MQL Qualification Integrity | **unmeasurable** | No `MQL_Basis__c` — the claim predates the qualification architecture |
+| Sales Acceptance / SQL Integrity | **unmeasurable** | No acceptance or qualification evidence — the claim predates that architecture too |
+| **Opportunity Conversion Integrity** | **FAIL** | Conversion truth needs none of that history. `IsConverted = false` contradicts the claim on its own |
+
+**Three controls decline to judge and one convicts, on the same three records — and that is
+correct.** Conversion integrity does not depend on reconstructing the lifecycle that preceded it,
+which is exactly why it is a separate control. Forcing the four to agree would have destroyed the
+distinction.
+
+**Live result: 3 evaluated, 3 failing, score 0, one finding.** Unchanged by this increment, and
+still unscored. The three records are preserved untouched — `LastModifiedDate` still 2026-08-17 —
+and the copy now says plainly that **the safeguard could not have prevented them**: it governs new
+transitions, and these already held the state when it was built. Prevention stops new ones;
+detection finds the ones already there.
+
+**Status: the lifecycle control set is complete and truth-current.** Four controls, all implemented,
+all validated, **all unscored**. Assessment Model v1 unchanged at **62 — 5 areas, 7 scored controls,
+7 findings**, verified by a live run after the sync. Activating Lifecycle Governance remains a
+user-visible scoring change held for human approval.
+
+---
+
+### 2026-08-28 — Pre-commit corrections from the accumulated working-tree review
+
+```
+Requirement:   None new. Corrections raised by the checkpoint diff review.
+Repository:    MOD  web/test/sales-acceptance-sql.test.ts - synthetic User Id
+               MOD  .gitignore                            - design-references/
+               MOD  README.md, docs/architecture.md       - current test counts
+               MOD  permissionsets/NIQ_Revenue_Operations - 2 read-only grants
+               MOD  docs/security-model.md                - FLS table + note
+Salesforce:    0 metadata deployments. 0 record mutations. 0 queries.
+               The permission-set correction is REPOSITORY ONLY - NOT DEPLOYED.
+Validation:    150/150 full suite, tsc clean, validator unchanged.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**A real org identifier had reached a fixture.** `sales-acceptance-sql.test.ts` carried the live
+Developer Edition administrator's own User Id as the accepting user, copied from an org display
+while the control was being written. The value is deliberately not reproduced here — recording
+that it was removed does not require printing it again. Replaced with `005000000000001`,
+matching the synthetic shape the Account, Contact and Opportunity fixtures already use. No assertion
+changed; the value is only ever compared for presence. **This is the data rule working as intended:
+the repository is fictional-only, and an Id that identifies a real principal is not fixture data
+however harmless it looks.**
+
+**Two other real identifiers were found and deliberately kept.** `0Afaj00000iD2gzCAC` and
+`0Afaj00000iBRBeCAO` are Salesforce **deploy request Ids** recorded in a dated entry above. They are
+not fixture data and not credentials — they are the audit trail of a deployment that actually
+happened, and a reviewer can chase them. Rewriting them would remove evidence, not protect anything.
+
+**The design mockups stay local.** `design-references/` holds roughly 5 MB of PNG the assessment UI
+was built against. Nothing in the repository reads them — no document, no component, no validator —
+and the repository tracks no other binary. A directory-scoped ignore keeps them on disk and out of
+Git. **Deliberately not a blanket `*.png` rule**, which would also silence a future architecture
+diagram — a different decision, and not this one's to make.
+
+**Three current-state test counts were stale, and the historical ones were left alone.** The README
+claimed 63 and 50 unit tests and `architecture.md` claimed 50/50; the suite is **150**. Corrected,
+with the wording widened to say what those tests now cover. The dated snapshots — `50/50` in the
+Increments 1-4 row, `63 tests` in `testing-strategy.md` §2i — are **untouched**: they record what
+passed during those increments, and overwriting them with today's number would destroy evidence
+rather than update it.
+
+**The `NIQ_Revenue_Operations` FLS gap was an omission, and the artifacts prove it.** The permission
+set already grants read on every other piece of system-generated Lead evidence —
+`Segment_Basis__c`, `Routing_Reason__c`, `SLA_Basis__c`, `Exception_Type__c`,
+`Data_Quality_Detail__c`, `Sales_Accepted_At__c`, `_By__c`, `Sales_Acceptance_Basis__c` and
+`SQL_Basis__c` — twenty-two Lead fields in total. It was missing exactly two: `MQL_Basis__c` and
+`Lifecycle_Stage_Entered__c`, the fields created by the two *earliest* lifecycle increments, which
+did not update this permission set. The later acceptance and SQL increments did.
+
+**The business need was tested per field rather than assumed from symmetry.** RevOps (`PER-01`)
+resolves routing exceptions and duplicate review and works queues. `Sales_Acceptance_Basis__c`,
+which it already reads, literally says *"Marketing handoff substantiated by MQL evidence"* — an
+evidence chain pointing at a field the same persona could not open. And a stage-entry timestamp is
+ordinary triage information for someone deciding how long a record has been sitting in a queue,
+alongside the SLA and first-touch timestamps it already reads. Both granted **`readable=true`,
+`editable=false`**, like every other evidence field: read to investigate, never to assert.
+
+**Repository only.** The permission set in the org is unchanged. Correcting source does not authorise
+a deployment, and none was made — the org was not contacted at all during this increment.
+
+**Nothing else was touched.** No lifecycle definition, no policy record, no Flow, no detector, no
+`CHECK_IDS`, no `runAllChecks`, no scoring, no UI, no dependency. Assessment Model v1 remains
+**62 — 5 areas, 7 scored controls, 7 findings**, and Model v2 remains not started.
+
+---
+
 ## Implementation Status
 
 **Increments 1-4 are deployed, runtime-validated, and human-accepted.** Increments 3 and 4 were
@@ -1569,8 +2941,8 @@ by that run.**
 | `Account.Normalized_Domain__c` | ✅ **VALIDATED (Inc 3)** — reproduces Lead normalization on all 13 stock Accounts |
 | Queues — 3 | ✅ **VALIDATED** — coverage pools and fail-safe exception destination |
 | Custom fields — SLA (4) | ✅ **VALIDATED (Inc 4)** — write-once target, basis and first touch; `SLA_Status__c` formula, zero mutation |
-| Custom Metadata records — 16 | ✅ **VALIDATED** — 4 `Segment_Band__mdt` (Inc 1, match source field-by-field) · 9 `Routing_Rule__mdt` (Inc 3, 4 territories → 2 coverage queues) · 3 `Routing_Readiness_Source__mdt` (reconciled 2026-08-26, read back from the org) |
-| Custom Metadata Types | ✅ **DEPLOYED** — 3 types, 18 fields (`Segment_Band__mdt` 7 · `Routing_Rule__mdt` 9 · `Routing_Readiness_Source__mdt` 2) |
+| Custom Metadata records — 26 | ✅ **VALIDATED** — 4 `Segment_Band__mdt` (Inc 1, match source field-by-field) · 9 `Routing_Rule__mdt` (Inc 3, 4 territories → 2 coverage queues) · 3 `Routing_Readiness_Source__mdt` (reconciled 2026-08-26) · **10 `Lifecycle_Transition__mdt`** (deployed 2026-08-27, read back from the org) |
+| Custom Metadata Types | ✅ **DEPLOYED** — 4 types, 22 fields (`Segment_Band__mdt` 7 · `Routing_Rule__mdt` 9 · `Routing_Readiness_Source__mdt` 2 · **`Lifecycle_Transition__mdt` 4**) |
 | Global value sets | ✅ **VALIDATED** — enforced `restricted=true` on all 5 consuming fields |
 | Standard value sets | ✅ **VALIDATED** — `AccountType` = 8 values, 7 originals intact + `Churned` |
 | Lead field history | ✅ **VALIDATED** — `Status` and `OwnerId` capture verified and reverted |
@@ -1595,7 +2967,16 @@ folded into rows about org metadata.
 | Area | Status |
 |---|---|
 | Next.js application under `web/` | ✅ **IMPLEMENTED** — 4 pages, 3 API routes, in source control |
-| Seven assessment checks + scoring | ✅ **VALIDATED against fixtures** — 50/50 unit tests, no network, no org. The seventh, **Segment Assignment Consistency**, was added 2026-08-26. |
+| Seven assessment checks + scoring | ✅ **VALIDATED against fixtures** — 150/150 unit tests, no network, no org. The seventh, **Segment Assignment Consistency**, was added 2026-08-26. **Assessment Model v1: 5 areas, 7 scored controls.** |
+| Opportunity Conversion Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — live read-only run: **3 evaluated, 3 failing**, one finding. Compares `Lead.Status` against the platform’s `IsConverted`; `ConvertedOpportunityId` is never required, because Salesforce permits conversion without an Opportunity. Truth-synced 2026-08-27: its preventive half **is** built — `Lifecycle_Transition__mdt` + `Lead_Inbound_Before_Save`, verified against native Lead Conversion — but governs new transitions only. ⚠️ **UNSCORED**: absent from `CHECK_IDS` and `runAllChecks`. |
+| Lifecycle taxonomy — `Lead.Status` + `Lifecycle_Transition__mdt` | ✅ **DEPLOYED and VALIDATED (2026-08-27)** — 7 status values, 10 transition records. |
+| SQL qualification enforcement — `SQL_Qualification_Policy__mdt` + `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27), policy v1.0** — 11/11 behavioural scenarios including native conversion. Requires substantiated Sales acceptance, a governed business need and an agreed next step dated today or later. ⚠️ **SYNTHETIC BASELINE** policy. The detective half is now **implemented** as Sales Acceptance / SQL Integrity. |
+| Sales acceptance enforcement — `Sales_Acceptance_Policy__mdt` + `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27), policy v1.0** — 9/9 behavioural scenarios. Requires an explicit seller acceptance and a substantiated Marketing handoff before `SAL`; records who accepted, when, and under which policy. ⚠️ **SYNTHETIC BASELINE** policy. Sales Acceptance / SQL Integrity (detective) is now **implemented**. |
+| MQL qualification enforcement — `MQL_Qualification_Policy__mdt` + `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27), policy v1.1** — 10/10 then 11/11 behavioural scenarios. **Four** required conditions declared on the policy record, none weighted; blocks an unearned MQL claim and records `MQL_Basis__c` when it is earned. Seller first touch was removed in v1.1 and is now a candidate for SAL. ⚠️ **SYNTHETIC BASELINE** policy. |
+| Lifecycle Progression Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 28 fixture scenarios plus a live read-only run: 15 evaluated, 0 failing, 6 unmeasurable. Builds its model from `Lifecycle_Transition__mdt` and holds no transition matrix of its own. ⚠️ **UNSCORED**: absent from `CHECK_IDS` and `runAllChecks`. |
+| MQL Qualification Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 22 fixture scenarios plus a live read-only run. Reads the same governed policy the Flow consults and judges existing claims against it. ⚠️ **UNSCORED**: absent from `CHECK_IDS` and `runAllChecks`; Assessment Model v1 unchanged at 5 areas / 7 scored controls. |
+| Sales Acceptance / SQL Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 37 fixture scenarios plus a live read-only run: **0 evaluated, 0 failing, 3 unmeasurable, 46 outside**. No baseline Lead has ever been through the governed handoff, and none was created to change that. Consumes `Sales_Acceptance_Policy__mdt` v1.0 and `SQL_Qualification_Policy__mdt` v1.0 as two separate definitions; judges the recorded next-step date against the recorded qualification event, never against TODAY. ⚠️ **UNSCORED**: absent from `CHECK_IDS` and `runAllChecks`. |
+| Lifecycle transition enforcement — `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 9/9 behavioural scenarios for ordinary Status edits, plus native Lead conversion verified separately the same day. Blocks a transition absent from the policy — including one attempted through Salesforce Lead Conversion — and stamps `Lifecycle_Stage_Entered__c` on create and on an allowed transition. |
 | Negative control (governed without segment) | ✅ **VALIDATED against fixtures** — returns zero, never rendered |
 | SLA measurable-population rule (`M-07`) | ✅ **VALIDATED against fixtures** — unmeasurable Leads excluded from the denominator |
 | Disconnected / not-configured path | ✅ **VERIFIED locally** — every page renders, no results are invented |

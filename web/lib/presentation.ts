@@ -287,6 +287,269 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
     evidencePath: 'force-app/main/default/flows/Lead_Inbound_Before_Save.flow-meta.xml',
   },
 
+  'lifecycle-progression': {
+    label: 'Lead Lifecycle Progression Conflicts',
+    blurb: 'Leads whose lifecycle evidence contradicts the governed progression.',
+    headlinePredicate:
+      'Leads carry lifecycle evidence that contradicts the governed progression.',
+    queueDescription:
+      'Leads whose retained transition history or stage evidence conflicts with the governed model.',
+    populationNoun: 'Leads whose progression could be settled',
+    denominator: true,
+    unit: 'leads',
+    why: 'A lifecycle stage is supposed to mean the same thing to Marketing, Sales and the forecast. Where a record reached a stage by a route the business does not permit, or carries evidence for a stage it never passed through, every funnel figure counting that stage is counting something else \u2014 and nobody can tell which records are affected without opening them one at a time.',
+    control:
+      'A Lead\u2019s retained transition history and stage evidence should agree with the governed transition policy: it moved only in ways the policy permits, its evidence belongs to stages it could have passed through, and its timestamps order sensibly against its own creation.',
+    recheck:
+      'Either the record is corrected so its evidence and stage agree, or the governed policy is changed to permit what actually happens. Re-running the assessment re-reads the policy, so a deliberate change to the governed model is picked up without a code change.',
+    finding: (f, e) =>
+      `${f} of ${e} Leads whose progression could be settled ${f === 1 ? 'carries' : 'carry'} lifecycle evidence that contradicts the governed transition policy.`,
+    explain: {
+      inScope:
+        'because retained evidence \u2014 transition history, a stage-entry timestamp, or stage evidence \u2014 is sufficient to settle whether their progression agrees with the governed model',
+      notEvaluated:
+        'either assert no progression at all, or assert one that nothing Salesforce still retains can settle \u2014 field history is bounded and the stage evidence fields did not exist when the baseline was created',
+      proves:
+        'A pass means nothing in the retained evidence contradicts the governed progression. It does not mean the full history was reconstructed: Salesforce does not retain one, and a Lead can pass here while its earliest transitions are simply unknown.',
+    },
+    sourceEvidence: {
+      intro: 'Where the expected progression comes from, and what the record is measured against.',
+      pairs: [
+        {
+          term: 'Salesforce Custom Metadata \u2014 Lifecycle Transition',
+          detail:
+            'One record per permitted stage-to-stage move, and the only definition of which stage may follow which. NorthstarIQ builds its picture of the governed lifecycle from these records at assessment time \u2014 the same records the intake Flow consults before permitting a save. Change the policy and this control changes with it. \u26a0\ufe0f Synthetic Baseline: the transition set was authored for reproducible demonstration, not validated with a client.',
+        },
+        {
+          term: 'Salesforce field history \u2014 Lead Status',
+          detail:
+            'The transitions Salesforce still retains. \u26a0\ufe0f Deliberately treated as partial: history is bounded, was not always tracked, and never records a Lead\u2019s first status. A transition missing from history is not evidence it never happened, so absence never counts against a record.',
+        },
+        {
+          term: 'Stage evidence written by the intake Flow',
+          detail:
+            'The stage-entry timestamp, and the qualification, acceptance and sales-qualification evidence. Their presence is also how this control knows the lifecycle safeguard actually ran on a record \u2014 which is what separates a rule broken from a record that moved before the rules existed.',
+        },
+      ],
+    },
+    safeguard: {
+      kind: 'preventive',
+      title: 'Salesforce refuses a move the policy does not permit',
+      body: 'The intake Flow checks every status change against the governed transition policy and blocks the save when no permitted transition matches, naming the move it refused. It also stamps the stage-entry timestamp whenever it allows one. That safeguard governs new transitions only \u2014 it cannot reach the records that progressed before it existed, which is exactly what this control is for.',
+      tech: ['Lead_Inbound_Before_Save', 'Lifecycle_Transition__mdt', 'Lead.Lifecycle_Stage_Entered__c'],
+    },
+    verification: [
+      'A permitted transition saves and stamps the stage-entry timestamp',
+      'A transition absent from the policy is refused and nothing is written',
+      'Native Salesforce Lead Conversion is governed by the same policy',
+    ],
+    verificationSource:
+      'Application unit tests against fixture records, plus a live read-only Developer Edition run on 2026-08-27. \u26a0\ufe0f This detective control was created after the preventive safeguard was validated; it was not used during that validation.',
+    evidencePath: 'force-app/main/default/objects/Lifecycle_Transition__mdt/Lifecycle_Transition__mdt.object-meta.xml',
+  },
+
+  'mql-integrity': {
+    label: 'Marketing-Qualified Claims Not Substantiated',
+    blurb: 'Leads claiming Marketing qualification the governed policy does not support.',
+    headlinePredicate:
+      'Leads claim Marketing qualification the governed policy does not support.',
+    queueDescription:
+      'Leads on the governed qualified stage whose evidence fails the active MQL policy.',
+    populationNoun: 'Leads whose Marketing-qualified claim can be checked',
+    denominator: true,
+    unit: 'leads',
+    why: 'A Marketing-qualified Lead that cannot be explained is one Sales has to re-qualify from scratch \u2014 which is the Marketing/Sales disagreement over what "qualified" means, expressed as wasted seller time. The point of a governed definition is that the handoff arrives with its reasoning attached.',
+    control:
+      'A Lead claiming Marketing qualification should satisfy the MQL policy in force, read from Salesforce at assessment time. NorthstarIQ evaluates the governed source facts itself rather than trusting the recorded basis \u2014 the basis proves a decision was made, not that it still holds.',
+    recheck:
+      'Either the underlying evidence is corrected so the Lead genuinely satisfies the policy, or its lifecycle claim is corrected to one it can support. Re-running the assessment re-reads the policy, so a deliberate change to the governed definition is picked up without a code change.',
+    finding: (f, e) =>
+      `${f} of ${e} Leads whose Marketing-qualified claim could be checked ${f === 1 ? 'does' : 'do'} not satisfy the qualification policy in force.`,
+    explain: {
+      inScope:
+        'because they sit on the governed qualified stage with recorded qualification evidence, so their current values are the ones that qualified them',
+      notEvaluated:
+        'either make no Marketing-qualified claim, or make one that cannot be re-judged honestly \u2014 no recorded evidence, a superseded policy version, progression past the stage, or a condition that was never evaluated',
+      proves:
+        'A pass means the Lead satisfies every requirement the active policy switches on. It does not mean the qualification was commercially sound, that Sales accepted it, or that the recorded evidence was correct when written.',
+    },
+    sourceEvidence: {
+      intro: 'Where the definition of "Marketing Qualified" comes from, and which record decides it.',
+      pairs: [
+        {
+          term: 'Salesforce Custom Metadata \u2014 MQL Qualification Policy',
+          detail:
+            'One active record states which requirements constitute MQL and which lifecycle stage they govern. NorthstarIQ reads that record at assessment time and tests only the requirements it switches on \u2014 the same record the Salesforce safeguard consults before permitting the transition. \u26a0\ufe0f Synthetic Baseline: this policy was authored for reproducible demonstration, not validated with a client.',
+        },
+        {
+          term: 'Salesforce Custom Metadata \u2014 Routing Readiness Source',
+          detail:
+            'Which acquisition sources the business holds to a routing-readiness standard. The policy says the requirement applies; this configuration says which sources satisfy it.',
+        },
+        {
+          term: 'Salesforce Custom Metadata \u2014 Segment Band',
+          detail:
+            'Which segments the business qualifies, held on the band that already defines the segment rather than restated in a second place.',
+        },
+        {
+          term: 'Recorded qualification evidence on the Lead',
+          detail:
+            'Written by the intake Flow at the moment a Lead earned MQL, and read-only to every principal. It establishes that a governed decision was made and under which policy version \u2014 it is not treated as proof that the decision still holds.',
+        },
+      ],
+    },
+    safeguard: {
+      kind: 'preventive',
+      title: 'Salesforce refuses an unsupported new qualification',
+      body: 'The intake Flow reads the active MQL policy on every status change and blocks entry to the qualified stage unless every requirement it declares is satisfied, naming the ones that were not. When it permits the move it records why, on the Lead, in a field no principal can edit. That safeguard governs NEW transitions; this control is the other half, judging the claims that already exist.',
+      tech: ['Lead_Inbound_Before_Save', 'MQL_Qualification_Policy__mdt', 'Lead.MQL_Basis__c'],
+    },
+    verification: [
+      'A Lead satisfying every requirement is permitted and its qualification evidence recorded',
+      'Each requirement failed on its own — ungoverned source, ineligible segment, unresolved territory, ambiguous match — blocks the transition and records nothing',
+      'A qualification-eligible Lead attempting a structurally invalid transition is refused by the lifecycle policy first',
+    ],
+    verificationSource:
+      'Application unit tests against fixture records, plus a live read-only Developer Edition run on 2026-08-27. \u26a0\ufe0f This control was created after the Salesforce preventive safeguard was validated; it was not used during that validation.',
+    evidencePath: 'force-app/main/default/objects/MQL_Qualification_Policy__mdt/MQL_Qualification_Policy__mdt.object-meta.xml',
+  },
+
+  'sales-acceptance-sql': {
+    label: 'Sales Handoff and Qualification Evidence Conflicts',
+    blurb: 'Leads whose Sales acceptance or qualification evidence conflicts with the policy that permitted it.',
+    headlinePredicate:
+      'Leads carry Sales handoff evidence that conflicts with the governed policy.',
+    queueDescription:
+      'Leads whose recorded Sales acceptance or qualification evidence does not hold together.',
+    populationNoun: 'Leads whose Sales handoff claim can be checked',
+    denominator: true,
+    unit: 'leads',
+    why: 'Sales should not have to repeat Marketing’s qualification to work out why a prospect was handed over, and a sales-qualified Lead should carry what Sales established after accepting it rather than the same claim restated. Where the evidence chain breaks, an accepted handoff is indistinguishable from an unread one, and a genuine pursuit from an optimistic stage change — which is the argument between Marketing and Sales made unresolvable.',
+    control:
+      'A Lead claiming Sales acceptance should carry the acceptance evidence the active acceptance policy requires — who accepted it, when, and on what basis — and a Lead claiming sales qualification should carry the additional commercial evidence the active SQL policy requires on top of that acceptance. Two governed policies, read from Salesforce at assessment time, and two separate business events.',
+    recheck:
+      'Either the evidence chain is completed so the claim holds together, or the lifecycle claim is corrected to one the record can support. Re-running the assessment re-reads both policies, so a deliberate change to either governed definition is picked up without a code change.',
+    finding: (f, e) =>
+      `${f} of ${e} Leads whose Sales handoff claim could be checked ${f === 1 ? 'carries' : 'carry'} evidence that conflicts with the policy that permitted it.`,
+    explain: {
+      inScope:
+        'because they claim Sales acceptance or sales qualification and carry the governed evidence needed to settle that claim',
+      notEvaluated:
+        'either claim neither, or claim one the evidence cannot settle — the claim predates the acceptance and qualification fields, it was recorded under a superseded policy version, or nothing Salesforce retains establishes when it was qualified',
+      proves:
+        'A pass means the recorded evidence satisfies every requirement the two active policies switch on. It does not mean the acceptance was commercially sound, that the business need was real, or that the next step ever happened.',
+    },
+    sourceEvidence: {
+      intro:
+        'Where the two definitions come from, and why the seller’s own fields are not what is judged.',
+      pairs: [
+        {
+          term: 'Salesforce Custom Metadata — Sales Acceptance Policy',
+          detail:
+            'One active record states what Sales acceptance requires — an explicitly accepting seller, and a Marketing handoff that was itself substantiated — and which stage it governs. NorthstarIQ tests only the requirements it switches on, from the same record the Salesforce safeguard consults. ⚠️ Synthetic Baseline: authored for reproducible demonstration, not validated with a client.',
+        },
+        {
+          term: 'Salesforce Custom Metadata — SQL Qualification Policy',
+          detail:
+            'A separate active record, kept separate on purpose: sales qualification requires substantiated acceptance, a governed business need confirmed with the prospect, and an agreed next step. Accepting a handoff and qualifying a pursuit are different business events, and merging them would hide exactly the step Sales is accountable for. ⚠️ Synthetic Baseline.',
+        },
+        {
+          term: 'Recorded acceptance and qualification evidence on the Lead',
+          detail:
+            'Written by the intake Flow at the moment each decision was granted, read-only to every principal, and never overwritten afterwards — so a converted Lead still carries both. The qualification evidence records the business need and the next-step date AS THEY STOOD, which is what makes the decision re-readable later.',
+        },
+        {
+          term: 'Seller inputs — deliberately not treated as evidence',
+          detail:
+            'The acceptance checkbox, the business need and the next-step date are fields a seller edits. They describe the Lead now, not the moment the decision was made, so a ticked box on a Lead with no acceptance evidence proves nothing. Nor does the first-touch timestamp: a seller working a Lead is activity, not Sales accepting the handoff.',
+        },
+      ],
+    },
+    safeguard: {
+      kind: 'preventive',
+      title: 'Salesforce refuses an unsupported acceptance and an unsupported qualification',
+      body: 'The intake Flow reads both active policies on a status change and blocks entry to the accepted stage or the qualified stage unless every requirement that policy declares is satisfied, naming the ones that were not. When it permits a move it records who accepted, when, and why, and separately what Sales established — in fields no principal can edit. Those safeguards govern NEW transitions only; they cannot reach records that moved before they existed, which is what this control is for.',
+      tech: [
+        'Lead_Inbound_Before_Save',
+        'Sales_Acceptance_Policy__mdt',
+        'SQL_Qualification_Policy__mdt',
+        'Lead.Sales_Accepted_At__c',
+        'Lead.SQL_Basis__c',
+      ],
+    },
+    verification: [
+      'Sales acceptance requires an explicit seller acceptance and a substantiated Marketing handoff; each failed on its own blocks the transition and records nothing',
+      'SQL requires substantiated acceptance, a governed business need and a next step dated no earlier than the qualification; each failed on its own blocks the transition',
+      'Acceptance and qualification evidence both survive a native Salesforce Lead Conversion intact',
+    ],
+    verificationSource:
+      'Application unit tests against fixture records, plus a live read-only Developer Edition run on 2026-08-27. ⚠️ This detective control was created after the two preventive safeguards were validated; it was not used during that validation, and it did not govern any record that predates them.',
+    evidencePath:
+      'force-app/main/default/objects/SQL_Qualification_Policy__mdt/SQL_Qualification_Policy__mdt.object-meta.xml',
+  },
+
+  'lifecycle-conversion': {
+    label: 'Converted Lifecycle State Not Substantiated',
+    blurb: 'Leads claiming conversion that Salesforce does not record as converted.',
+    headlinePredicate:
+      'Leads claim a converted lifecycle state Salesforce does not substantiate.',
+    queueDescription:
+      'Leads whose status claims conversion while Salesforce records none.',
+    populationNoun: 'Leads claiming a converted lifecycle state',
+    denominator: true,
+    unit: 'leads',
+    why: 'Conversion is where Marketing hands the outcome to Sales, and every funnel and conversion-rate figure counts it. A status that says converted while Salesforce records no conversion inflates that count and points at an Account and Contact that were never created \u2014 so Sales cannot find what it was told exists. An Opportunity is optional at conversion, so its absence is never what is wrong here.',
+    control:
+      'A Lead claiming a converted lifecycle state should carry the Salesforce Lead Conversion facts that substantiate it: `IsConverted`, written by the platform during conversion and not editable afterwards, together with the Converted Date, Account and Contact that conversion produced. An Opportunity is optional at conversion, so a Converted Opportunity is never required. The status picklist is a claim; the platform flag is the fact.',
+    recheck:
+      'Either the Lead is converted through Salesforce so its conversion record exists, or its status is corrected to one that makes no conversion claim. A status alone cannot resolve this finding.',
+    finding: (f, e) =>
+      `${f} of ${e} Leads claiming a converted lifecycle state ${f === 1 ? 'has' : 'have'} no Salesforce conversion record to support it.`,
+    explain: {
+      inScope: 'because their status claims the Lead was converted',
+      notEvaluated: 'make no claim to have been converted, so there is nothing to substantiate',
+      proves:
+        'A pass means Salesforce records the Lead as converted. It does not mean the conversion met any qualification criteria, produced an Opportunity, or happened at the right time \u2014 a converted Lead may legitimately have no Opportunity at all.',
+    },
+    sourceEvidence: {
+      intro: 'Where the expectation comes from, and which field decides it.',
+      pairs: [
+        {
+          term: 'Salesforce standard value set \u2014 Lead Status',
+          detail:
+            'One entry in the governed Lead Status value set carries Salesforce\u2019s own `converted` marker. A Lead sitting on that value is making a claim about its lifecycle, which is what brings it into this control\u2019s population. The value set is in source control.',
+        },
+        {
+          term: 'Salesforce Lead Conversion facts',
+          detail:
+            '`IsConverted` is set by the platform during Lead Conversion and is not writable afterwards, and the same transaction populates the Converted Date, Account and Contact. That is why it settles the question and the status picklist does not. A null Converted Opportunity is **not** a failure: the conversion screen carries a \u201cdon\u2019t create an opportunity\u201d option, so a converted Lead may legitimately have none.',
+        },
+        {
+          term: 'Salesforce Custom Metadata \u2014 Lifecycle Transition',
+          detail:
+            'A different question, kept separate on purpose. The platform fields say whether conversion actually happened; these records say whether entry into the converted stage was permitted from where the Lead stood. That second question is what the preventive safeguard enforces \u2014 including through native Lead Conversion \u2014 and it is not what this control judges.',
+        },
+      ],
+    },
+    safeguard: {
+      kind: 'preventive',
+      title: 'Salesforce refuses an unsupported transition into the converted stage',
+      body: 'The intake Flow checks every status change against the governed transition policy and blocks the save when no permitted transition matches. **Native Salesforce Lead Conversion takes the same path**: converting from a stage the policy gives no route to the converted status is refused, and the whole conversion transaction rolls back \u2014 no Account, Contact or Opportunity is left behind. That safeguard governs NEW transitions only. It could not reach records that already held a converted status before it existed, and those are exactly what this control finds.',
+      tech: ['Lead_Inbound_Before_Save', 'Lifecycle_Transition__mdt', 'Lead.Status', 'Lead.IsConverted'],
+    },
+    verification: [
+      'Status claims converted, Salesforce records not converted \u2192 reported',
+      'Status claims converted, Salesforce records converted \u2192 passes',
+      'Converted Lead with no Opportunity \u2192 passes; a null Opportunity is not a failure',
+      'Status makes no conversion claim \u2192 outside the control, never counted as passing',
+      'Native Lead Conversion from a permitted stage \u2192 allowed, and Salesforce populates the conversion facts',
+      'Native Lead Conversion from a stage the policy gives no route from \u2192 blocked, and the whole transaction rolls back',
+    ],
+    verificationSource:
+      'Application unit tests against fixture records, plus a read-only observation of the Developer Edition org on 2026-08-27. The two native-conversion outcomes are **prior validated evidence** from the conversion experiment of 2026-08-27 \u2014 two purpose-built fixtures, both deleted afterwards, no baseline record touched. \u26a0\ufe0f This detective control was not used during that validation, and no safeguard governed the baseline records that predate it.',
+    evidencePath: 'force-app/main/default/standardValueSets/LeadStatus.standardValueSet-meta.xml',
+  },
+
   'routing-exceptions': {
     label: 'Routing Exceptions',
     blurb: 'Leads that could not be safely assigned.',
@@ -511,6 +774,17 @@ export const AREAS: Record<Category, AreaPresentation> = {
     label: 'Open Pipeline Date Health',
     scope: 'Close Date integrity across open Opportunities.',
     question: 'Do open Opportunities have a current or future Close Date?',
+  },
+  /*
+   * Assessment Area #6. Declared, and NOT YET SCORED - the only control that
+   * belongs to it is deliberately not executed by `runAllChecks`, so the
+   * assessment still reports five areas. See checks/index.ts.
+   */
+  'Lifecycle Governance': {
+    label: 'Lifecycle Governance',
+    scope: 'Lifecycle claims against the Salesforce record that substantiates them.',
+    question:
+      'Are prospects earning each lifecycle stage according to governed qualification and conversion criteria?',
   },
 };
 

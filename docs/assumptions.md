@@ -73,7 +73,7 @@ Genuinely unresolved. Each has a defined interim behaviour, so **none blocks imp
 |---|---|---|---|
 | `OD-01` | Is a subsidiary or franchisee a distinct customer? (`PROB-008`) | Duplicates surfaced for review only. **Nothing is ever auto-merged, and no merge capability is granted.** | Merge policy; interpretation of the 6.8% Account duplicate rate |
 | `OD-02` | Who covers an absent or ineligible seller? | Eligibility flag exists; ineligible sellers are skipped and the skip is recorded; no eligible seller → routing exception | Coverage policy — configuration, not redesign |
-| `OD-03` | How is ICP fit weighted? | **`BR-17` is P2 and not built. No scoring model is invented.** | Whether ICP scoring enters scope at all |
+| ~~`OD-03`~~ | How is ICP fit weighted? | **CLOSED 2026-08-27 as a Portfolio Decision — see `PD-14`.** Resolved by rejecting weighting entirely: MQL eligibility becomes a set of deterministic conditions that are all required, so nothing is weighted and no scoring model exists to invent. | Closed. `BR-17` remains P2 and unbuilt. |
 | `OD-04` | Who owns each exception class? | All classes visible and owned in two queues | Per-class queue assignment — configuration |
 | `OD-05` | Power BI refresh and historical-data architecture | Manual export for this release; refresh architecture designed, not automated | Production refresh design. **No change to the Salesforce data model.** |
 

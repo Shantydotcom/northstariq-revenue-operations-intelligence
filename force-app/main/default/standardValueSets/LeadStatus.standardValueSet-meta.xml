@@ -14,6 +14,24 @@
         <converted>false</converted>
     </standardValue>
     <standardValue>
+        <fullName>MQL</fullName>
+        <default>false</default>
+        <label>MQL</label>
+        <converted>false</converted>
+    </standardValue>
+    <standardValue>
+        <fullName>SAL</fullName>
+        <default>false</default>
+        <label>SAL</label>
+        <converted>false</converted>
+    </standardValue>
+    <standardValue>
+        <fullName>SQL</fullName>
+        <default>false</default>
+        <label>SQL</label>
+        <converted>false</converted>
+    </standardValue>
+    <standardValue>
         <fullName>Closed - Converted</fullName>
         <default>false</default>
         <label>Closed - Converted</label>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>BR-15, PD-12. The governed set of Lead lifecycle stage transitions that are allowed. THE SINGLE EXECUTABLE POLICY: the future preventive safeguard in Lead_Inbound_Before_Save and the future NorthstarIQ detective control both read these records, so an allowed transition is defined once and consumed twice. A transition absent from this type is not allowed - the policy is a whitelist, and silence is a refusal rather than an omission. Editable without deployment.</description>
+    <label>Lifecycle Transition</label>
+    <pluralLabel>Lifecycle Transitions</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

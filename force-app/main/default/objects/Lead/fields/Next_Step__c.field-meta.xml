@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Next_Step__c</fullName>
+    <description>BR-15. Human context only: what the agreed next action actually is. NEVER A QUALIFICATION REQUIREMENT - a blank value does not prevent SQL, no Flow condition reads it, and no NorthstarIQ control will interpret it. It exists because the project thesis is explainability: a reader looking at a qualified Lead should see WHAT was agreed, not only that a date exists. Kept as short text precisely so it can carry meaning without ever being mistaken for assessable evidence.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>What the agreed next action is. Context only - not a qualification requirement.</inlineHelpText>
+    <label>Next Step</label>
+    <length>255</length>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

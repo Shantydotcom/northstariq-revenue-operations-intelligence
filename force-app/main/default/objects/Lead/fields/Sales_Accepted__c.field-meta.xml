@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Sales_Accepted__c</fullName>
+    <description>BR-15, BR-16, PD-12. THE SELLER INPUT, not evidence. A seller ticks this to explicitly accept responsibility for a Marketing-qualified Lead. It is the one field in the acceptance model a human writes, and it is deliberately separate from the three evidence fields the automation writes - so an acceptance can be asserted but never back-dated, re-attributed or silently rewritten. Ticking it does not by itself move the lifecycle: SAL still requires the governed transition. Equally, moving to SAL without ticking it is refused, which is what keeps acceptance from being inferred from Status.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Tick to explicitly accept responsibility for this Marketing-qualified Lead.</inlineHelpText>
+    <label>Sales Accepted</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <trackHistory>false</trackHistory>
+    <type>Checkbox</type>
+</CustomField>

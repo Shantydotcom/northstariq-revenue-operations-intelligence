@@ -12,9 +12,29 @@ export type Category =
   | 'Routing'
   | 'Identity & Matching'
   | 'SLA Performance'
-  | 'Pipeline Hygiene';
+  | 'Pipeline Hygiene'
+  /*
+   * Assessment Area #6, declared but NOT YET SCORED.
+   *
+   * Declaring the category costs nothing: `categoryScores` skips a category
+   * with no results, so overall health is unchanged while Lifecycle Governance
+   * holds no control that `runAllChecks` executes. Wiring it in is one line,
+   * and it is deliberately not taken here - see the note on
+   * `opportunityConversionIntegrity` in checks/index.ts.
+   */
+  | 'Lifecycle Governance';
 
-/** The seven implemented checks. This union is also the API allow-list. */
+/**
+ * Every implemented check.
+ *
+ * SEVEN OF THESE ARE SCORED. The four Lifecycle Governance controls -
+ * `lifecycle-conversion`, `mql-integrity`, `lifecycle-progression` and
+ * `sales-acceptance-sql` - are implemented and tested but are not in
+ * `CHECK_IDS`, are not run by `runAllChecks`, and therefore have no route and
+ * no score - see checks/index.ts. Membership of this union is what makes the
+ * presentation and traceability records type-complete; it is `CHECK_IDS` that
+ * is the API allow-list.
+ */
 export type CheckId =
   | 'missing-firmographics'
   | 'segment-consistency'
@@ -22,7 +42,11 @@ export type CheckId =
   | 'sla-risk'
   | 'ambiguous-match'
   | 'missing-territory'
-  | 'stale-opportunities';
+  | 'stale-opportunities'
+  | 'lifecycle-conversion'
+  | 'mql-integrity'
+  | 'lifecycle-progression'
+  | 'sales-acceptance-sql';
 
 /** One column of finding evidence. `mono` renders values in a monospace face. */
 export interface EvidenceColumn {

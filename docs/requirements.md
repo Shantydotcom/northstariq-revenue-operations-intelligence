@@ -242,7 +242,7 @@ buildable inside a small, maintainable footprint.
 | **Requirement** | ICP fit must be assessed against a single governed definition, with the basis recorded, and a record whose fit cannot be assessed must be distinguishable from a record assessed as a poor fit. |
 | **Rationale** | Conflating "we don't know" with "not a fit" discards demand. Given 31% missing industry, that conflation would silently suppress roughly a third of inbound. |
 | **Acceptance** | 1. Fit is derived from one governed definition.<br>2. The basis is recorded.<br>3. Unassessable and poor-fit are distinct states.<br>4. The definition is configuration. |
-| **Decision** | `OD-03` — **open; weighting unresolved, which is why this is P2** |
+| **Decision** | ~~`OD-03`~~ → **`PD-14`** — weighting is not resolved, it is **removed**: qualification is a set of required deterministic conditions. **Partially built 2026-08-27** at the MQL stage only: AC1 (one governed definition), AC2 (basis recorded in `MQL_Basis__c`) and AC4 (definition is configuration) are satisfied and validated. **AC3 is not** — the failure message distinguishes an unassessable condition from an ineligible one, but no field records "unassessable" as a state. SAL and SQL qualification remain unbuilt. |
 | **Build intent** | **P2** |
 
 ### Security & Access
@@ -381,6 +381,7 @@ The **analytics and capture integration principals** are non-human and are speci
 | `PD-09` | **History persistence:** standard Salesforce field history tracking on the governed lifecycle field, plus one stage-entry timestamp. **No custom history object.** | ⚠️ The one decision that could not be deferred — uncaptured history is unrecoverable. Standard tracking meets `BR-16` at zero build cost; a custom object would add an object, automation, and storage for marginal gain at this scale. | Field history tracking enabled; one timestamp field | **Low** — history not captured cannot be reconstructed |
 | `PD-10` | **Permission-set-first access model with restrictive organization-wide defaults**, widened deliberately and documented. | Additive grants make over-provisioning visible; a permissive model narrowed later cannot answer "why does this person have this access?" | Minimal profile; capability permission sets | **Medium** — OWD changes cascade through sharing |
 | `PD-11` | **Unified territory map** — one country-based definition applied across all segments, with the US subdivided by state region. | Resolves `PROB-009`. The current per-segment asymmetry is the defect; formalizing it would preserve the problem in a tidier form. | Territory mapping held as configuration | **High** |
+| `PD-14` | **Qualification is expressed as required deterministic conditions, never as a weighted score.** A prospect is eligible for a qualified stage when **every** governed condition is satisfied; there are no point values and no threshold. Conditions are drawn from evidence the org already governs — routing-readiness source, firmographic completeness, segment eligibility, account-match state. | `OD-03` asked how ICP fit should be weighted. Weighting is the wrong question for this project: a points model would be invented numbers presented as business policy, and NorthstarIQ is not a lead-scoring product. Required conditions are deterministic, explainable record by record, and every input already exists as governed Salesforce evidence. ⚠️ **Synthetic Baseline** — this policy was authored for reproducible demonstration of lifecycle governance. It is **not** an originally validated client business requirement. | Custom Metadata definition + evidence field on the record | **Medium** — the conditions are a portfolio decision, not an agreed business rule |
 | `PD-12` | **Lead source, channel, and lifecycle stage use governed restricted picklists**; conversion criteria are expressed as the governed transition into a qualified stage. | Free-text and unrestricted picklists are the mechanism by which taxonomy drift happened. Restriction is the fix and costs nothing. | Restricted value sets; validation on transition | **High** |
 
 ### Decisions still genuinely open
@@ -392,7 +393,7 @@ blockers — each has a defined interim behaviour.
 |---|---|---|---|
 | `OD-01` | Is a subsidiary or franchisee a distinct customer? (`PROB-008`) | Duplicates are surfaced for review only; **nothing is ever auto-merged** | Merge policy and the interpretation of the 6.8% Account duplicate rate |
 | `OD-02` | Who covers an absent or ineligible seller? | An eligibility flag exists and ineligible sellers are skipped; records with no eligible seller become routing exceptions | Coverage policy — a configuration change, not a redesign |
-| `OD-03` | How is ICP fit weighted? | **`BR-17` is P2 and not built.** No scoring model is invented. | Whether ICP scoring enters scope at all |
+| ~~`OD-03`~~ | How is ICP fit weighted? | **CLOSED 2026-08-27 — `PD-14`.** The question is dissolved rather than answered: qualification is expressed as required conditions, not weighted points. | Closed. `BR-17` remains P2 and unbuilt. |
 | `OD-04` | Who owns each exception class? | Exceptions are classified and visible in a single owned destination | Queue assignment per class — configuration |
 | `OD-05` | Power BI refresh and historical-data architecture | Manual export for the portfolio release; refresh architecture designed but not automated | Production refresh design; no change to the Salesforce data model |
 
@@ -520,7 +521,7 @@ scope it served is gone.
 | `BR-013` (original) — Account family relationships are explicit | Standard `ParentId` covers hierarchy for this release. Revisit if `OD-01` resolves toward treating subsidiaries as distinct customers. |
 | `BR-14` — Automation failure is observable | Valid and unbuilt. Fault paths are still designed into automation per `testing-strategy.md`; systematic fault *observability* is deferred. |
 | `BR-16` — Time in stage is answerable | ⚠️ **Partially protected.** `PD-09` enables history capture now precisely so this requirement remains satisfiable later. The capture is P1; the measurement is P2. |
-| `BR-17` — ICP fit assessment | Blocked on `OD-03`. No scoring model will be invented to unblock it. |
+| `BR-17` — ICP fit assessment | Unblocked by `PD-14` (2026-08-27), which replaces weighting with required conditions. **Still P2 and still unbuilt** — closing the decision did not build the requirement. |
 
 Full original text for every requirement above is preserved in git history at commit
 `e0be142` (`docs: complete Phase 0C requirements and governance`).

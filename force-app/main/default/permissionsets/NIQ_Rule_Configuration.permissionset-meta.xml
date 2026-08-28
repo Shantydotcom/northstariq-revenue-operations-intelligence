@@ -5,6 +5,22 @@
     <label>NIQ Rule Configuration</label>
     <customMetadataTypeAccesses>
         <enabled>true</enabled>
+        <name>MQL_Qualification_Policy__mdt</name>
+    </customMetadataTypeAccesses>
+    <customMetadataTypeAccesses>
+        <enabled>true</enabled>
+        <name>Sales_Acceptance_Policy__mdt</name>
+    </customMetadataTypeAccesses>
+    <customMetadataTypeAccesses>
+        <enabled>true</enabled>
+        <name>SQL_Qualification_Policy__mdt</name>
+    </customMetadataTypeAccesses>
+    <customMetadataTypeAccesses>
+        <enabled>true</enabled>
+        <name>Lifecycle_Transition__mdt</name>
+    </customMetadataTypeAccesses>
+    <customMetadataTypeAccesses>
+        <enabled>true</enabled>
         <name>Segment_Band__mdt</name>
     </customMetadataTypeAccesses>
     <customMetadataTypeAccesses>

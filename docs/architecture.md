@@ -92,42 +92,39 @@ us to skip the single highest-value SLA test.
 ## 2. The Architecture in One Picture
 
 ```
-                         INBOUND RECORD
+                    INBOUND RECORD  ·  STATUS CHANGE
                                │
         ┌──────────────────────▼──────────────────────┐
-        │  BEFORE SAVE  (no DML, no queries)          │
+        │  BEFORE SAVE   Lead_Inbound_Before_Save     │
+        │  one Flow · no DML · Custom Metadata reads  │
+        │                                             │
+        │  • lifecycle gate      ◄── configuration    │  BR-15
+        │      allowed? stamp the stage entry         │  PD-09
         │  • normalize domain, country, source        │  BR-01
         │  • assess routing-critical completeness     │  BR-02
         │  • derive segment      ◄── configuration    │  BR-05
         │  • derive territory    ◄── configuration    │  BR-06
-        └──────────────────────┬──────────────────────┘
-                               │
-        ┌──────────────────────▼──────────────────────┐
-        │  AFTER SAVE                                 │
         │  • match to existing Account ──► basis      │  BR-03
         │  • apply ownership precedence               │  BR-07
-        │       strategic ▸ owner ▸ territory ▸ RR    │  PD-03
+        │      strategic ▸ owner ▸ territory ▸ RR     │  PD-03
         │  • evaluate seller eligibility              │  BR-08
         │  • record reason + rule version             │  BR-08  ◄── the thesis
         │  • compute SLA target on business hours     │  BR-10
-        └───────┬─────────────────────────────┬───────┘
-                │ resolved                    │ unresolved
-                ▼                             ▼
-          ASSIGNED TO SELLER            EXCEPTION QUEUE      BR-13
-                │                       classified by type
-                │                             │
-                ▼                             │
-        FIRST TOUCH CAPTURE  BR-11            │
-        activity or stage change              │
-                │                             │
-                ▼                             │
-        SLA BREACH SWEEP     BR-12            │
-        scheduled, business hours             │
-                │                             │
-                └──────────────┬──────────────┘
-                               ▼
-                    REPORTS ──▶ DASHBOARD ──▶ POWER BI
-                          BR-22, BR-23
+        │  • capture first touch                      │  BR-11
+        └───┬─────────────────┬──────────────────┬────┘
+            │ transition      │ resolved         │ unresolved
+            │ not allowed     ▼                  ▼
+            ▼        ASSIGNED TO SELLER  EXCEPTION QUEUE     BR-13
+         SAVE BLOCKED         │          classified by type
+         Custom Error         │                  │
+         nothing written      └────────┬─────────┘
+                                       │
+                                 SLA_Status__c       BR-11, BR-12
+                                 formula, evaluated at query time
+                                       │
+                                       ▼
+                         REPORTS ──► DASHBOARD ──► POWER BI
+                               BR-22, BR-23
 ```
 
 **The horizontal line through the whole design is explainability.** Every box that makes a decision
@@ -148,9 +145,9 @@ that administrator is already the constraint.
 
 | # | Candidate Flow | Type | Serves | Notes |
 |---|---|---|---|---|
-| 1 | `Lead_Inbound_Before_Save` | Record-triggered, before save | `BR-01`, `BR-05` | ✅ **DEPLOYED + VALIDATED (Increment 2).** Normalizes domain and derives segment from `Segment_Band__mdt`. No DML. Reads Custom Metadata only. Data quality stays in formula fields and is **not** duplicated here. Territory (`BR-06`) deferred to Increment 3. |
-| 2 | `Lead_Inbound_After_Save` | Record-triggered, after save | `BR-03`, `BR-07`, `BR-08`, `BR-10`, `BR-13` | Match, precedence, eligibility, reason capture, SLA target, exception routing |
-| 3 | `Lead_First_Touch_Capture` | Record-triggered | `BR-11` | **May fold into #2 after org inspection** if the defining events can be captured there |
+| 1 | `Lead_Inbound_Before_Save` | Record-triggered, before save | `BR-01`, `BR-03`, `BR-05`, `BR-06`, `BR-07`, `BR-08`, `BR-10`, `BR-11`, `BR-13`, `BR-15` | ✅ **DEPLOYED + VALIDATED.** The only Flow in the org. Normalization and segmentation (Inc 2), matching, territory and routing (Inc 3), SLA (Inc 4), and lifecycle transition enforcement (2026-08-27) all live here as stages of one before-save Flow. No DML. Reads Custom Metadata only. Data quality stays in formula fields and is **not** duplicated here. |
+| ~~2~~ | ~~`Lead_Inbound_After_Save`~~ | ~~Record-triggered, after save~~ | `BR-03`, `BR-07`, `BR-08`, `BR-10`, `BR-13` | **NOT CREATED.** Every responsibility listed for it turned out to be same-record field assignment, which belongs before save. Folding it into #1 removed a second DML per record. |
+| ~~3~~ | ~~`Lead_First_Touch_Capture`~~ | ~~Record-triggered~~ | `BR-11` | **NOT CREATED.** Folded into #1, as anticipated. |
 | ~~4~~ | ~~`SLA_Breach_Sweep`~~ | ~~Scheduled~~ | `BR-12` | **REMOVED.** `SLA_Status__c` as a formula evaluates at query time — reports and list views show breaches with no scheduled Flow. |
 
 ### Design rules binding every Flow
@@ -328,6 +325,226 @@ Breached (Late Response). Nothing writes it, so it carries zero mutation risk an
 > Business Hours and Holiday records were deliberately **not** configured, since doing so would imply
 > a fidelity the calculation does not have.
 
+### Lifecycle transitions — implemented (`BR-15`, `PD-09`, `PD-12`)
+
+The governed lifecycle is **Lead → MQL → SAL → SQL → Salesforce Lead Conversion → Opportunity**.
+`Opportunity` is **not** a Lead Status, and `SQL` is **not** conversion: conversion is the platform
+boundary where a Lead becomes an Account, a Contact and an optional Opportunity.
+
+A fifth stage inside the same before-save Flow. **No new Flow, no validation rule, no Apex.**
+
+```
+Status changed  →  exact lookup in Lifecycle_Transition__mdt  →  active rule found?
+                                                              yes → allow save, stamp
+                                                                    Lifecycle_Stage_Entered__c
+                                                               no → block save (Custom Error)
+```
+
+**The Flow holds no transition matrix of its own.** It builds the prior and new stage from the
+record, passes them as filter values to one selective lookup (`From_Stage__c`, `To_Stage__c`,
+`Is_Active__c`, first record only), and branches solely on *whether a record came back*. No stage
+name appears in any lifecycle decision condition — verified against the deployed Flow. The Flow is
+the **enforcement mechanism**; `Lifecycle_Transition__mdt` is the **policy source**. They are not
+the same thing and must not be documented as though they were.
+
+Operator-facing message when the lookup finds nothing:
+
+> This lifecycle transition is not allowed by the governed NorthstarIQ lifecycle policy:
+> {From Stage} to {To Stage}.
+
+Record-level rather than field-level, so the same text is returned through the UI, the API and a
+data load, and the whole save is rolled back.
+
+**Native Salesforce Lead Conversion traverses this safeguard** — validated 2026-08-27 against
+purpose-built synthetic fixtures. A conversion from `SQL` consumed the `SQL → Closed - Converted`
+rule and stamped the timestamp inside the conversion transaction; a conversion attempted from `MQL`,
+a stage the policy gives no route to `Closed - Converted`, was refused by the Custom Error and the
+**entire** transaction rolled back — no Account, Contact or Opportunity was created. Evidence in
+[`testing-strategy.md`](testing-strategy.md) §2i.
+
+**Evidence, and its two layers.** `Lifecycle_Stage_Entered__c` records when the Lead entered the
+stage it currently holds — one field, not one per stage, and **not** a lifecycle history model.
+Salesforce field history on `Status` remains the historical transition trail. Field definition in
+[`data-model.md`](data-model.md) §1.
+
+### MQL qualification — implemented (`BR-17`, `PD-14`)
+
+**A transition being structurally allowed does not mean the Lead earned the stage.** Two governance
+questions, kept apart:
+
+| Question | Answered by |
+|---|---|
+| May this stage follow the previous one? | `Lifecycle_Transition__mdt` |
+| Has this Lead earned the stage? | the active `MQL_Qualification_Policy__mdt` record |
+
+Both must hold. A Lead with a perfect qualification profile still cannot go
+`Open - Not Contacted → MQL`, because that transition is not in the policy — verified, not assumed.
+
+```
+transition allowed  →  is there an active policy governing the stage being entered?
+                            no  →  stamp stage entry, continue
+                            yes →  evaluate the requirements THAT POLICY DECLARES
+                                    all satisfied →  capture MQL_Basis__c, stamp, continue
+                                    any failed    →  block, naming what was not satisfied
+```
+
+**The definition lives in the policy record, not in the Flow.** The Flow contributes *how* each
+requirement is tested; *which* requirements constitute MQL is read from
+`MQL_Qualification_Policy__mdt` at run time. Turning a requirement off is unchecking a box — no
+deployment, no Flow edit — and the evidence string and the failure message both follow, because
+each is assembled from the same policy-gated formulas. Requirement definitions and version in
+[`data-model.md`](data-model.md) §2b.
+
+**Four required conditions, none weighted** (`PD-14`), in two conceptual groups:
+
+| Group | Requirement | Meaning |
+|---|---|---|
+| **Qualification eligibility** | governed acquisition source | the Lead came through a source held to a routing-readiness standard |
+| | segment eligible | the business runs a seller-led motion for this segment |
+| **Handoff readiness** | resolved governed coverage | Sales is handed something with an actionable coverage path |
+| | unambiguous account match | ownership and account context are not in question at handoff |
+
+The grouping explains the business logic; it does **not** create separate scoring. There is no score,
+no threshold and no partial credit.
+
+⚠️ **SYNTHETIC BASELINE** — the criteria were authored for reproducible demonstration, not
+validated with a client.
+
+**Seller activity is deliberately absent.** `First_Touch_DateTime__c` records when the *seller* first
+acted (`BR-11`). Requiring it for MQL inverted the handoff — Sales would have had to act before
+Marketing could validly produce the thing Sales is being handed. It was removed in **v1.1** and is
+now a candidate evidence source for **Sales acceptance / SAL**, where seller action actually belongs.
+Nothing replaced it: no engagement score, no intent model, no behavioural infrastructure. A truthful
+four-condition policy beats an invented fifth.
+
+**Account match: unambiguous, not matched.** `No Match` **passes** — a genuinely net-new prospect is
+exactly what Marketing is supposed to find. Only `Review`, meaning two or more candidate Accounts,
+fails, because ownership would be unresolved at the moment of handoff.
+
+**No stage name and no requirement list is duplicated.** The Flow looks the policy up by the stage
+being entered, and reads each requirement from the source that already owns it.
+
+**One platform constraint worth recording.** Routing readiness would most directly be
+`Data_Quality_Status__c`, but Salesforce rejects a formula field referenced from a `RecordBeforeSave`
+Flow — the deployment fails outright. Rather than restate that formula's test here, which would
+create a second definition of routing readiness, the requirement consumes the **derived** value:
+`Territory__c` exists only because a present country was mapped by `Routing_Rule__mdt`.
+
+**Designed so the future detective control need not copy any of this.** A NorthstarIQ **MQL
+Qualification Integrity** control would read the active policy record, the same governed sources, and
+the Lead's own field values, and reach the same deterministic result — no business definition
+recreated in TypeScript. The integration principal already reads every one of those sources. That
+control is **planned and unbuilt**.
+
+### Sales acceptance — implemented (`BR-15`, `BR-16`, `PD-12`)
+
+**`Status = SAL` is the claim. It is not the evidence.** Marketing qualification and Sales acceptance
+are different facts about different parties, and the architecture keeps them apart:
+
+| Fact | Evidence |
+|---|---|
+| Marketing qualified this Lead | `MQL_Basis__c` |
+| Sales accepted responsibility for it | `Sales_Accepted_At__c` · `Sales_Accepted_By__c` · `Sales_Acceptance_Basis__c` |
+
+Neither ever overwrites the other, and both survive every later transition.
+
+```
+transition allowed  →  not the MQL stage  →  active acceptance policy for this stage?
+                                             no  →  stamp stage entry, continue
+                                             yes →  explicit acceptance ticked?
+                                                       substantiated MQL handoff?
+                                                   both →  capture acceptance evidence, stamp, continue
+                                                   else →  block, naming what was not satisfied
+```
+
+**Why this is explicit acceptance rather than an inference.** The seller performs a **separate,
+deliberate act** — ticking `Sales_Accepted__c`, a field whose only purpose is to say *"I accept
+responsibility for this Marketing-qualified Lead."* The lifecycle move is a second act. Moving to SAL
+without the first is refused, so acceptance can never be back-derived from a picklist change. And the
+seller writes only the **input**: the actor, the time and the basis are written by the Flow from the
+authenticated identity, so an acceptance can be asserted but never back-dated or re-attributed.
+
+**Two requirements, none weighted.** Explicit acceptance · substantiated Marketing handoff. The
+second is an **evidence-chain** check (`MQL_Basis__c` present), deliberately not a re-run of the MQL
+policy — that definition is not duplicated here.
+
+⚠️ **SYNTHETIC BASELINE** — authored for reproducible demonstration, not validated with a client.
+
+**First Touch is not used.** `First_Touch_DateTime__c` records when the *seller first acted*
+(`BR-11`), and it is stamped on entry to `Working - Contacted` — **before MQL exists**. It therefore
+cannot evidence accepting a handoff that had not yet happened, and on the governed path it is already
+set before SAL, so requiring it would add a condition that is nearly always true and means something
+else. Proven both ways: a Lead with First Touch and no acceptance is **refused**, and a Lead with
+acceptance and no First Touch is **granted**.
+
+**The gates stay separately readable.** MQL qualification applies only when entering the stage its
+policy governs; Sales acceptance only when entering the stage *its* policy governs; native conversion
+continues to be governed by the transition policy alone. Each gate is its own branch reached from the
+same transition check — not one merged qualification branch.
+
+**The detective half is now built.** The NorthstarIQ **Sales Acceptance / SQL Integrity** control
+reads the active acceptance policy, the acceptance actor, time and basis, `MQL_Basis__c`, and Lead
+Status history, and judges whether a SAL claim is substantiated — without recreating what acceptance
+means. ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** · ⚠️ **UNSCORED** — absent from `CHECK_IDS` and
+`runAllChecks`, so Assessment Model v1 is unchanged.
+
+**Rejection is out of scope, and the gap is stated.** `Closed - Not Converted` is reachable from every
+stage including MQL, but it is a **disqualification**, not a recorded *Sales rejection of a handoff* —
+it carries no reason and no actor. Treating the two as identical would be wrong. An explicit
+rejection disposition is a **future candidate**, deliberately not built here.
+
+### SQL qualification — implemented (`BR-15`, `BR-17`, `PD-14`)
+
+**Each stage now proves something the previous one could not.**
+
+| Stage | Proves | Evidence |
+|---|---|---|
+| MQL | Marketing had grounds to hand the Lead over | `MQL_Basis__c` |
+| SAL | Sales took responsibility for it | `Sales_Accepted_At__c` · `_By__c` · `Sales_Acceptance_Basis__c` |
+| **SQL** | **Sales learned something from the prospect** | **`Qualified_Need__c` · `Next_Step_Date__c` · `SQL_Basis__c`** |
+| Conversion | Salesforce actually converted the Lead | `IsConverted` · `ConvertedDate` · `Converted*Id` |
+
+```
+transition allowed  →  not MQL, not SAL  →  active SQL policy for this stage?
+                                             no  →  stamp stage entry, continue
+                                             yes →  substantiated Sales acceptance?
+                                                       confirmed business need?
+                                                       next-step date today or later?
+                                                   all →  capture SQL_Basis__c, stamp, continue
+                                                  else →  block, naming what was not satisfied
+```
+
+**Three required conditions, none weighted** (`PD-14`). The first is an **evidence-chain** check
+against the immutable acceptance timestamp — the acceptance policy and the MQL policy are **not**
+re-run, and governed source, segment, territory and match state are **not** re-tested here.
+
+⚠️ **SYNTHETIC BASELINE** — the criteria were authored for reproducible demonstration, not
+validated with a client.
+
+**The need is what makes SQL a distinct stage.** It is the only required evidence that could not have
+existed before Sales spoke to the prospect: everything else either gated MQL, gated SAL, or measures
+activity. It is a **restricted picklist** rather than notes, because a governed vocabulary is
+assessable by a later control and prose is not — `Lead.Description` is a long text area and cannot
+even be filtered in SOQL, so a "notes are not blank" policy would be unassessable as well as weak.
+
+**Date semantics, stated precisely.** `Next_Step_Date__c` is compared to `$Flow.CurrentDate`, Date to
+Date — never `$Flow.CurrentDateTime` — so no coercion is involved. **Today passes, yesterday
+fails, a future date passes**, all three verified. This is a **qualification-time** test: a date that
+was valid at entry will naturally fall into the past later, which is why the detective control judges
+it against the recorded qualification event rather than against TODAY — it reads the date back out of
+`SQL_Basis__c` and compares it to when the Lead entered `SQL`, and reports the requirement
+**unmeasurable** where that event cannot be established. See
+[`testing-strategy.md`](testing-strategy.md) §2m and §2p.
+
+**What SQL does not do.** It does not convert the Lead — SQL and Salesforce Lead Conversion remain
+separate events. It requires no budget, no decision-maker and no buying timeline: Salesforce needs
+only `Name`, `StageName` and `CloseDate` to create an Opportunity, the default landing stage is
+`Prospecting`, and the platform's own stage list places `Id. Decision Makers` several stages later. A
+requirement invented ahead of the platform's own model would be methodology cosplay, not governance.
+
+**Evidence survives the boundary.** All four stages' evidence was verified intact on a Lead taken
+through native conversion from SQL, so a converted record still answers all four questions.
+
 ### What is deliberately *not* automated
 
 | Not automated | Why |
@@ -348,6 +565,10 @@ Rules the business is expected to change must not live inside a Flow (`BR-21`).
 | `Segment_Band__mdt` | Segment name · employee min/max · ARR override threshold · SLA response target · version | `BR-05`, `BR-10`, `BR-21` | A threshold change is a business decision that must not require a deployment |
 | `Routing_Rule__mdt` | Precedence order · segment · territory · eligibility criteria · rule version | `BR-07`, `BR-08`, `BR-21` | The precedence order is exactly the thing `PROB-005` says was never agreed — it must be visible and changeable |
 | `Routing_Readiness_Source__mdt` | `Lead_Source__c` · `Is_Active__c` | `BR-02`, `BR-21`, `BR-22` | Which Lead Sources are **held to a routing-readiness standard** is an operating decision. Held in configuration, it changes without a deployment. |
+| `Lifecycle_Transition__mdt` | `From_Stage__c` · `To_Stage__c` · `Is_Active__c` · `Rule_Version__c` | `BR-15`, `BR-21`, `PD-12` | Which lifecycle transitions are permitted is a business rule, not a Flow constant. **10 records, all active at v1.0.** Withdrawing a transition is unchecking a box, not a deployment. |
+| `SQL_Qualification_Policy__mdt` | `Policy_Version__c` · `Qualified_Stage__c` · 3 × `Require_*__c` · `Is_Active__c` | `BR-15`, `BR-17`, `PD-14` | **The governed definition of SQL.** **1 record, v1.0.** The third explicit stage policy — see the architecture watch in [`data-model.md`](data-model.md) §2b before a fourth is created. |
+| `Sales_Acceptance_Policy__mdt` | `Policy_Version__c` · `Accepted_Stage__c` · 2 × `Require_*__c` · `Is_Active__c` | `BR-15`, `BR-16`, `PD-12` | **The governed definition of Sales acceptance.** **1 record, v1.0.** A separate type from the MQL policy rather than a shared lifecycle abstraction — two small explicit types beat one generic one. |
+| `MQL_Qualification_Policy__mdt` | `Policy_Version__c` · `Qualified_Stage__c` · 4 × `Require_*__c` · `Is_Active__c` | `BR-17`, `PD-14` | **The governed definition of MQL** — which requirements constitute it, which stage they govern, which version applies. **2 records: v1.1 active, v1.0 superseded.** A fixed checkbox schema, not a rules engine: each flag declares that a requirement applies, and the requirement stays owned by the metadata that already governs it. |
 
 **`Territory_Map__mdt` is not created.** `CountryCode` and `StateCode` are enabled as restricted
 standard picklists, so the country/state → territory mapping fits inside `Routing_Rule__mdt`.
@@ -673,7 +894,7 @@ or a raw Salesforce error.
 | Salesforce integration boundary | ✅ **Implemented** — typed, guarded, read-only by construction |
 | Disconnected / not-configured path | ✅ **Verified locally** — every page renders and **no results are invented** |
 | Error and failure paths | ✅ **Verified locally** — classified into safe codes; the status probe cannot 500 |
-| Check and scoring logic | ✅ **Verified against fixtures** — 50/50 unit tests, no network |
+| Check and scoring logic | ✅ **Verified against fixtures** — 150/150 unit tests, no network |
 | Salesforce Connected App / OAuth credentials | ✅ **Configured** — the Client Credentials Flow reaches the org. Credentials live in `web/.env.local`, which is git-ignored; org-side configuration is **not inspected** in this repository. |
 | Live authentication, live SOQL, live assessment | ✅ **Validated — read path only (2026-08-24)** — HTTP 200, 81 records assessed, 6 findings returned. |
 | **Salesforce control behaviour judged by those findings** | ⬜ **Not validated by this application.** It reports what the org recorded; it exercises no control. |

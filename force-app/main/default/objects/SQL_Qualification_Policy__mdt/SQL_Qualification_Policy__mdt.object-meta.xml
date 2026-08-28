@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomObject xmlns="http://soap.sforce.com/2006/04/metadata">
+    <description>BR-15, BR-17, PD-14. THE GOVERNED DEFINITION OF SQL. The active record states which requirements constitute sales qualification, which stage they govern, and the version stamped onto qualified records. The THIRD narrowly scoped lifecycle policy type, alongside MQL_Qualification_Policy__mdt and Sales_Acceptance_Policy__mdt - each models a genuinely different business decision, so each stays explicit. ARCHITECTURE WATCH: if a fourth becomes necessary, review whether explicitness has crossed into duplication BEFORE creating it. NOT A RULES ENGINE: a fixed schema of named checkboxes, no expressions or field names. CONVENTION: exactly one active record per governed stage, enforced by repository test. SYNTHETIC BASELINE - authored for reproducible demonstration, not a validated client requirement.</description>
+    <label>SQL Qualification Policy</label>
+    <pluralLabel>SQL Qualification Policies</pluralLabel>
+    <visibility>Public</visibility>
+</CustomObject>

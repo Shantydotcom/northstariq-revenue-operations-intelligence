@@ -21,6 +21,13 @@ const CATEGORY_ORDER: Category[] = [
   'Identity & Matching',
   'SLA Performance',
   'Pipeline Hygiene',
+  /*
+   * Listed so the order is settled when Lifecycle Governance is scored.
+   * `categoryScores` skips a category holding no results, so while no
+   * lifecycle control is executed this entry changes nothing: the assessment
+   * still reports five areas and the same overall health.
+   */
+  'Lifecycle Governance',
 ];
 
 /**

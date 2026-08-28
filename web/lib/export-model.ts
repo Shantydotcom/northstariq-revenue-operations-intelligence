@@ -23,6 +23,10 @@ const SALESFORCE_OBJECT: Record<string, string> = {
   'ambiguous-match': 'Lead',
   'missing-territory': 'Lead',
   'stale-opportunities': 'Opportunity',
+  'lifecycle-conversion': 'Lead',
+  'mql-integrity': 'Lead',
+  'lifecycle-progression': 'Lead',
+  'sales-acceptance-sql': 'Lead',
 };
 
 const DEPENDENCY_HEADER = [

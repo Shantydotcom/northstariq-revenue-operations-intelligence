@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_MQL_Eligible_Segment__c</fullName>
+    <description>QUALIFICATION ELIGIBILITY. Whether MQL requires the derived segment to be one the business runs a seller-led motion for. WHICH segments qualify is owned by Segment_Band__mdt.MQL_Eligible__c and is not restated here.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Require MQL-Eligible Segment.</inlineHelpText>
+    <label>Require MQL-Eligible Segment</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

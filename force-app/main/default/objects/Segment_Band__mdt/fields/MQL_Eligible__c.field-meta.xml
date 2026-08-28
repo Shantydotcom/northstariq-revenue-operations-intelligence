@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>MQL_Eligible__c</fullName>
+    <description>BR-17, PD-14. Whether Leads in this segment may be qualified as MQL. SYNTHETIC BASELINE: the eligible set was authored for reproducible demonstration of lifecycle governance, not validated with a client. Lives here rather than in its own type because it is a property of the segment, and the segment is already defined once in this record. Unchecking withdraws a segment from marketing qualification without a deployment and without deleting the band.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Whether this segment may be qualified as MQL.</inlineHelpText>
+    <label>MQL Eligible</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

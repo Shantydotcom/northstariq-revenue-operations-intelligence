@@ -332,6 +332,149 @@
         <locationY>2726</locationY>
         <assignmentItems><assignToReference>$Record.First_Touch_DateTime__c</assignToReference><operator>Assign</operator><value><elementReference>$Flow.CurrentDateTime</elementReference></value></assignmentItems>
     </assignments>
+    <assignments>
+        <description>BR-15/PD-09. Creation IS entry into the initial lifecycle stage, so the timestamp is stamped once here rather than left null until the first transition. Without this a Lead sits in its first stage with no recorded entry time and the first computable duration would silently start at the wrong moment. It records when the record entered the stage IN THIS SYSTEM - a loaded record carries the load time, which is true and is not a claim about when the business event happened.</description>
+        <name>asgnStageEnteredOnCreate</name>
+        <label>Stamp Stage Entered - Creation</label>
+        <locationX>1370</locationX>
+        <locationY>134</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Lifecycle_Stage_Entered__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>$Flow.CurrentDateTime</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>asgnNormalizedDomain</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <description>BR-17. Records WHY the Lead qualified, at the moment it qualified. Evidence only: it explains the decision and never defines it. Reached only after every required condition passed, so a blocked attempt can never leave a basis behind.</description>
+        <name>asgnMQLBasis</name>
+        <label>Capture MQL Qualification Basis</label>
+        <locationX>1238</locationX>
+        <locationY>782</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.MQL_Basis__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxMQLBasis</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>asgnStageEnteredOnTransition</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <description>BR-15, BR-16, PD-12. Captures the acceptance event: WHEN it happened, WHO performed it from the authenticated identity, and WHY it was permitted. Reached only after every requirement the active policy declares has passed, so a refused attempt can never leave acceptance evidence behind. Sales_Accepted_At__c is separate from Lifecycle_Stage_Entered__c because that one is overwritten on the next transition and would stop answering when SAL was accepted the moment the Lead reaches SQL.</description>
+        <name>asgnSalesAcceptance</name>
+        <label>Capture Sales Acceptance Evidence</label>
+        <locationX>1238</locationX>
+        <locationY>998</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Sales_Accepted_At__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>$Flow.CurrentDateTime</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Sales_Accepted_By__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>$User.Id</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Sales_Acceptance_Basis__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxSALBasis</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>asgnStageEnteredOnTransition</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <description>BR-15/BR-17. Records why SQL was permitted: the requirements the active policy declared and the values that satisfied them. Reached only after every declared requirement passed, so a refused attempt can never leave SQL evidence behind. Deliberately does NOT restate the Marketing or acceptance evidence - MQL_Basis__c and Sales_Acceptance_Basis__c still hold those, and the chain is read across the fields rather than copied into each one.</description>
+        <name>asgnSQLBasis</name>
+        <label>Capture SQL Qualification Basis</label>
+        <locationX>1238</locationX>
+        <locationY>1214</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.SQL_Basis__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxSQLBasis</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>asgnStageEnteredOnTransition</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <description>BR-15. The Lead has entered a new governed stage through a transition the policy allows, so the entry time moves. It moves ONLY here: an unrelated update never reaches this element, and a blocked transition never gets here either.</description>
+        <name>asgnStageEnteredOnTransition</name>
+        <label>Stamp Stage Entered - Allowed Transition</label>
+        <locationX>1238</locationX>
+        <locationY>566</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Lifecycle_Stage_Entered__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>$Flow.CurrentDateTime</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>asgnNormalizedDomain</targetReference>
+        </connector>
+    </assignments>
+    <customErrors>
+        <description>BR-15, BR-16, PD-12. Blocks entry into the governed accepted stage when Sales has not explicitly accepted, or when the Marketing handoff it would be accepting is unsubstantiated. Names the requirements that were not satisfied without exposing field names. The whole save is rolled back: Status, the stage timestamp and all three acceptance evidence fields are left exactly as they were.</description>
+        <name>errSalesNotAccepted</name>
+        <label>Block Unaccepted SAL Entry</label>
+        <locationX>1502</locationX>
+        <locationY>998</locationY>
+        <customErrorMessages>
+            <errorMessage>{!fxSALFailureDetail}</errorMessage>
+            <isFieldError>false</isFieldError>
+        </customErrorMessages>
+    </customErrors>
+    <customErrors>
+        <description>BR-15/BR-17. Blocks entry into the governed sales-qualified stage when the commercial qualification the policy requires has not been established. Names the requirements that were not satisfied without exposing field names. The whole save is rolled back: Status, the stage timestamp, SQL_Basis__c, the acceptance evidence and the Marketing evidence are all left exactly as they were.</description>
+        <name>errSQLNotQualified</name>
+        <label>Block Unqualified SQL Entry</label>
+        <locationX>1502</locationX>
+        <locationY>1214</locationY>
+        <customErrorMessages>
+            <errorMessage>{!fxSQLFailureDetail}</errorMessage>
+            <isFieldError>false</isFieldError>
+        </customErrorMessages>
+    </customErrors>
+    <customErrors>
+        <description>BR-17. Blocks entry into the governed qualified stage when the Lead has not earned it. Names the requirements that were not satisfied so an operator can act, without exposing field names or internal logic. The whole save is rolled back: Status, the stage timestamp and MQL_Basis__c are all left as they were.</description>
+        <name>errMQLNotQualified</name>
+        <label>Block Unqualified MQL Entry</label>
+        <locationX>1502</locationX>
+        <locationY>782</locationY>
+        <customErrorMessages>
+            <errorMessage>{!fxMQLFailureDetail}</errorMessage>
+            <isFieldError>false</isFieldError>
+        </customErrorMessages>
+    </customErrors>
+    <customErrors>
+        <description>BR-15. Blocks a Lead save whose Status transition is absent from the governed policy. The whole save is rolled back, so Status and the stage timestamp are both left as they were. This element states no policy of its own - it only reports that the lookup found none.</description>
+        <name>errInvalidLifecycleTransition</name>
+        <label>Block Invalid Lifecycle Transition</label>
+        <locationX>1502</locationX>
+        <locationY>566</locationY>
+        <customErrorMessages>
+            <errorMessage>This lifecycle transition is not allowed by the governed NorthstarIQ lifecycle policy: {!fxPriorStage} to {!fxNewStage}.</errorMessage>
+            <isFieldError>false</isFieldError>
+        </customErrorMessages>
+    </customErrors>
     <decisions>
         <description>Segmentation requires an employee count. Absence is an explicit state, not a default.</description>
         <name>decHasEmployeeCount</name>
@@ -687,6 +830,229 @@
             <label>Yes</label>
         </rules>
     </decisions>
+    <decisions>
+        <description>BR-15. Does this save involve a governed lifecycle event at all? Anything else - a name edit, a phone number, any update that leaves Status alone - takes the default path and never reaches the policy lookup, so an ordinary save costs nothing.</description>
+        <name>decLifecycleGate</name>
+        <label>Lifecycle Event?</label>
+        <locationX>1106</locationX>
+        <locationY>0</locationY>
+        <defaultConnector>
+            <targetReference>asgnNormalizedDomain</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No lifecycle change</defaultConnectorLabel>
+        <rules>
+            <name>ruleNewLead</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxIsNewLead</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>asgnStageEnteredOnCreate</targetReference>
+            </connector>
+            <label>Created</label>
+        </rules>
+        <rules>
+            <name>ruleStatusChanged</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxLifecycleTransitionAttempted</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>getLifecycleTransition</targetReference>
+            </connector>
+            <label>Status changed on an existing Lead</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-15, BR-16, PD-12. Did the lookup return an acceptance policy governing this stage? Only whether a record exists - no stage is named here. A stage with no active acceptance policy, or a policy that has been deactivated, takes the default path and is governed by the transition policy alone. This branch is reached only when the MQL gate did not apply, so the two gates stay separately readable rather than merging into one qualification branch.</description>
+        <name>decEnteringAcceptedStage</name>
+        <label>Entering the Governed Accepted Stage?</label>
+        <locationX>1238</locationX>
+        <locationY>782</locationY>
+        <defaultConnector>
+            <targetReference>getSQLPolicy</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No - transition governance only</defaultConnectorLabel>
+        <rules>
+            <name>ruleEnteringAcceptedStage</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>getSALPolicy</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>decSalesAccepted</targetReference>
+            </connector>
+            <label>Yes - evaluate acceptance</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-15, BR-16, PD-12. Every requirement the ACTIVE ACCEPTANCE POLICY declares, none weighted. Status = SAL is the claim; these are the evidence. The Lead being at MQL is not treated as proof that Marketing legitimately qualified it - the substantiating MQL evidence is required separately, which is what stops an unsupported handoff being accepted by changing a picklist.</description>
+        <name>decSalesAccepted</name>
+        <label>Sales Acceptance Satisfied?</label>
+        <locationX>1370</locationX>
+        <locationY>890</locationY>
+        <defaultConnector>
+            <targetReference>errSalesNotAccepted</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Not accepted - block</defaultConnectorLabel>
+        <rules>
+            <name>ruleSalesAccepted</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxSALAccepted</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>asgnSalesAcceptance</targetReference>
+            </connector>
+            <label>Accepted</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-15/BR-17. Did the lookup return an SQL policy governing this stage? Only whether a record exists - no stage is named here. Reached only when neither the MQL nor the SAL gate applied, so all three gates stay separately readable rather than merging into one generic qualification branch.</description>
+        <name>decEnteringSQLStage</name>
+        <label>Entering the Governed Sales-Qualified Stage?</label>
+        <locationX>1238</locationX>
+        <locationY>998</locationY>
+        <defaultConnector>
+            <targetReference>asgnStageEnteredOnTransition</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No - transition governance only</defaultConnectorLabel>
+        <rules>
+            <name>ruleEnteringSQLStage</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>getSQLPolicy</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>decSQLQualified</targetReference>
+            </connector>
+            <label>Yes - evaluate SQL qualification</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-15/BR-17, PD-14. Every requirement the ACTIVE SQL POLICY declares, none weighted. SQL must prove something the prior stages did not: MQL proved Marketing had grounds to hand the Lead over, SAL proved Sales took it, and SQL proves Sales learned something FROM THE PROSPECT. Prior stages are consumed through their evidence and never re-tested here.</description>
+        <name>decSQLQualified</name>
+        <label>SQL Qualification Satisfied?</label>
+        <locationX>1370</locationX>
+        <locationY>1106</locationY>
+        <defaultConnector>
+            <targetReference>errSQLNotQualified</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Not qualified - block</defaultConnectorLabel>
+        <rules>
+            <name>ruleSQLQualified</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxSQLQualified</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>asgnSQLBasis</targetReference>
+            </connector>
+            <label>Qualified</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-17. Did the lookup return a policy governing this stage? The question is only whether a record exists - no stage is named here, so this Flow holds no copy of which stages require qualification. A stage with no active policy, or a policy that has been deactivated, takes the default path: entry falls back to transition governance alone rather than blocking every Lead.</description>
+        <name>decEnteringQualifiedStage</name>
+        <label>Entering the Governed Qualified Stage?</label>
+        <locationX>1238</locationX>
+        <locationY>566</locationY>
+        <defaultConnector>
+            <targetReference>getSALPolicy</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No - transition governance only</defaultConnectorLabel>
+        <rules>
+            <name>ruleEnteringQualifiedStage</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>getMQLPolicy</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>getMQLSource</targetReference>
+            </connector>
+            <label>Yes - evaluate qualification</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-17, PD-14. ALL required conditions, none weighted. There is no score, no threshold and no partial credit: a single unsatisfied condition means not qualified. Each condition is a separately named formula so an administrator can read the policy off the Flow one line at a time, and so the failure message and this test consume the SAME definition rather than two copies of it.</description>
+        <name>decMQLQualified</name>
+        <label>MQL Qualification Satisfied?</label>
+        <locationX>1370</locationX>
+        <locationY>674</locationY>
+        <defaultConnector>
+            <targetReference>errMQLNotQualified</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Not qualified - block</defaultConnectorLabel>
+        <rules>
+            <name>ruleMQLQualified</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxMQLQualified</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>asgnMQLBasis</targetReference>
+            </connector>
+            <label>Qualified</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-15. Did the governed policy return a rule for this exact prior-to-new pair? The question is only whether a record exists. THE POLICY IS NOT RESTATED HERE - no stage name appears in any condition, so Lifecycle_Transition__mdt remains the single definition of what is allowed and this Flow holds no second copy of it.</description>
+        <name>decTransitionAllowed</name>
+        <label>Transition Allowed By Policy?</label>
+        <locationX>1370</locationX>
+        <locationY>458</locationY>
+        <defaultConnector>
+            <targetReference>errInvalidLifecycleTransition</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>Not in policy - block</defaultConnectorLabel>
+        <rules>
+            <name>ruleTransitionAllowed</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>getLifecycleTransition</leftValueReference>
+                <operator>IsNull</operator>
+                <rightValue>
+                    <booleanValue>false</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>getMQLPolicy</targetReference>
+            </connector>
+            <label>Allowed</label>
+        </rules>
+    </decisions>
     <description>BR-01, BR-03, BR-05, BR-06, BR-07, BR-08, BR-13. Normalizes the company domain and derives segment from governed Segment_Band__mdt configuration, recording the basis. Before-save: assigns fields on the triggering record only, performs no DML, and reads only Custom Metadata. Data quality remains the responsibility of the Data_Quality_Status__c and Data_Quality_Detail__c formula fields and is deliberately not duplicated here.</description>
     <environments>Default</environments>
     <formulas>
@@ -905,6 +1271,241 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
   )
 )</expression>
     </formulas>
+    <formulas>
+        <description>BR-15. Creation, distinguished from an update so the two lifecycle paths never mix.</description>
+        <name>fxIsNewLead</name>
+        <dataType>Boolean</dataType>
+        <expression>ISNEW()</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15. A governed lifecycle transition is being attempted: an existing record, Status changed, and the two values genuinely differ. The last clause is not redundant - it keeps the policy lookup off a save where Status was touched without actually moving.</description>
+        <name>fxLifecycleTransitionAttempted</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  NOT(ISNEW()),
+  ISCHANGED({!$Record.Status}),
+  TEXT({!$Record.Status}) &lt;&gt; TEXT({!$Record__Prior.Status})
+)</expression>
+    </formulas>
+    <formulas>
+        <description>The stage being left. Feeds the policy lookup and the error message.</description>
+        <name>fxPriorStage</name>
+        <dataType>String</dataType>
+        <expression>TEXT({!$Record__Prior.Status})</expression>
+    </formulas>
+    <formulas>
+        <description>The Lead Source as text, so it can be compared against the governed source configuration.</description>
+        <name>fxMQLSourceValue</name>
+        <dataType>String</dataType>
+        <expression>TEXT({!$Record.LeadSource})</expression>
+    </formulas>
+    <formulas>
+        <description>The derived segment as text, so it can be matched to its band.</description>
+        <name>fxMQLSegmentValue</name>
+        <dataType>String</dataType>
+        <expression>TEXT({!$Record.Segment__c})</expression>
+    </formulas>
+    <formulas>
+        <description>CRITERION 1 - governed acquisition source. True when an active Routing_Readiness_Source__mdt record exists for this Lead Source. A purchased list or an unrecorded source returns nothing and fails.</description>
+        <name>fxMQLSourceGoverned</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getMQLPolicy.Require_Governed_Source__c}),
+  NOT(ISBLANK({!getMQLSource.Lead_Source__c}))
+)</expression>
+    </formulas>
+    <formulas>
+        <description>CRITERION 2 - routing readiness. A Lead is routing-ready when it resolved to a governed territory, so Sales coverage is already determined and the record is not bound for the routing exception queue. Reads the DERIVED value rather than re-testing CountryCode: Territory__c exists only because Routing_Rule__mdt mapped a present country, so the governed rule is consumed rather than copied. Data_Quality_Status__c would have been the more direct source, but Salesforce does not allow a formula field to be referenced in a before-save Flow - see the implementation log.</description>
+        <name>fxMQLRoutable</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getMQLPolicy.Require_Routable_Territory__c}),
+  NOT(ISBLANK(TEXT({!$Record.Territory__c})))
+)</expression>
+    </formulas>
+    <formulas>
+        <description>CRITERION 3 - segment eligible for qualification. Read from the segment band. An unsegmented Lead matches no band and fails, which is correct: a segment that was never derived cannot be declared eligible.</description>
+        <name>fxMQLSegmentEligible</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getMQLPolicy.Require_MQL_Eligible_Segment__c}),
+  IF(ISBLANK({!getMQLSegmentBand.Segment_Name__c}), false, {!getMQLSegmentBand.MQL_Eligible__c})
+)</expression>
+    </formulas>
+    <formulas>
+        <description>CRITERION 4 - unambiguous account match. Ambiguity is the disqualifier, not absence: a Lead with no domain to match on was never evaluated and is not thereby suspect, while a Lead flagged Review would force Sales to re-establish ownership before acting.</description>
+        <name>fxMQLMatchUnambiguous</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getMQLPolicy.Require_Unambiguous_Match__c}),
+  TEXT({!$Record.Match_Status__c}) &lt;&gt; "Review"
+)</expression>
+    </formulas>
+    <formulas>
+        <description>PD-14. Every requirement the ACTIVE POLICY DECLARES, none weighted. No points, no threshold, no partial credit - one unsatisfied requirement means not qualified. Each term is already policy-gated, so a requirement the policy does not declare evaluates true and drops out. The order is qualification eligibility first, then handoff readiness.</description>
+        <name>fxMQLQualified</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  {!fxMQLSourceGoverned},
+  {!fxMQLSegmentEligible},
+  {!fxMQLRoutable},
+  {!fxMQLMatchUnambiguous}
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-17. The explanation written to MQL_Basis__c, assembled from ONLY the requirements the active policy declares - so the evidence stays truthful when the policy changes and never claims a condition that was not tested. Carries the policy version, so a historical qualification stays interpretable after the definition moves on.</description>
+        <name>fxMQLBasisRaw</name>
+        <dataType>String</dataType>
+        <expression>"Qualified under MQL Policy " &amp; {!getMQLPolicy.Policy_Version__c} &amp; ": "
+&amp; IF({!getMQLPolicy.Require_Governed_Source__c}, "governed source " &amp; {!fxMQLSourceValue} &amp; "; ", "")
+&amp; IF({!getMQLPolicy.Require_MQL_Eligible_Segment__c}, {!fxMQLSegmentValue} &amp; " segment eligible; ", "")
+&amp; IF({!getMQLPolicy.Require_Routable_Territory__c}, "territory " &amp; TEXT({!$Record.Territory__c}) &amp; " resolved; ", "")
+&amp; IF({!getMQLPolicy.Require_Unambiguous_Match__c}, "account match " &amp; IF(ISBLANK(TEXT({!$Record.Match_Status__c})), "not evaluated", TEXT({!$Record.Match_Status__c})) &amp; "; ", "")</expression>
+    </formulas>
+    <formulas>
+        <description>BR-17. Trims the trailing separator left by the last declared requirement and holds the result inside the 255-character field.</description>
+        <name>fxMQLBasis</name>
+        <dataType>String</dataType>
+        <expression>LEFT(
+  {!fxMQLBasisRaw},
+  MIN(255, LEN({!fxMQLBasisRaw}) - IF(RIGHT({!fxMQLBasisRaw}, 2) = "; ", 2, 0))
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-17. Names the requirements that were not satisfied, built from the SAME criterion formulas the qualification test uses - so the message can never disagree with the decision, and a requirement the policy does not declare can never be reported as failed.</description>
+        <name>fxMQLFailureDetail</name>
+        <dataType>String</dataType>
+        <expression>"This Lead does not meet the governed NorthstarIQ MQL qualification requirements (MQL Policy " &amp; {!getMQLPolicy.Policy_Version__c} &amp; "). Not satisfied: "
+&amp; IF({!fxMQLSourceGoverned}, "", "governed acquisition source; ")
+&amp; IF({!fxMQLSegmentEligible}, "", "segment eligible for qualification; ")
+&amp; IF({!fxMQLRoutable}, "", "resolved governed coverage; ")
+&amp; IF({!fxMQLMatchUnambiguous}, "", "unambiguous account match; ")</expression>
+    </formulas>
+    <formulas>
+        <description>REQUIREMENT 1 - explicit Sales acceptance. Reads the seller INPUT field, which a human must deliberately tick. This is what stops acceptance being inferred from the Status change: moving to SAL without it is refused.</description>
+        <name>fxSALAcceptanceGiven</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getSALPolicy.Require_Explicit_Acceptance__c}),
+  {!$Record.Sales_Accepted__c}
+)</expression>
+    </formulas>
+    <formulas>
+        <description>REQUIREMENT 2 - substantiated Marketing handoff. An EVIDENCE-CHAIN check, deliberately NOT a re-evaluation: this gate never re-tests source, segment, coverage or match, so the MQL definition is not duplicated here. It asks only whether the Marketing claim carried evidence when it was made. Whether that evidence still holds is the business of the future detective control.</description>
+        <name>fxSALMQLEvidence</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getSALPolicy.Require_MQL_Evidence__c}),
+  NOT(ISBLANK({!$Record.MQL_Basis__c}))
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15, BR-16, PD-12. Both requirements the active policy declares. No score, no threshold, no partial credit. Each term is policy-gated, so a requirement the policy does not declare evaluates true and drops out.</description>
+        <name>fxSALAccepted</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  {!fxSALAcceptanceGiven},
+  {!fxSALMQLEvidence}
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15, BR-16, PD-12. The explanation written to Sales_Acceptance_Basis__c, assembled from ONLY the requirements the active policy declares, so the evidence stays truthful when the policy changes. It describes the ACCEPTANCE decision; the Marketing claim it accepted stays in MQL_Basis__c and is never restated or overwritten here.</description>
+        <name>fxSALBasisRaw</name>
+        <dataType>String</dataType>
+        <expression>"Accepted under Sales Acceptance Policy " &amp; {!getSALPolicy.Policy_Version__c} &amp; ": "
+&amp; IF({!getSALPolicy.Require_Explicit_Acceptance__c}, "explicit seller acceptance recorded; ", "")
+&amp; IF({!getSALPolicy.Require_MQL_Evidence__c}, "Marketing handoff substantiated by MQL evidence; ", "")</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15, BR-16, PD-12. Trims the trailing separator left by the last declared requirement and holds the result inside the 255-character field.</description>
+        <name>fxSALBasis</name>
+        <dataType>String</dataType>
+        <expression>LEFT(
+  {!fxSALBasisRaw},
+  MIN(255, LEN({!fxSALBasisRaw}) - IF(RIGHT({!fxSALBasisRaw}, 2) = "; ", 2, 0))
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15, BR-16, PD-12. Names the requirements that were not satisfied, built from the SAME formulas the acceptance test uses - so the message can never disagree with the decision.</description>
+        <name>fxSALFailureDetail</name>
+        <dataType>String</dataType>
+        <expression>"This Lead cannot enter the governed NorthstarIQ Sales Acceptance stage (Sales Acceptance Policy " &amp; {!getSALPolicy.Policy_Version__c} &amp; "). Not satisfied: "
+&amp; IF({!fxSALAcceptanceGiven}, "", "explicit Sales acceptance; ")
+&amp; IF({!fxSALMQLEvidence}, "", "substantiated Marketing handoff evidence; ")</expression>
+    </formulas>
+    <formulas>
+        <description>REQUIREMENT 1 - substantiated Sales acceptance. An EVIDENCE-CHAIN check against the immutable acceptance timestamp. The Sales Acceptance Policy is NOT re-run and the MQL policy is NOT re-run: a prior governed stage is consumed through its evidence, never re-tested.</description>
+        <name>fxSQLAcceptance</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getSQLPolicy.Require_Acceptance_Evidence__c}),
+  NOT(ISBLANK({!$Record.Sales_Accepted_At__c}))
+)</expression>
+    </formulas>
+    <formulas>
+        <description>REQUIREMENT 2 - confirmed business need. The picklist is RESTRICTED, so presence is sufficient here: Salesforce itself refuses any value outside the governed vocabulary, which is why this Flow does not restate the value list.</description>
+        <name>fxSQLNeed</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getSQLPolicy.Require_Confirmed_Need__c}),
+  NOT(ISBLANK(TEXT({!$Record.Qualified_Need__c})))
+)</expression>
+    </formulas>
+    <formulas>
+        <description>REQUIREMENT 3 - agreed forward motion. Date compared to Date: $Flow.CurrentDate, never $Flow.CurrentDateTime, so there is no Date/DateTime coercion. TODAY passes, a past date fails, a future date passes. This is a QUALIFICATION-TIME test - a date that was valid at entry will naturally fall into the past later, which is why a future detective control must judge against the recorded stage-entry evidence rather than against TODAY.</description>
+        <name>fxSQLNextStep</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getSQLPolicy.Require_Next_Step__c}),
+  AND(
+    NOT(ISBLANK({!$Record.Next_Step_Date__c})),
+    {!$Record.Next_Step_Date__c} &gt;= {!$Flow.CurrentDate}
+  )
+)</expression>
+    </formulas>
+    <formulas>
+        <description>PD-14. Every requirement the active policy declares, none weighted. No points, no threshold, no partial credit. Each term is policy-gated, so a requirement the policy does not declare evaluates true and drops out.</description>
+        <name>fxSQLQualified</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  {!fxSQLAcceptance},
+  {!fxSQLNeed},
+  {!fxSQLNextStep}
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15/BR-17. The explanation written to SQL_Basis__c, assembled from ONLY the requirements the active policy declares, so the evidence stays truthful when the policy changes. Records the need and the next-step date AS THEY WERE at qualification time, which is what makes the decision re-readable later.</description>
+        <name>fxSQLBasisRaw</name>
+        <dataType>String</dataType>
+        <expression>"Qualified under SQL Policy " &amp; {!getSQLPolicy.Policy_Version__c} &amp; ": "
+&amp; IF({!getSQLPolicy.Require_Confirmed_Need__c}, "need " &amp; TEXT({!$Record.Qualified_Need__c}) &amp; "; ", "")
+&amp; IF({!getSQLPolicy.Require_Next_Step__c}, "next step " &amp; TEXT({!$Record.Next_Step_Date__c}) &amp; "; ", "")
+&amp; IF({!getSQLPolicy.Require_Acceptance_Evidence__c}, "substantiated Sales acceptance; ", "")</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15/BR-17. Trims the trailing separator left by the last declared requirement and holds the result inside the 255-character field.</description>
+        <name>fxSQLBasis</name>
+        <dataType>String</dataType>
+        <expression>LEFT(
+  {!fxSQLBasisRaw},
+  MIN(255, LEN({!fxSQLBasisRaw}) - IF(RIGHT({!fxSQLBasisRaw}, 2) = "; ", 2, 0))
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15/BR-17. Names the requirements that were not satisfied, built from the SAME formulas the qualification test uses - so the message can never disagree with the decision.</description>
+        <name>fxSQLFailureDetail</name>
+        <dataType>String</dataType>
+        <expression>"This Lead does not meet the governed NorthstarIQ SQL qualification requirements (SQL Policy " &amp; {!getSQLPolicy.Policy_Version__c} &amp; "). Not satisfied: "
+&amp; IF({!fxSQLNeed}, "", "confirmed business need; ")
+&amp; IF({!fxSQLNextStep}, "", "agreed next step dated today or later; ")
+&amp; IF({!fxSQLAcceptance}, "", "substantiated Sales acceptance; ")</expression>
+    </formulas>
+    <formulas>
+        <description>The stage being entered. Feeds the policy lookup and the error message.</description>
+        <name>fxNewStage</name>
+        <dataType>String</dataType>
+        <expression>TEXT({!$Record.Status})</expression>
+    </formulas>
     <interviewLabel>Lead Inbound Before Save {!$Flow.CurrentDateTime}</interviewLabel>
     <label>Lead Inbound Before Save</label>
     <loops>
@@ -1034,11 +1635,198 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
         <object>Group</object>
         <storeOutputAutomatically>true</storeOutputAutomatically>
     </recordLookups>
+    <recordLookups>
+        <description>BR-15, BR-16, PD-12. Is there an active acceptance policy governing THE STAGE BEING ENTERED? Filtering on Accepted_Stage__c keeps every stage name out of this Flow and makes selection deterministic - one active record per stage. Ordered by version descending so selection stays defined even if that convention were broken. Custom Metadata reads do not consume SOQL query limits. No fault connector by design - if the policy cannot be read the save fails rather than proceeding unvalidated.</description>
+        <name>getSALPolicy</name>
+        <label>Get Active Sales Acceptance Policy</label>
+        <locationX>1238</locationX>
+        <locationY>674</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>decEnteringAcceptedStage</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Is_Active__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </filters>
+        <filters>
+            <field>Accepted_Stage__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>fxNewStage</elementReference>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Sales_Acceptance_Policy__mdt</object>
+        <sortField>Policy_Version__c</sortField>
+        <sortOrder>Desc</sortOrder>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <recordLookups>
+        <description>BR-15/BR-17. Is there an active SQL qualification policy governing THE STAGE BEING ENTERED? Filtering on Qualified_Stage__c keeps every stage name out of this Flow and makes selection deterministic - one active record per stage. Ordered by version descending so selection stays defined even if that convention were broken. Custom Metadata reads do not consume SOQL query limits. No fault connector by design - if the policy cannot be read the save fails rather than proceeding unvalidated.</description>
+        <name>getSQLPolicy</name>
+        <label>Get Active SQL Qualification Policy</label>
+        <locationX>1238</locationX>
+        <locationY>890</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>decEnteringSQLStage</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Is_Active__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </filters>
+        <filters>
+            <field>Qualified_Stage__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>fxNewStage</elementReference>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>SQL_Qualification_Policy__mdt</object>
+        <sortField>Policy_Version__c</sortField>
+        <sortOrder>Desc</sortOrder>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <recordLookups>
+        <description>BR-17. Is there an active qualification policy governing THE STAGE BEING ENTERED? Filtering on Qualified_Stage__c is what keeps every stage name out of this Flow, makes selection deterministic - one active record per stage, so a later SAL or SQL policy cannot be picked up here by accident - and lets the same gate serve a future stage without a structural change. Ordered by version descending so selection stays defined even if the one-active-record convention were ever broken. Custom Metadata reads do not consume SOQL query limits. Runs on every allowed transition, not only on MQL ones, which is the cost of not naming a stage here. No fault connector by design - if the policy cannot be read the save fails rather than proceeding unvalidated.</description>
+        <name>getMQLPolicy</name>
+        <label>Get Active MQL Qualification Policy</label>
+        <locationX>1238</locationX>
+        <locationY>458</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>decEnteringQualifiedStage</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Is_Active__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </filters>
+        <filters>
+            <field>Qualified_Stage__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>fxNewStage</elementReference>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>MQL_Qualification_Policy__mdt</object>
+        <sortField>Policy_Version__c</sortField>
+        <sortOrder>Desc</sortOrder>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <recordLookups>
+        <description>BR-17/BR-02. Criterion 1: is this Lead Source one NorthstarIQ holds to a routing-readiness standard? The governed set is Routing_Readiness_Source__mdt, which the assessment already consumes - so the qualification policy and the assessment agree by construction rather than by coincidence. Custom Metadata read; no SOQL limit consumed.</description>
+        <name>getMQLSource</name>
+        <label>Get Governed Acquisition Source</label>
+        <locationX>1370</locationX>
+        <locationY>458</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>getMQLSegmentBand</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Lead_Source__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>fxMQLSourceValue</elementReference>
+            </value>
+        </filters>
+        <filters>
+            <field>Is_Active__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Routing_Readiness_Source__mdt</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <recordLookups>
+        <description>BR-17/BR-05. Criterion 3: is the Lead's segment one the business qualifies? Eligibility lives on the band that already defines the segment, so there is one record per segment rather than a second type restating them. Custom Metadata read; no SOQL limit consumed.</description>
+        <name>getMQLSegmentBand</name>
+        <label>Get Segment Band For Eligibility</label>
+        <locationX>1502</locationX>
+        <locationY>458</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>decMQLQualified</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Segment_Name__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>fxMQLSegmentValue</elementReference>
+            </value>
+        </filters>
+        <filters>
+            <field>Is_Active__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Segment_Band__mdt</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
+    <recordLookups>
+        <description>BR-15/BR-21. Asks the governed policy one question: is there an active rule for this exact prior-to-new pair? Custom Metadata reads do not consume SOQL query limits. One selective lookup, first record only - deliberately not a retrieve-all-and-loop, because a transition is exact equality rather than a range or a precedence contest. No fault connector by design: if the policy cannot be read the save fails rather than proceeding unvalidated.</description>
+        <name>getLifecycleTransition</name>
+        <label>Get Allowed Lifecycle Transition</label>
+        <locationX>1370</locationX>
+        <locationY>350</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>decTransitionAllowed</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>From_Stage__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>fxPriorStage</elementReference>
+            </value>
+        </filters>
+        <filters>
+            <field>To_Stage__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <elementReference>fxNewStage</elementReference>
+            </value>
+        </filters>
+        <filters>
+            <field>Is_Active__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Lifecycle_Transition__mdt</object>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
     <start>
         <locationX>50</locationX>
         <locationY>0</locationY>
         <connector>
-            <targetReference>asgnNormalizedDomain</targetReference>
+            <targetReference>decLifecycleGate</targetReference>
         </connector>
         <filterFormula>OR(
   ISNEW(),

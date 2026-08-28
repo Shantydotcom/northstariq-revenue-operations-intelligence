@@ -7,12 +7,14 @@ import {
   missingFirmographics,
   missingTerritory,
   routingExceptions,
+  opportunityConversionIntegrity,
   runAllChecks,
   segmentConsistency,
   slaRisk,
   staleOpportunities,
 } from '../lib/checks/index.ts';
 import { lead, opportunity, TODAY, READINESS_SOURCES } from './fixtures.ts';
+import { categoryScores, overallHealth, toFindings } from '../lib/score.ts';
 
 const EXCEPTION_QUEUE = { Name: 'NIQ Routing Exception', Type: 'Queue' };
 
@@ -756,4 +758,181 @@ test('segment consistency is unaffected by the routing readiness configuration',
     [a?.evaluated, a?.failing, a?.score],
     [b?.evaluated, b?.failing, b?.score],
   );
+});
+
+
+/* --------------------------------- Opportunity Conversion Integrity (proof) */
+
+const CONVERTED = 'Closed - Converted';
+
+/** A Lead that claims conversion and has the Salesforce record to prove it. */
+const trulyConverted = (over = {}) =>
+  lead({
+    Status: CONVERTED,
+    IsConverted: true,
+    ConvertedDate: '2026-08-20',
+    ConvertedAccountId: '001000000000001',
+    ConvertedContactId: '003000000000001',
+    ConvertedOpportunityId: '006000000000001',
+    ...over,
+  });
+
+/** A Lead that claims conversion with nothing behind it. */
+const claimsOnly = (over = {}) => lead({ Status: CONVERTED, IsConverted: false, ...over });
+
+test('a converted status with no Salesforce conversion record fails', () => {
+  const result = opportunityConversionIntegrity([claimsOnly()]);
+
+  assert.equal(result.evaluated, 1);
+  assert.equal(result.failing, 1);
+  assert.equal(result.score, 0);
+  assert.equal(result.healthy, false);
+  assert.equal(result.evidence[0].Result, 'Not substantiated');
+  assert.equal(result.evidence[0].IsConverted, 'No');
+});
+
+test('a genuinely converted Lead passes', () => {
+  const result = opportunityConversionIntegrity([trulyConverted()]);
+
+  assert.equal(result.evaluated, 1);
+  assert.equal(result.failing, 0);
+  assert.equal(result.score, 100);
+  assert.equal(result.healthy, true);
+});
+
+test('a converted Lead with no Opportunity passes - a null Opportunity is not a failure', () => {
+  /**
+   * THE MISREADING THIS GUARDS.
+   *
+   * Salesforce allows conversion with "do not create an opportunity", so
+   * ConvertedOpportunityId is legitimately null on a perfectly valid
+   * conversion. Failing on it would manufacture findings out of a supported
+   * Salesforce behaviour. Only IsConverted decides.
+   */
+  const result = opportunityConversionIntegrity([
+    trulyConverted({ ConvertedOpportunityId: null }),
+  ]);
+
+  assert.equal(result.failing, 0);
+  assert.equal(result.score, 100);
+});
+
+test('a Lead making no conversion claim is outside the control, never a pass', () => {
+  const result = opportunityConversionIntegrity([
+    lead({ Status: 'Working - Contacted' }),
+    lead({ Status: 'Open - Not Contacted' }),
+    lead({ Status: 'Closed - Not Converted' }),
+  ]);
+
+  assert.equal(result.evaluated, 0, 'none of them claim conversion');
+  assert.equal(result.notEvaluatedCount, 3);
+  assert.equal(result.unmeasurableCount, 0, 'outside, not unmeasurable');
+  assert.equal(result.failing, 0);
+  assert.match(String(result.notEvaluatedRows[0].Reason), /makes no claim to have been converted/);
+});
+
+test('a control with nothing claiming conversion scores 100 rather than 0', () => {
+  const result = opportunityConversionIntegrity([lead(), lead()]);
+
+  assert.equal(result.evaluated, 0);
+  assert.equal(result.score, 100, 'absence of data is not evidence of failure');
+});
+
+test('conversion integrity reconciles and scores from the claim population only', () => {
+  /**
+   * Mirrors the shape of the live org: claims that are not substantiated,
+   * inside a much larger population that claims nothing.
+   */
+  const leads = [
+    claimsOnly({ Name: 'Claim A' }),
+    claimsOnly({ Name: 'Claim B' }),
+    claimsOnly({ Name: 'Claim C' }),
+    trulyConverted({ Name: 'Real conversion' }),
+    ...Array.from({ length: 6 }, () => lead({ Status: 'Open - Not Contacted' })),
+  ];
+
+  const result = opportunityConversionIntegrity(leads);
+
+  assert.equal(result.orgPopulation, 10);
+  assert.equal(result.evaluated, 4, 'only the Leads claiming conversion');
+  assert.equal(result.notEvaluatedCount, 6);
+  assert.equal(result.evaluated + result.notEvaluatedCount, result.orgPopulation);
+  assert.equal(result.failing, 3);
+  assert.equal(result.score, 25, 'round(100 x (1 - 3/4))');
+});
+
+test('the evidence names the Salesforce fields the conclusion rests on', () => {
+  const result = opportunityConversionIntegrity([
+    claimsOnly({ ConvertedDate: null, ConvertedAccountId: null, ConvertedOpportunityId: null }),
+  ]);
+
+  const labels = result.evidenceColumns.map((c) => c.label);
+  assert.ok(labels.includes('Lead Status'));
+  assert.ok(labels.includes('Converted (Salesforce)'));
+  assert.ok(labels.includes('Converted Date'));
+  assert.ok(labels.includes('Converted Account'));
+  assert.ok(labels.includes('Converted Contact'));
+  // Labelled optional on purpose: Salesforce permits conversion without one,
+  // so a reader must not take a blank cell here as the defect.
+  assert.ok(labels.includes('Converted Opportunity (optional)'));
+
+  const row = result.evidence[0];
+  assert.equal(row.Status, CONVERTED);
+  assert.equal(row.ConvertedDate, '\u2014', 'an absent value is named, not blank');
+  assert.equal(row.ConvertedAccountId, '\u2014');
+});
+
+test('the finding is generated and carries a precise name', () => {
+  const result = opportunityConversionIntegrity([claimsOnly()]);
+  const findings = toFindings([result]);
+
+  assert.equal(findings.length, 1);
+  assert.equal(findings[0].id, 'lifecycle-conversion');
+  assert.equal(findings[0].title, 'Converted Lifecycle State Not Substantiated');
+  assert.equal(findings[0].category, 'Lifecycle Governance');
+  assert.equal(findings[0].severity, 'High');
+  assert.equal(findings[0].affected, 1);
+  assert.equal(findings[0].evaluated, 1);
+});
+
+test('conversion integrity is NOT scored: the assessment still runs seven controls in five areas', () => {
+  /**
+   * The scoring boundary this increment deliberately holds.
+   *
+   * The control is implemented and tested above, and it is absent from
+   * runAllChecks - so Assessment Model v1 is untouched and overall health
+   * cannot have moved. Wiring it in is one line, held for approval.
+   */
+  const leads = [claimsOnly(), lead(), lead({ LeadSource: 'Web' })];
+  const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES);
+
+  assert.equal(results.length, 7, 'seven scored controls');
+  assert.ok(
+    !results.some((r) => r.id === 'lifecycle-conversion'),
+    'the lifecycle control must not enter the scored run',
+  );
+
+  const areas = categoryScores(results);
+  assert.equal(areas.length, 5, 'five scored assessment areas - Model v1');
+  assert.ok(
+    !areas.some((a) => a.category === 'Lifecycle Governance'),
+    'an area with no executed control is not reported',
+  );
+});
+
+test('declaring Lifecycle Governance does not disturb the existing area scores', () => {
+  /**
+   * `CATEGORY_ORDER` now lists Lifecycle Governance. This proves that listing
+   * it changes nothing while it holds no result - the regression a naive
+   * registry edit would introduce.
+   */
+  const leads = [lead(), lead({ NumberOfEmployees: null })];
+  const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES);
+
+  const areas = categoryScores(results);
+  assert.deepEqual(
+    areas.map((a) => a.category),
+    ['Data Quality', 'Routing', 'Identity & Matching', 'SLA Performance', 'Pipeline Hygiene'],
+  );
+  assert.equal(overallHealth(areas), Math.round(areas.reduce((sum, a) => sum + a.score, 0) / 5));
 });

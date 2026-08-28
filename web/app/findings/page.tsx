@@ -52,11 +52,12 @@ export default async function FindingsPage() {
 
   return (
     <>
-      <h1>Findings</h1>
-      <p className="lede">
-        Revenue operations conditions detected in the latest Salesforce assessment, ordered by
-        priority. Each one opens the records behind it.
-      </p>
+      <div className="page-head summit">
+        <h1>Findings</h1>
+        <p className="lede">
+          Revenue operations conditions detected in the latest Salesforce assessment, ordered by
+          priority. Each one opens the records behind it.
+        </p>
       {/*
        * This page reads the org itself, so it states its own moment rather
        * than implying it shares one snapshot with the Overview.
@@ -69,14 +70,15 @@ export default async function FindingsPage() {
           <ExportLinks base="/api/export/findings" label="all findings" />
         ) : null}
       </p>
+      </div>
 
       {result.findings.length === 0 ? (
         <Notice tone="ok" title="No findings detected">
-          No assessed records failed the current controls. That is a statement about the six checks
+          No assessed records failed the current controls. That is a statement about the seven checks
           NorthstarIQ runs, not about the whole org.
         </Notice>
       ) : (
-        <>
+        <div className="panel">
           <dl className="queue-summary">
             <div>
               <dt>Findings</dt>
@@ -107,7 +109,7 @@ export default async function FindingsPage() {
               <FindingRow key={f.id} finding={f} />
             ))}
           </div>
-        </>
+        </div>
       )}
     </>
   );

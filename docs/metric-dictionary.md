@@ -195,7 +195,7 @@ Valid, defined in the original register, out of this release.
 | Metric | Why deferred |
 |---|---|
 | Attribute Completeness Rate (per field) | `M-01` covers the operational decision; per-field detail is a report breakdown, not a separate metric |
-| Fit Assessability Rate | `BR-17` deferred; `OD-03` unresolved |
+| Fit Assessability Rate | `BR-17` deferred. `OD-03` was closed on 2026-08-27 by `PD-14` — qualification is required conditions, never a weighted score — so there is no fit weighting left to measure. |
 | Reassignment Rate by Cause | `BR-09` is P1; the cause data does not exist until it is built |
 | Median Time to First Touch | Subsumed by `M-06` and `M-07` for this release |
 | SLA Breach Rate | The complement of `M-06`; reporting both invites quoting whichever is more favourable |

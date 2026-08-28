@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Qualified_Need__c</fullName>
+    <description>BR-15, BR-17, PD-14. THE SELLER INPUT that distinguishes SQL from SAL: the commercial problem Sales confirmed WITH THE PROSPECT before declaring the Lead sales-qualified. RESTRICTED picklist, deliberately - a governed vocabulary is assessable by a later control, where free-form notes are not (Lead.Description is a long text area and cannot even be filtered in SOQL). NOT product selected, NOT an Opportunity product, NOT contract scope, NOT an intent score, NOT Marketing interest and NOT seller opinion. The vocabulary is buyer-problem oriented and derives from what the business case already says NorthstarIQ sells - revenue intelligence and forecasting software. SYNTHETIC BASELINE: authored for reproducible demonstration, not a validated client requirement. Field-level value set rather than a Global Value Set because no second object consumes this vocabulary.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>The business problem Sales confirmed with the prospect.</inlineHelpText>
+    <label>Qualified Need</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Forecast Accuracy</fullName>
+                <default>false</default>
+                <label>Forecast Accuracy</label>
+            </value>
+            <value>
+                <fullName>Pipeline Visibility</fullName>
+                <default>false</default>
+                <label>Pipeline Visibility</label>
+            </value>
+            <value>
+                <fullName>Revenue Reporting Consolidation</fullName>
+                <default>false</default>
+                <label>Revenue Reporting Consolidation</label>
+            </value>
+            <value>
+                <fullName>Sales Process Governance</fullName>
+                <default>false</default>
+                <label>Sales Process Governance</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

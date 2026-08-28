@@ -1,0 +1,27 @@
+-- NorthstarIQ — Lifecycle transition policy, as deployed
+--
+-- ⚠️ NEW REPRODUCIBILITY ARTIFACT, created 2026-08-27 alongside the metadata
+-- it verifies. It was NOT used during any earlier validation, because neither
+-- it nor the Custom Metadata type existed before this increment.
+--
+-- Purpose: re-run this to confirm the governed allowed-transition policy in
+-- the org matches force-app/main/default/customMetadata/Lifecycle_Transition.*.
+-- Expected on 2026-08-27: 10 rows, every Is_Active__c true, every
+-- Rule_Version__c v1.0.
+--
+-- This type is the SINGLE executable definition of an allowed Lead lifecycle
+-- transition. The future preventive safeguard in Lead_Inbound_Before_Save and
+-- the future NorthstarIQ detective control will both read these same records.
+-- A transition absent from this result is not allowed: the policy is a
+-- whitelist, so silence is a refusal rather than an omission.
+--
+-- Read-only. Safe to run against any org.
+
+SELECT DeveloperName,
+       MasterLabel,
+       From_Stage__c,
+       To_Stage__c,
+       Is_Active__c,
+       Rule_Version__c
+FROM Lifecycle_Transition__mdt
+ORDER BY From_Stage__c, To_Stage__c

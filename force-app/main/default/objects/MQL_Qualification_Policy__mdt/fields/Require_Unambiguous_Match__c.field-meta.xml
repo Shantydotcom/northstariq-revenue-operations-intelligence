@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_Unambiguous_Match__c</fullName>
+    <description>HANDOFF READINESS, not buyer quality. Whether MQL requires the account-match state to be unambiguous. This is NOT a requirement that an Account was matched: a clean No Match is a genuinely net-new prospect and passes. Only Review - two or more candidate Accounts - fails, because ownership and account context would be unresolved at the moment of handoff. Match state is owned by Lead.Match_Status__c.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Require Unambiguous Account Match.</inlineHelpText>
+    <label>Require Unambiguous Account Match</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

@@ -6,7 +6,37 @@ import type {
   EvidenceRow,
   NotEvaluatedRecord,
 } from '../types.ts';
-import { GOVERNED_INTAKE, type LeadRecord, type OpportunityRecord } from '../soql.ts';
+import {
+  CONVERTED_LEAD_STATUS,
+  GOVERNED_INTAKE,
+  MQL_CLAIMING_STATUSES,
+  SAL_CLAIMING_STATUSES,
+  SQL_CLAIMING_STATUSES,
+  type LeadRecord,
+  type LeadStatusHistoryRecord,
+  type OpportunityRecord,
+} from '../soql.ts';
+import {
+  canReach,
+  type LifecycleGraph,
+  mustPassThrough,
+  transitionAllowed,
+} from './lifecycle-graph.ts';
+import {
+  activeRequirementLabels,
+  type MqlPolicy,
+  recordedPolicyVersion,
+} from './mql-policy.ts';
+import {
+  acceptanceRequirementLabels,
+  recordedAcceptanceVersion,
+  recordedNextStepDate,
+  recordedQualifiedNeed,
+  recordedSqlVersion,
+  type SalesAcceptancePolicy,
+  type SqlQualificationPolicy,
+  sqlRequirementLabels,
+} from './sales-qualification-policy.ts';
 import {
   currentSegment,
   interpretSegmentBasis,
@@ -799,6 +829,1050 @@ export function segmentConsistency(leads: LeadRecord[]): CheckResult {
     },
   );
 }
+
+/* ----------------------------------------- Lifecycle Governance (area 6) */
+
+/**
+ * OPPORTUNITY CONVERSION INTEGRITY - implemented, tested, NOT YET SCORED.
+ *
+ * This is the proof control for Lifecycle Governance: it exists to show that a
+ * claimed revenue lifecycle state can be checked against Salesforce's own
+ * authoritative record of what happened, and that the two can disagree.
+ *
+ * IT IS DELIBERATELY ABSENT FROM `runAllChecks` AND `CHECK_IDS`.
+ *
+ * Adding it would create Assessment Area #6, and `overallHealth` is an
+ * unweighted mean of areas - so every existing area would move from a fifth of
+ * the score to a sixth, and overall health would change without a single
+ * existing control changing. That is a user-visible scoring change and a break
+ * in comparability between Assessment Model v1 and v2. It is one line, and it
+ * is held for human approval rather than taken quietly.
+ *
+ * The function is complete and unit-tested; nothing here is a placeholder.
+ *
+ * WHAT THE CONTROL DOES NOT CLAIM. It does not assert that a converted Lead
+ * must have produced an Opportunity. Salesforce lets a Lead be converted with
+ * "Don't create an opportunity", so a null `ConvertedOpportunityId` is a
+ * legitimate outcome and is never on its own a failure. The contradiction this
+ * control detects is narrower and harder to argue with: the Lead's status says
+ * converted, and Salesforce's own `IsConverted` flag says it was not.
+ *
+ * PREVENTIVE AND DETECTIVE ARE BOTH REAL HERE, AND THEY ARE NOT THE SAME THING.
+ * `Lifecycle_Transition__mdt` decides whether entry into the converted stage is
+ * PERMITTED, and `Lead_Inbound_Before_Save` enforces that - verified 2026-08-27
+ * to run inside a native Salesforce Lead Conversion, refusing an unsupported
+ * one and rolling the whole transaction back. This control asks the other
+ * question: did conversion actually HAPPEN, on records that already claim it.
+ * The safeguard governs new transitions and could not reach the records that
+ * held a converted status before it existed - so it never makes this control
+ * redundant, and this control never re-asserts what the safeguard enforces.
+ */
+export function opportunityConversionIntegrity(leads: LeadRecord[]): CheckResult {
+  /*
+   * Only Leads that actually make the claim.
+   *
+   * A Lead sitting in Working - Contacted asserts nothing about conversion, so
+   * there is nothing for this control to judge on it. Scoring it would measure
+   * the shape of the pipeline rather than the integrity of a claim.
+   */
+  const claimsConverted = (l: LeadRecord) => l.Status === CONVERTED_LEAD_STATUS;
+
+  const population = leads.filter(claimsConverted);
+
+  /*
+   * The whole failing condition. `IsConverted` is written by the conversion
+   * process and is not editable afterwards, which is what makes it the
+   * authority here - a status can be typed or loaded, this cannot.
+   */
+  const failing = population.filter((l) => !l.IsConverted);
+
+  const notEvaluated: NotEvaluatedRecord[] = leads
+    .filter((l) => !claimsConverted(l))
+    .map((l) => ({
+      // Outside, not unmeasurable: the control genuinely does not apply to a
+      // record that makes no conversion claim.
+      kind: 'outside' as const,
+      row: {
+        Name: l.Name,
+        Status: l.Status ?? '\u2014 (none recorded)',
+        IsConverted: l.IsConverted ? 'Yes' : 'No',
+        Reason: `Conversion integrity \u2014 this Lead's status is "${
+          l.Status ?? 'not set'
+        }", so it makes no claim to have been converted and there is no claim to substantiate; it was not included in this control\u2019s score.`,
+        Id: l.Id,
+      },
+    }));
+
+  /** "\u2014" for an absent id, so a blank cell is never mistaken for a value. */
+  const orDash = (v: string | null) => (v === null || v === '' ? '\u2014' : v);
+
+  return build(
+    {
+      id: 'lifecycle-conversion',
+      title: 'Converted Lifecycle State Not Substantiated',
+      category: 'Lifecycle Governance',
+      severity: 'High',
+      businessQuestion:
+        'Does a Lead claiming a converted lifecycle state have the Salesforce conversion record to support it?',
+      businessImpact:
+        'Conversion is the point where Marketing hands the outcome to Sales, and every funnel and conversion-rate figure counts it. A Lead whose status says converted while Salesforce records no conversion inflates that count and points at an Account, Contact and Opportunity that do not exist.',
+      failureDetail:
+        failing.length === 0
+          ? ''
+          : `${failing.length} ${be(failing.length)} marked "${CONVERTED_LEAD_STATUS}" while Salesforce records the Lead as not converted`,
+      population: `${population.length} Leads claiming a converted lifecycle state`,
+      orgPopulation: leads.length,
+      orgPopulationNoun: 'Leads',
+      evaluated: population.length,
+      failing: failing.length,
+      evidenceColumns: [
+        { key: 'Name', label: 'Lead' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'Status', label: 'Lead Status' },
+        { key: 'IsConverted', label: 'Converted (Salesforce)' },
+        { key: 'ConvertedDate', label: 'Converted Date', mono: true },
+        { key: 'ConvertedAccountId', label: 'Converted Account', mono: true },
+        { key: 'ConvertedContactId', label: 'Converted Contact', mono: true },
+        { key: 'ConvertedOpportunityId', label: 'Converted Opportunity (optional)', mono: true },
+        { key: 'Result', label: 'Result' },
+      ],
+      notEvaluatedColumns: [
+        { key: 'Name', label: 'Lead' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'Status', label: 'Lead Status' },
+        { key: 'IsConverted', label: 'Converted (Salesforce)' },
+        { key: 'Reason', label: "Why wasn't this record evaluated?" },
+      ],
+    },
+    failing.map((l) => ({
+      Name: l.Name,
+      Id: l.Id,
+      Status: l.Status,
+      IsConverted: 'No',
+      ConvertedDate: orDash(l.ConvertedDate),
+      ConvertedAccountId: orDash(l.ConvertedAccountId),
+      ConvertedContactId: orDash(l.ConvertedContactId),
+      ConvertedOpportunityId: orDash(l.ConvertedOpportunityId),
+      Result: 'Not substantiated',
+    })),
+    notEvaluated,
+  );
+}
+
+
+/* ---------------------------------------- lifecycle detective control 1 */
+/**
+ * MQL Qualification Integrity - IMPLEMENTED, DETECTIVE, DELIBERATELY UNSCORED.
+ *
+ * Like `opportunityConversionIntegrity`, this control is complete and
+ * unit-tested but is absent from `CHECK_IDS` and from `runAllChecks`, so it has
+ * no route, no score, and no effect on overall health. Assessment Model v1
+ * stays at five areas and seven scored controls until activating Lifecycle
+ * Governance is approved as a deliberate, user-visible scoring change.
+ *
+ * THE QUESTION. Salesforce prevents an unsupported NEW transition into MQL.
+ * This asks the other half: of the Leads that already claim Marketing
+ * qualification, which ones can the governed policy actually substantiate?
+ *
+ * THE DEFINITION IS NOT HERE. Which requirements apply comes from the active
+ * `MQL_Qualification_Policy__mdt` record; which sources are governed comes from
+ * `Routing_Readiness_Source__mdt`; which segments qualify comes from
+ * `Segment_Band__mdt.MQL_Eligible__c`. Those are the same three reads the
+ * preventive Flow makes. Turn a requirement off in Salesforce and this control
+ * stops testing it, with no code change - which is the property that makes it a
+ * second consumer of one definition rather than a second copy of it.
+ *
+ * WHY MOST RECORDS ARE NOT JUDGED, AND WHY THAT IS THE HONEST ANSWER. Three
+ * things put a claiming Lead beyond safe re-judgement:
+ *
+ *  1. NO GOVERNED EVIDENCE. Every baseline Lead predates `MQL_Basis__c`. A
+ *     record that claimed MQL before the evidence architecture existed cannot be
+ *     shown to have violated the policy - only to be unprovable. Missing
+ *     evidence is not a violation, and reporting it as one would be a
+ *     fabrication.
+ *  2. IT HAS MOVED ON. Every input the policy reads - source, segment,
+ *     territory, match state - is current-state and derived. On a Lead that has
+ *     since reached SAL, SQL or conversion, today's values are not the values
+ *     that qualified it, and a segment that legitimately changed afterwards is
+ *     not evidence of a bad qualification. Only a Lead still sitting on the
+ *     governed stage has facts contemporaneous with its own claim.
+ *  3. A DIFFERENT POLICY VERSION. A record qualified under v1.0 is not judged
+ *     against v1.1.
+ *
+ * All three land in `unmeasurable`, whose contract is precisely "the control
+ * applies, but the process that produces its evidence never ran".
+ */
+export function mqlQualificationIntegrity(
+  leads: LeadRecord[],
+  policy: MqlPolicy,
+  /** Active Lead Sources from Routing_Readiness_Source__mdt. */
+  governedSources: string[],
+  /** Segment names where Segment_Band__mdt.MQL_Eligible__c is true. */
+  mqlEligibleSegments: string[],
+): CheckResult {
+  const claims = (l: LeadRecord) =>
+    l.MQL_Basis__c !== null || MQL_CLAIMING_STATUSES.includes(l.Status ?? '');
+
+  const population = leads.filter(claims);
+  const outside = leads.filter((l) => !claims(l));
+
+  const failingRows: EvidenceRow[] = [];
+  const notEvaluated: NotEvaluatedRecord[] = [];
+  const failureCauses: string[] = [];
+  const exclusionCauses: string[] = [];
+
+  const dash = (v: string | null) => (v === null || v === '' ? '\u2014' : v);
+
+  const decline = (l: LeadRecord, cause: string, reason: string) => {
+    exclusionCauses.push(cause);
+    notEvaluated.push({
+      kind: 'unmeasurable',
+      row: {
+        Name: l.Name,
+        Status: dash(l.Status),
+        'MQL Basis': dash(l.MQL_Basis__c),
+        Reason: reason,
+        Id: l.Id,
+      },
+    });
+  };
+
+  let evaluated = 0;
+
+  for (const l of population) {
+    // 1. No governed evidence at all - predates the qualification foundation.
+    if (l.MQL_Basis__c === null) {
+      decline(
+        l,
+        'No governed qualification evidence',
+        `MQL qualification integrity \u2014 this Lead's status is "${dash(
+          l.Status,
+        )}", which under the governed lifecycle is only reachable through MQL, but it carries no qualification evidence: it predates the evidence foundation. NorthstarIQ cannot show the claim was wrong, only that it cannot be substantiated \u2014 so it was not counted as a failure.`,
+      );
+      continue;
+    }
+
+    // 2. Qualified under a different definition.
+    const version = recordedPolicyVersion(l.MQL_Basis__c);
+    if (policy.version !== null && version !== null && version !== policy.version) {
+      decline(
+        l,
+        'Qualified under a superseded policy version',
+        `MQL qualification integrity \u2014 this Lead was qualified under MQL Policy ${version} and the definition in force is now ${policy.version}. Judging it against a policy that did not exist when it qualified would invent a violation, so it was not counted.`,
+      );
+      continue;
+    }
+
+    // 3. It has progressed - today's derived values are not the ones that qualified it.
+    if (l.Status !== policy.qualifiedStage) {
+      decline(
+        l,
+        'Progressed beyond the governed stage',
+        `MQL qualification integrity \u2014 this Lead qualified under the governed policy and has since moved to "${dash(
+          l.Status,
+        )}". Every input the policy reads is current-state and derived, so today's values are not the ones that qualified it and cannot re-judge the historical claim.`,
+      );
+      continue;
+    }
+
+    /*
+     * Contemporaneous: the Lead still sits on the stage it claims, so its
+     * current values ARE the qualification values.
+     *
+     * Precedence matters. A requirement that is demonstrably violated makes the
+     * record a failure; a requirement that merely cannot be proven makes it
+     * unmeasurable. A proven violation therefore outranks an unprovable one -
+     * otherwise a record with a real defect could hide behind a blank field.
+     */
+    const violations: string[] = [];
+    const unprovable: string[] = [];
+
+    if (policy.requireGovernedSource && !governedSources.includes(l.LeadSource ?? '')) {
+      violations.push('acquisition source is not one held to a routing-readiness standard');
+    }
+    if (policy.requireEligibleSegment) {
+      if (l.Segment__c === null || l.Segment__c === '') {
+        unprovable.push('no segment is recorded, so its eligibility cannot be established');
+      } else if (!mqlEligibleSegments.includes(l.Segment__c)) {
+        violations.push('segment is not one the business qualifies');
+      }
+    }
+    if (policy.requireRoutableTerritory && (l.Territory__c === null || l.Territory__c === '')) {
+      violations.push('no governed territory was resolved');
+    }
+    if (policy.requireUnambiguousMatch) {
+      if (l.Match_Status__c === 'Review') {
+        violations.push('account match is ambiguous and needs review');
+      } else if (l.Match_Status__c === null || l.Match_Status__c === '') {
+        /*
+         * BLANK IS NOT UNAMBIGUOUS.
+         *
+         * The preventive Flow blocks only a known ambiguity, so blank passes
+         * there - correct for a gate deciding whether to refuse a save. This
+         * control asks a different question: is the claim SUBSTANTIATED? A match
+         * that was never evaluated substantiates nothing. Same policy, same
+         * field, different question - so blank is insufficient evidence here
+         * and is never silently counted as a pass.
+         */
+        unprovable.push('account match was never evaluated, so it cannot be shown to be unambiguous');
+      }
+    }
+
+    if (violations.length > 0) {
+      failureCauses.push(violations[0]);
+      failingRows.push({
+        Name: l.Name,
+        Id: l.Id,
+        Status: dash(l.Status),
+        LeadSource: dash(l.LeadSource),
+        Segment: dash(l.Segment__c),
+        Territory: dash(l.Territory__c),
+        'Match Status': dash(l.Match_Status__c),
+        'MQL Basis': dash(l.MQL_Basis__c),
+        Result: `Not substantiated \u2014 ${list(violations)}`,
+      });
+      evaluated += 1;
+      continue;
+    }
+    if (unprovable.length > 0) {
+      decline(
+        l,
+        'Insufficient evidence for a required condition',
+        `MQL qualification integrity \u2014 this Lead breaches nothing the policy prohibits, but ${list(
+          unprovable,
+        )}. An unproven condition is not a pass, so it was not counted either way.`,
+      );
+      continue;
+    }
+    evaluated += 1;
+  }
+
+  for (const l of outside) {
+    notEvaluated.push({
+      kind: 'outside',
+      row: {
+        Name: l.Name,
+        Status: dash(l.Status),
+        'MQL Basis': dash(l.MQL_Basis__c),
+        Reason: `MQL qualification integrity \u2014 this Lead's status is "${dash(
+          l.Status,
+        )}" and it carries no qualification evidence, so it makes no Marketing-qualified claim and there is nothing to substantiate.`,
+        Id: l.Id,
+      },
+    });
+  }
+
+  const failing = failingRows.length;
+
+  return build(
+    {
+      id: 'mql-integrity',
+      title: 'Marketing-Qualified Claims Not Substantiated',
+      category: 'Lifecycle Governance',
+      severity: 'Medium',
+      businessQuestion:
+        'Where a Lead claims Marketing qualification, does the governed qualification policy substantiate it?',
+      businessImpact:
+        'An MQL that cannot be explained is one Sales has to re-qualify from scratch, which is the disagreement between Marketing and Sales expressed as wasted seller time. The point of a governed definition is that the handoff arrives with its reasoning attached.',
+      failureDetail:
+        failing === 0
+          ? ''
+          : `${failing} ${be(failing)} on the governed stage while the policy in force does not support the claim`,
+      population: `${evaluated} Leads whose Marketing-qualified claim can be checked against MQL Policy ${
+        policy.version ?? '(unversioned)'
+      }`,
+      orgPopulation: leads.length,
+      orgPopulationNoun: 'Leads',
+      evaluated,
+      failing,
+      evidenceColumns: [
+        { key: 'Name', label: 'Lead' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'Status', label: 'Lead Status' },
+        { key: 'LeadSource', label: 'Lead Source' },
+        { key: 'Segment', label: 'Segment' },
+        { key: 'Territory', label: 'Territory' },
+        { key: 'Match Status', label: 'Account Match' },
+        { key: 'MQL Basis', label: 'Recorded Qualification Evidence' },
+        { key: 'Result', label: 'Result' },
+      ],
+      notEvaluatedColumns: [
+        { key: 'Name', label: 'Lead' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'Status', label: 'Lead Status' },
+        { key: 'MQL Basis', label: 'Recorded Qualification Evidence' },
+        { key: 'Reason', label: "Why wasn't this record evaluated?" },
+      ],
+    },
+    failingRows,
+    notEvaluated,
+    {
+      failure: tally(failureCauses, (c) => c).map(([label, count]) => ({ label, count })),
+      exclusion: tally(exclusionCauses, (c) => c).map(([label, count]) => ({ label, count })),
+    },
+  );
+}
+
+/** The requirements the active policy switches on, for the investigation trail. */
+export { activeRequirementLabels as mqlActiveRequirements };
+
+
+/* ---------------------------------------- lifecycle detective control 2 */
+/**
+ * Which stage owns which piece of evidence.
+ *
+ * A TAXONOMY FACT, not policy. Reading `Sales_Accepted_At__c` requires knowing
+ * it is the SAL stage's evidence - the field is meaningless otherwise. What
+ * this does NOT decide is which stage may follow which, or which stages a route
+ * must pass through: those come from `Lifecycle_Transition__mdt` through the
+ * graph. Stages absent from the deployed policy are simply skipped.
+ */
+const STAGE_EVIDENCE: { stage: string; label: string; present: (l: LeadRecord) => boolean }[] = [
+  { stage: 'MQL', label: 'Marketing qualification evidence', present: (l) => l.MQL_Basis__c !== null },
+  { stage: 'SAL', label: 'Sales acceptance evidence', present: (l) => l.Sales_Accepted_At__c !== null },
+  { stage: 'SQL', label: 'sales qualification evidence', present: (l) => l.SQL_Basis__c !== null },
+];
+
+/** The calendar day of an ISO timestamp, for comparisons that must not be finer. */
+const day = (iso: string) => iso.slice(0, 10);
+
+/**
+ * Lifecycle Progression Integrity - IMPLEMENTED, DETECTIVE, DELIBERATELY UNSCORED.
+ *
+ * Absent from `CHECK_IDS` and `runAllChecks`, like `mqlQualificationIntegrity`
+ * and `opportunityConversionIntegrity`. Assessment Model v1 stays at five areas
+ * and seven scored controls.
+ *
+ * THE QUESTION. Not "was this Lead well qualified" - that is MQL Qualification
+ * Integrity - and not "was this conversion real" - that is Opportunity
+ * Conversion Integrity. This asks whether the Lead's observable progression is
+ * internally consistent with the governed transition model: did it move in ways
+ * the policy permits, does its evidence belong to stages it could have passed
+ * through, and do its timestamps order sensibly.
+ *
+ * THE HARD PART IS RESTRAINT. Salesforce field history is bounded, was not
+ * always tracked, and never records a Lead's initial status. A transition that
+ * is absent from history is not a transition that never happened, and a Lead
+ * carrying no lifecycle evidence is not a Lead that misbehaved - the evidence
+ * fields did not exist when the baseline was created. So:
+ *
+ *   FAIL         retained evidence CONTRADICTS the governed model
+ *   UNMEASURABLE the Lead claims progression, but nothing retained can settle it
+ *   OUTSIDE      the Lead claims no progression at all
+ *
+ * A transition that the policy does not permit is only a FAIL on a record the
+ * safeguard has actually touched. `Lifecycle_Stage_Entered__c` is how that is
+ * known: the Flow stamps it on every transition it governs, so its absence
+ * proves the safeguard never ran on this record. NO EFFECTIVE DATE IS INVENTED
+ * anywhere - the record's own evidence decides, not a date in code.
+ */
+export function lifecycleProgressionIntegrity(
+  leads: LeadRecord[],
+  statusHistory: LeadStatusHistoryRecord[],
+  graph: LifecycleGraph,
+): CheckResult {
+  const historyByLead = new Map<string, LeadStatusHistoryRecord[]>();
+  for (const h of statusHistory) {
+    if (!historyByLead.has(h.LeadId)) historyByLead.set(h.LeadId, []);
+    historyByLead.get(h.LeadId)!.push(h);
+  }
+
+  const failingRows: EvidenceRow[] = [];
+  const notEvaluated: NotEvaluatedRecord[] = [];
+  const failureCauses: string[] = [];
+  const exclusionCauses: string[] = [];
+  let evaluated = 0;
+
+  const dash = (v: string | null) => (v === null || v === '' ? '\u2014' : v);
+
+  for (const l of leads) {
+    const status = l.Status ?? '';
+    const observed = historyByLead.get(l.Id) ?? [];
+    const evidenceHeld = STAGE_EVIDENCE.filter((e) => e.present(l));
+    /*
+     * The safeguard stamps this on every transition it governs, so its presence
+     * is the record's own proof that governance was in force for it. This is
+     * the whole basis for separating "broke the rules" from "moved before the
+     * rules existed", and it needs no date.
+     */
+    const governed = l.Lifecycle_Stage_Entered__c !== null;
+
+    /*
+     * A Lead is in scope when it asserts it has progressed - it sits somewhere
+     * a lifecycle cannot begin - or when it carries anything progression can be
+     * reasoned about.
+     */
+    const claimsProgression = graph.stages.has(status) && !graph.entryStages.has(status);
+    const applicable =
+      claimsProgression || observed.length > 0 || evidenceHeld.length > 0 || governed;
+
+    if (!applicable) {
+      notEvaluated.push({
+        kind: 'outside',
+        row: {
+          Name: l.Name,
+          Status: dash(l.Status),
+          'Observed Transitions': '\u2014',
+          Reason: `Lifecycle progression \u2014 this Lead is at "${dash(
+            l.Status,
+          )}", where a lifecycle begins, and carries no transition history or stage evidence. It asserts no progression, so there is nothing to check.`,
+          Id: l.Id,
+        },
+      });
+      continue;
+    }
+
+    const contradictions: string[] = [];
+    const unprovable: string[] = [];
+
+    /* -- A. an observed move the governed policy does not permit ----------- */
+    for (const h of observed) {
+      const from = h.OldValue ?? '';
+      const to = h.NewValue ?? '';
+      if (!graph.stages.has(from) || !graph.stages.has(to)) continue;
+      if (transitionAllowed(graph, from, to)) continue;
+      if (governed) {
+        contradictions.push(`it moved ${from} \u2192 ${to}, which the governed policy does not permit`);
+      } else {
+        unprovable.push(
+          `it moved ${from} \u2192 ${to}, which the current policy does not permit \u2014 but the lifecycle safeguard never ran on this record, so the move predates governance`,
+        );
+      }
+    }
+
+    /* -- B. stage entry recorded before the Lead existed -------------------- */
+    if (l.Lifecycle_Stage_Entered__c !== null && l.Lifecycle_Stage_Entered__c < l.CreatedDate) {
+      contradictions.push('its current stage was entered before the Lead itself was created');
+    }
+
+    /* -- C. acceptance recorded before the Lead existed --------------------- */
+    if (l.Sales_Accepted_At__c !== null && l.Sales_Accepted_At__c < l.CreatedDate) {
+      contradictions.push('Sales accepted it before the Lead itself was created');
+    }
+
+    /* -- D. conversion dated before the Lead existed ------------------------
+     * ConvertedDate is a DATE and CreatedDate is a DATETIME, so only a whole-day
+     * difference is compared. A same-day pair is left alone rather than ordered
+     * on precision Salesforce does not retain.
+     */
+    if (l.ConvertedDate !== null && l.ConvertedDate < day(l.CreatedDate)) {
+      contradictions.push('it was converted before the Lead itself was created');
+    }
+
+    /* -- E. evidence for a stage this Lead could not have passed through ---- */
+    for (const e of evidenceHeld) {
+      if (!graph.stages.has(e.stage) || !graph.stages.has(status)) continue;
+      if (e.stage === status) continue;
+      if (!canReach(graph, e.stage, status)) {
+        contradictions.push(
+          `it holds ${e.label} for the ${e.stage} stage, which the governed policy gives no route from to "${status}"`,
+        );
+      }
+    }
+
+    /* -- F. a stage every route must cross, with its evidence absent -------- */
+    for (const e of STAGE_EVIDENCE) {
+      if (e.present(l)) continue;
+      if (!mustPassThrough(graph, status, e.stage)) continue;
+      if (governed) {
+        contradictions.push(
+          `every governed route to "${status}" passes through ${e.stage}, and its ${e.label} is absent`,
+        );
+      } else {
+        unprovable.push(
+          `every governed route to "${status}" passes through ${e.stage}, and its ${e.label} is absent \u2014 but this record progressed before that evidence existed`,
+        );
+      }
+    }
+
+    if (contradictions.length > 0) {
+      failureCauses.push(contradictions[0]);
+      failingRows.push({
+        Name: l.Name,
+        Id: l.Id,
+        Status: dash(l.Status),
+        'Stage Entered': dash(l.Lifecycle_Stage_Entered__c),
+        'Observed Transitions':
+          observed.length === 0
+            ? '\u2014 (none retained)'
+            : observed.map((h) => `${h.OldValue} \u2192 ${h.NewValue}`).join('; '),
+        'Stage Evidence Held':
+          evidenceHeld.length === 0 ? '\u2014' : evidenceHeld.map((e) => e.stage).join(', '),
+        Result: `Progression conflict \u2014 ${list(contradictions)}`,
+      });
+      evaluated += 1;
+      continue;
+    }
+
+    if (unprovable.length > 0) {
+      exclusionCauses.push(
+        unprovable.some((u) => u.includes('predates governance'))
+          ? 'Transition observed, but it predates the lifecycle safeguard'
+          : 'Progression claimed before the evidence architecture existed',
+      );
+      notEvaluated.push({
+        kind: 'unmeasurable',
+        row: {
+          Name: l.Name,
+          Status: dash(l.Status),
+          'Observed Transitions':
+            observed.length === 0
+              ? '\u2014 (none retained)'
+              : observed.map((h) => `${h.OldValue} \u2192 ${h.NewValue}`).join('; '),
+          Reason: `Lifecycle progression \u2014 ${list(unprovable)}. NorthstarIQ cannot show the progression was wrong, only that it cannot be substantiated, so it was not counted as a failure.`,
+          Id: l.Id,
+        },
+      });
+      continue;
+    }
+
+    evaluated += 1;
+  }
+
+  const failing = failingRows.length;
+
+  return build(
+    {
+      id: 'lifecycle-progression',
+      title: 'Lead Lifecycle Progression Conflicts',
+      category: 'Lifecycle Governance',
+      severity: 'Medium',
+      businessQuestion:
+        'Does each Lead\u2019s observable lifecycle evidence agree with the governed progression the business defined?',
+      businessImpact:
+        'A lifecycle stage is supposed to mean the same thing to Marketing, Sales and the forecast. Where a record reached a stage by a route the business does not permit, or carries evidence for a stage it never passed through, every funnel figure counting that stage is counting something else.',
+      failureDetail:
+        failing === 0
+          ? ''
+          : `${failing} ${be(failing)} carrying lifecycle evidence that contradicts the governed progression`,
+      population: `${evaluated} Leads whose progression could be settled against the governed transition policy${
+        graph.versions.length ? ` ${graph.versions.join(', ')}` : ''
+      }`,
+      orgPopulation: leads.length,
+      orgPopulationNoun: 'Leads',
+      evaluated,
+      failing,
+      evidenceColumns: [
+        { key: 'Name', label: 'Lead' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'Status', label: 'Lead Status' },
+        { key: 'Stage Entered', label: 'Current Stage Entered', mono: true },
+        { key: 'Observed Transitions', label: 'Transitions Salesforce Retains' },
+        { key: 'Stage Evidence Held', label: 'Stage Evidence Held' },
+        { key: 'Result', label: 'Result' },
+      ],
+      notEvaluatedColumns: [
+        { key: 'Name', label: 'Lead' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'Status', label: 'Lead Status' },
+        { key: 'Observed Transitions', label: 'Transitions Salesforce Retains' },
+        { key: 'Reason', label: "Why wasn't this record evaluated?" },
+      ],
+    },
+    failingRows,
+    notEvaluated,
+    {
+      failure: tally(failureCauses, (c) => c).map(([label, count]) => ({ label, count })),
+      exclusion: tally(exclusionCauses, (c) => c).map(([label, count]) => ({ label, count })),
+    },
+  );
+}
+
+
+/* ---------------------------------------- lifecycle detective control 3 */
+/**
+ * SALES ACCEPTANCE / SQL INTEGRITY - IMPLEMENTED, DETECTIVE, DELIBERATELY UNSCORED.
+ *
+ * Absent from `CHECK_IDS` and `runAllChecks`, like the three lifecycle controls
+ * before it. Assessment Model v1 stays at five areas and seven scored controls.
+ *
+ * ONE CONTROL, TWO EVALUATIONS. The Marketing -> Sales handoff has two distinct
+ * business events and this control keeps them distinct:
+ *
+ *   SAL  Sales explicitly accepted responsibility for a substantiated
+ *        Marketing-qualified Lead. An acknowledgement, made by a named person.
+ *   SQL  Sales subsequently established enough commercial evidence - a need
+ *        confirmed with the prospect, and an agreed forward step - to justify
+ *        a genuine pursuit.
+ *
+ * They are evaluated separately against their own governed policies and then
+ * combined into one population, one failing set and one finding, because the
+ * question a reader asks is one question: does the evidence substantiate what
+ * this Lead claims about the handoff?
+ *
+ * WHAT IT DOES NOT DO.
+ *
+ *  - It does not re-evaluate MQL. `MQL_Basis__c` is consumed as the
+ *    evidence-chain prerequisite the acceptance policy names; source, segment,
+ *    territory and match are never re-tested here. Whether the Marketing
+ *    qualification was itself valid is MQL Qualification Integrity's question.
+ *  - It does not re-derive the lifecycle. Transition adjacency, reachability
+ *    and stage chronology belong to Lifecycle Progression Integrity, which
+ *    reasons from `Lifecycle_Transition__mdt`. This control reasons from the
+ *    two sales policies and never consults the transition graph.
+ *  - It does not report the conversion contradiction. `Status` versus
+ *    `IsConverted` is Opportunity Conversion Integrity's finding. A converted
+ *    Lead is in scope here only because acceptance and qualification evidence
+ *    deliberately survive conversion.
+ *
+ * INPUT IS NOT EVIDENCE. `Sales_Accepted__c` is a checkbox a seller ticks,
+ * `Qualified_Need__c` a picklist they choose and `Next_Step_Date__c` a date
+ * they enter - all three editable afterwards, so all three describe now rather
+ * than then. The immutable, automation-written fields are what the control
+ * judges. A ticked checkbox on a Lead with no acceptance evidence proves
+ * nothing, and neither does `First_Touch_DateTime__c`: a seller working a Lead
+ * is activity, not the business event of Sales accepting the handoff.
+ */
+export function salesAcceptanceSqlIntegrity(
+  leads: LeadRecord[],
+  acceptancePolicy: SalesAcceptancePolicy,
+  sqlPolicy: SqlQualificationPolicy,
+  statusHistory: LeadStatusHistoryRecord[],
+): CheckResult {
+  const historyByLead = new Map<string, LeadStatusHistoryRecord[]>();
+  for (const h of statusHistory) {
+    if (!historyByLead.has(h.LeadId)) historyByLead.set(h.LeadId, []);
+    historyByLead.get(h.LeadId)!.push(h);
+  }
+
+  const dash = (v: string | null) => (v === null || v === '' ? '—' : v);
+
+  /**
+   * When this Lead entered the governed qualified stage, or null.
+   *
+   * THE WHOLE HISTORICAL QUESTION TURNS ON THIS. The preventive gate required
+   * the next-step date to be today or later AT THE MOMENT OF QUALIFICATION, so
+   * a correctly qualified Lead's date falls into the past as time passes.
+   * Comparing it against TODAY would report the passage of time as a defect.
+   * It has to be compared against the qualification event, and only two things
+   * in Salesforce establish that event:
+   *
+   *   1. The stage-entry stamp, when the Lead still sits on the qualified
+   *      stage - the stamp IS that transition, written by the Flow that
+   *      granted it.
+   *   2. A retained Status transition into the qualified stage.
+   *
+   * Field history is bounded and never records a Lead's first status, so for a
+   * Lead that has moved on this frequently returns null. That is reported as
+   * unmeasurable rather than resolved with a substitute date.
+   */
+  const qualifiedAt = (l: LeadRecord): string | null => {
+    if (l.Status === sqlPolicy.qualifiedStage && l.Lifecycle_Stage_Entered__c !== null) {
+      return l.Lifecycle_Stage_Entered__c;
+    }
+    const entries = (historyByLead.get(l.Id) ?? [])
+      .filter((h) => h.NewValue === sqlPolicy.qualifiedStage)
+      .map((h) => h.CreatedDate)
+      .sort();
+    return entries.length > 0 ? entries[entries.length - 1] : null;
+  };
+
+  /** One stage's verdict. `claimed` false means the Lead asserts nothing here. */
+  interface StageVerdict {
+    claimed: boolean;
+    contradictions: string[];
+    unprovable: string[];
+  }
+
+  /** Fresh each time: the caller spreads these lists and must never share them. */
+  const nothingClaimed = (): StageVerdict => ({
+    claimed: false,
+    contradictions: [],
+    unprovable: [],
+  });
+
+  /**
+   * Does the acceptance evidence substantiate the acceptance this Lead claims?
+   *
+   * Governed is decided by the record's own evidence, not by a date: the Flow
+   * writes `Sales_Accepted_At__c` at the instant it grants acceptance and
+   * nothing else ever writes it, so its presence is proof the safeguard ran
+   * here and its absence is proof it did not. NO EFFECTIVE DATE EXISTS.
+   */
+  function evaluateSalesAcceptance(l: LeadRecord): StageVerdict {
+    const claimed =
+      l.Sales_Accepted_At__c !== null ||
+      l.Sales_Accepted_By__c !== null ||
+      l.Sales_Acceptance_Basis__c !== null ||
+      SAL_CLAIMING_STATUSES.includes(l.Status ?? '');
+    if (!claimed) return nothingClaimed();
+
+    const contradictions: string[] = [];
+    const unprovable: string[] = [];
+
+    if (l.Sales_Accepted_At__c === null) {
+      /*
+       * The baseline reality. A Lead whose status says Sales accepted it, with
+       * no acceptance evidence, predates the acceptance architecture - the
+       * fields did not exist when it moved. The seller checkbox is named here
+       * precisely because it is the thing a reader would otherwise mistake for
+       * evidence.
+       */
+      unprovable.push(
+        `it claims Sales acceptance and carries none of the acceptance evidence the safeguard writes${
+          l.Sales_Accepted__c
+            ? ', only the seller checkbox - which is editable and records no time, no actor and no policy'
+            : ''
+        }`,
+      );
+      return { claimed, contradictions, unprovable };
+    }
+
+    // Judged against the definition in force when it was accepted, never a later one.
+    const version = recordedAcceptanceVersion(l.Sales_Acceptance_Basis__c);
+    if (acceptancePolicy.version !== null && version !== null && version !== acceptancePolicy.version) {
+      unprovable.push(
+        `it was accepted under Sales Acceptance Policy ${version} and the definition in force is now ${acceptancePolicy.version}`,
+      );
+      return { claimed, contradictions, unprovable };
+    }
+
+    /*
+     * EVIDENCE COHERENCE, not a policy requirement. The Flow writes the time,
+     * the actor and the basis in a single assignment, so a record holding one
+     * without the others is internally inconsistent whatever the policy
+     * declares. This is checked unconditionally for that reason - it is an
+     * invariant of the writer, not a rule the business switches on.
+     */
+    if (l.Sales_Acceptance_Basis__c === null) {
+      contradictions.push(
+        'Sales acceptance was recorded with no basis stating why it was permitted',
+      );
+    }
+
+    // Policy-gated. Turn the requirement off in Salesforce and this stops being tested.
+    if (acceptancePolicy.requireExplicitAcceptance && l.Sales_Accepted_By__c === null) {
+      contradictions.push(
+        'acceptance was recorded without the authenticated identity that granted it, so no one is accountable for it',
+      );
+    }
+    if (acceptancePolicy.requireMqlEvidence && l.MQL_Basis__c === null) {
+      contradictions.push(
+        'Sales acceptance was recorded while the Marketing handoff it accepted carries no qualification evidence',
+      );
+    }
+
+    return { claimed, contradictions, unprovable };
+  }
+
+  /**
+   * Does the qualification evidence substantiate the SQL claim?
+   *
+   * Governed is again decided by the record's own evidence: `SQL_Basis__c` is
+   * written by the Flow at the instant it grants SQL and by nothing else.
+   *
+   * The recorded need and next-step date are read out of that basis rather
+   * than off the live fields, because the live fields are seller inputs that
+   * may legitimately have moved on since. A need that changed after
+   * qualification is not evidence the qualification was wrong.
+   */
+  function evaluateSqlQualification(l: LeadRecord): StageVerdict {
+    const claimed = l.SQL_Basis__c !== null || SQL_CLAIMING_STATUSES.includes(l.Status ?? '');
+    if (!claimed) return nothingClaimed();
+
+    const contradictions: string[] = [];
+    const unprovable: string[] = [];
+
+    if (l.SQL_Basis__c === null) {
+      unprovable.push(
+        'it claims sales qualification and carries no qualification evidence, so it predates the qualification architecture',
+      );
+      return { claimed, contradictions, unprovable };
+    }
+
+    const version = recordedSqlVersion(l.SQL_Basis__c);
+    if (sqlPolicy.version !== null && version !== null && version !== sqlPolicy.version) {
+      unprovable.push(
+        `it was qualified under SQL Policy ${version} and the definition in force is now ${sqlPolicy.version}`,
+      );
+      return { claimed, contradictions, unprovable };
+    }
+
+    if (sqlPolicy.requireAcceptanceEvidence && l.Sales_Accepted_At__c === null) {
+      contradictions.push(
+        'it was qualified as a genuine pursuit while carrying no evidence that Sales ever accepted it',
+      );
+    }
+    if (sqlPolicy.requireConfirmedNeed && recordedQualifiedNeed(l.SQL_Basis__c) === null) {
+      contradictions.push(
+        'its qualification evidence records no business need confirmed with the prospect',
+      );
+    }
+    if (sqlPolicy.requireNextStep) {
+      const recorded = recordedNextStepDate(l.SQL_Basis__c);
+      const at = qualifiedAt(l);
+      if (recorded === null) {
+        contradictions.push('its qualification evidence records no agreed next step');
+      } else if (at === null) {
+        /*
+         * The date is there; the event it has to be measured against is not.
+         * Falling back to TODAY here is the exact mistake this control exists
+         * to avoid - it would fail every correctly qualified Lead as soon as
+         * its next step passed.
+         */
+        unprovable.push(
+          `it recorded an agreed next step on ${recorded}, and nothing Salesforce retains establishes when it was qualified, so that date cannot be judged against the decision it belonged to`,
+        );
+      } else if (recorded < day(at)) {
+        contradictions.push(
+          `the next step it recorded, ${recorded}, was already in the past when it was qualified on ${day(at)}`,
+        );
+      }
+    }
+
+    return { claimed, contradictions, unprovable };
+  }
+
+  const failingRows: EvidenceRow[] = [];
+  const notEvaluated: NotEvaluatedRecord[] = [];
+  const failureCauses: string[] = [];
+  const exclusionCauses: string[] = [];
+  let evaluated = 0;
+
+  for (const l of leads) {
+    const sal = evaluateSalesAcceptance(l);
+    const sq = evaluateSqlQualification(l);
+
+    if (!sal.claimed && !sq.claimed) {
+      notEvaluated.push({
+        kind: 'outside',
+        row: {
+          Name: l.Name,
+          Status: dash(l.Status),
+          'Sales Accepted (seller input)': l.Sales_Accepted__c ? 'Yes' : 'No',
+          'Acceptance Basis': dash(l.Sales_Acceptance_Basis__c),
+          'SQL Basis': dash(l.SQL_Basis__c),
+          Reason: `Sales acceptance / SQL integrity — this Lead's status is "${dash(
+            l.Status,
+          )}" and it carries no acceptance or qualification evidence, so it claims neither the Sales handoff nor sales qualification and there is nothing to substantiate.`,
+          Id: l.Id,
+        },
+      });
+      continue;
+    }
+
+    const contradictions = [...sal.contradictions, ...sq.contradictions];
+    const unprovable = [...sal.unprovable, ...sq.unprovable];
+
+    /*
+     * PRECEDENCE. A demonstrated contradiction outranks an unprovable
+     * condition on the same record - otherwise a real evidence conflict could
+     * hide behind the half of the chain that happens to be unreadable. The
+     * same convention the two lifecycle controls before this one use.
+     */
+    if (contradictions.length > 0) {
+      failureCauses.push(contradictions[0]);
+      failingRows.push({
+        Name: l.Name,
+        Id: l.Id,
+        Status: dash(l.Status),
+        'MQL Evidence': dash(l.MQL_Basis__c),
+        'Sales Accepted At': dash(l.Sales_Accepted_At__c),
+        'Sales Accepted By': dash(l.Sales_Accepted_By__c),
+        'Acceptance Basis': dash(l.Sales_Acceptance_Basis__c),
+        'Qualified Need (now)': dash(l.Qualified_Need__c),
+        'Next Step Date (now)': dash(l.Next_Step_Date__c),
+        'SQL Basis': dash(l.SQL_Basis__c),
+        Result: `Handoff evidence conflict — ${list(contradictions)}`,
+      });
+      evaluated += 1;
+      continue;
+    }
+
+    if (unprovable.length > 0) {
+      exclusionCauses.push(
+        unprovable.some((u) => u.includes('carries none of the acceptance evidence'))
+          ? 'Sales handoff claimed before the acceptance evidence existed'
+          : unprovable.some((u) => u.includes('predates the qualification architecture'))
+            ? 'Sales qualification claimed before the qualification evidence existed'
+            : unprovable.some((u) =>
+                  u.includes('nothing Salesforce retains establishes when it was qualified'),
+                )
+              ? 'Qualification date not retained, so the recorded next step cannot be judged'
+              : 'Recorded under a superseded policy version',
+      );
+      notEvaluated.push({
+        kind: 'unmeasurable',
+        row: {
+          Name: l.Name,
+          Status: dash(l.Status),
+          'Sales Accepted (seller input)': l.Sales_Accepted__c ? 'Yes' : 'No',
+          'Acceptance Basis': dash(l.Sales_Acceptance_Basis__c),
+          'SQL Basis': dash(l.SQL_Basis__c),
+          Reason: `Sales acceptance / SQL integrity — ${list(
+            unprovable,
+          )}. NorthstarIQ cannot show the claim was wrong, only that it cannot be substantiated, so it was not counted as a failure.`,
+          Id: l.Id,
+        },
+      });
+      continue;
+    }
+
+    evaluated += 1;
+  }
+
+  const failing = failingRows.length;
+  const versions = [
+    `Sales Acceptance Policy ${acceptancePolicy.version ?? '(unversioned)'}`,
+    `SQL Policy ${sqlPolicy.version ?? '(unversioned)'}`,
+  ].join(', ');
+
+  return build(
+    {
+      id: 'sales-acceptance-sql',
+      title: 'Sales Handoff and Qualification Evidence Conflicts',
+      category: 'Lifecycle Governance',
+      severity: 'Medium',
+      businessQuestion:
+        'Where a Lead claims Sales acceptance or sales qualification, does the governed evidence substantiate the claim it is making?',
+      businessImpact:
+        'Sales should not have to repeat Marketing’s qualification to understand why a prospect was handed over, and a sales-qualified Lead should reflect what Sales established after accepting it — not the same claim restated. Where the evidence chain breaks, nobody can tell an accepted handoff from an unread one, or a genuine pursuit from an optimistic stage change.',
+      failureDetail:
+        failing === 0
+          ? ''
+          : `${failing} ${be(failing)} carrying governed handoff evidence that conflicts with the policy that permitted it`,
+      population: `${evaluated} Leads whose Sales handoff claim can be checked against ${versions}`,
+      orgPopulation: leads.length,
+      orgPopulationNoun: 'Leads',
+      evaluated,
+      failing,
+      evidenceColumns: [
+        { key: 'Name', label: 'Lead' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'Status', label: 'Lead Status' },
+        { key: 'MQL Evidence', label: 'Marketing Qualification Evidence' },
+        { key: 'Sales Accepted At', label: 'Accepted At', mono: true },
+        { key: 'Sales Accepted By', label: 'Accepted By', mono: true },
+        { key: 'Acceptance Basis', label: 'Recorded Acceptance Evidence' },
+        { key: 'Qualified Need (now)', label: 'Qualified Need (current value)' },
+        { key: 'Next Step Date (now)', label: 'Next Step Date (current value)' },
+        { key: 'SQL Basis', label: 'Recorded Qualification Evidence' },
+        { key: 'Result', label: 'Result' },
+      ],
+      notEvaluatedColumns: [
+        { key: 'Name', label: 'Lead' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'Status', label: 'Lead Status' },
+        { key: 'Sales Accepted (seller input)', label: 'Sales Accepted (seller input)' },
+        { key: 'Acceptance Basis', label: 'Recorded Acceptance Evidence' },
+        { key: 'SQL Basis', label: 'Recorded Qualification Evidence' },
+        { key: 'Reason', label: "Why wasn't this record evaluated?" },
+      ],
+    },
+    failingRows,
+    notEvaluated,
+    {
+      failure: tally(failureCauses, (c) => c).map(([label, count]) => ({ label, count })),
+      exclusion: tally(exclusionCauses, (c) => c).map(([label, count]) => ({ label, count })),
+    },
+  );
+}
+
+/** The requirements each active sales policy switches on, for the investigation trail. */
+export {
+  acceptanceRequirementLabels as salesAcceptanceRequirements,
+  sqlRequirementLabels as sqlQualificationRequirements,
+};
 
 /* -------------------------------------------------- negative control */
 /**

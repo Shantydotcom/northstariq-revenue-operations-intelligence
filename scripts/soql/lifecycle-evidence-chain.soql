@@ -1,0 +1,57 @@
+-- NorthstarIQ — The governed lifecycle evidence chain, end to end
+--
+-- ⚠️ NEW REPRODUCIBILITY ARTIFACT — created 2026-08-27 after the SQL
+-- qualification foundation was implemented, for repeatable verification. It is
+-- NOT evidence that this query was used during original validation, and it is
+-- not historical evidence of anything.
+--
+-- Purpose: answer the four lifecycle questions from one row, in order.
+--
+--   MQL_Basis__c              why Marketing qualified it
+--   Sales_Accepted_By__c/_At__c/_Basis__c
+--                             who accepted responsibility, when, under which policy
+--   Qualified_Need__c / Next_Step_Date__c / SQL_Basis__c
+--                             what Sales established with the prospect
+--   IsConverted / ConvertedDate / Converted*Id
+--                             what Salesforce actually did
+--
+-- Each stage is written once by Lead_Inbound_Before_Save and never afterwards,
+-- so a converted Lead still carries all four. Verified 2026-08-27: every field
+-- below survived a native Lead Conversion intact.
+--
+-- ⚠️ A NOTE FOR THE FUTURE DETECTIVE CONTROL. Next_Step_Date__c was required to
+-- be TODAY OR LATER at the moment of qualification. It will naturally fall into
+-- the past as time passes, so a historical integrity check must NOT flag
+-- `Next_Step_Date__c < TODAY`. It must judge the date against the recorded
+-- qualification event — SQL_Basis__c carries the date as it stood, and Lead
+-- Status field history carries when SQL was entered.
+--
+-- Expected on 2026-08-27 against the loaded fixture set: 0 rows. No baseline
+-- Lead has ever been through the governed lifecycle, and nothing was
+-- retroactively qualified — which is the correct prospective result.
+--
+-- Read-only. Safe to run against any org.
+
+SELECT Id,
+       Name,
+       Company,
+       Status,
+       Lifecycle_Stage_Entered__c,
+       MQL_Basis__c,
+       Sales_Accepted_At__c,
+       Sales_Accepted_By__c,
+       Sales_Acceptance_Basis__c,
+       Qualified_Need__c,
+       Next_Step_Date__c,
+       Next_Step__c,
+       SQL_Basis__c,
+       IsConverted,
+       ConvertedDate,
+       ConvertedAccountId,
+       ConvertedContactId,
+       ConvertedOpportunityId
+FROM Lead
+WHERE MQL_Basis__c != null
+   OR Sales_Accepted_At__c != null
+   OR SQL_Basis__c != null
+ORDER BY Lifecycle_Stage_Entered__c DESC

@@ -35,6 +35,26 @@ export function lead(overrides: Partial<LeadRecord> = {}): LeadRecord {
     StateCode: 'CA',
     Segment__c: 'Mid-Market',
     Segment_Basis__c: 'Employee Count: 250 -> Mid-Market | Rule v1.0',
+    // Null by default: the governed evidence field is absent on every
+    // record that predates the qualification foundation, which is the
+    // baseline reality the detective control has to handle honestly.
+    MQL_Basis__c: null,
+    // A fixed creation instant so chronology assertions are deterministic.
+    CreatedDate: '2026-08-20T09:00:00.000+0000',
+    // Null by default: the baseline reality is a Lead the lifecycle safeguard
+    // never touched, carrying none of the stage evidence it writes.
+    Lifecycle_Stage_Entered__c: null,
+    Sales_Accepted_At__c: null,
+    Sales_Accepted_By__c: null,
+    Sales_Acceptance_Basis__c: null,
+    SQL_Basis__c: null,
+    // The three SELLER INPUTS in the sales evidence chain. Empty by default,
+    // like the evidence fields: no baseline Lead has been through the governed
+    // Sales handoff, and a fixture that quietly ticked the box would make the
+    // "input is not evidence" boundary untestable.
+    Sales_Accepted__c: false,
+    Qualified_Need__c: null,
+    Next_Step_Date__c: null,
     Territory__c: 'NA-West',
     Match_Status__c: 'Matched',
     Matched_Account__c: '00100000000AAAA',
@@ -48,6 +68,13 @@ export function lead(overrides: Partial<LeadRecord> = {}): LeadRecord {
     First_Touch_DateTime__c: null,
     SLA_Basis__c: 'Mid-Market: 4 business hours',
     Owner: { Name: 'NIQ North America', Type: 'Queue' },
+    // Conversion state. The clean fixture has not been converted and makes no
+    // claim to have been, which is the ordinary case.
+    IsConverted: false,
+    ConvertedDate: null,
+    ConvertedAccountId: null,
+    ConvertedContactId: null,
+    ConvertedOpportunityId: null,
     ...overrides,
   };
 }

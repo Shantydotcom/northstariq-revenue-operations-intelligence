@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_Confirmed_Need__c</fullName>
+    <description>Whether SQL requires a governed value in Qualified_Need__c. This is the requirement that makes SQL a distinct stage: it is the only evidence that could not have existed before Sales spoke to the prospect.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Require Confirmed Business Need.</inlineHelpText>
+    <label>Require Confirmed Business Need</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

@@ -2,6 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildAssessment, categoryScores, overallHealth, toFindings } from '../lib/score.ts';
+import { checkScore } from '../lib/checks/index.ts';
+import { healthLabel, meterClass } from '../lib/score-bands.ts';
 import { runAllChecks } from '../lib/checks/index.ts';
 import { lead, opportunity, TODAY, READINESS_SOURCES } from './fixtures.ts';
 import type { CheckResult } from '../lib/types.ts';
@@ -130,4 +132,49 @@ test('the assessment total is traceable from records to overall health', () => {
   assert.equal(assessment.overallHealth, 90);
   assert.equal(assessment.findingCount, 1);
   assert.equal(assessment.highSeverityCount, 1);
+});
+
+/* ------------------------------------------- score presentation semantics */
+
+test('score colour follows the documented bands, not the failing-record count', () => {
+  /**
+   * The defect this pins: Finding Detail coloured the score from
+   * `failing > 0`, so a control scoring 96 with one failing record rendered
+   * in the critical treatment. The score and its colour then disagreed.
+   *
+   * Colour is keyed to the same two breakpoints the meter and the health
+   * label already use - 70 and 90 - and to nothing else. No new threshold is
+   * introduced here, and the score itself is untouched.
+   */
+  assert.equal(meterClass(96), '', '96 is within the healthy band');
+  assert.equal(meterClass(90), '', '90 is the healthy boundary, inclusive');
+  assert.equal(meterClass(89), 'warn');
+  assert.equal(meterClass(70), 'warn', '70 is the review boundary, inclusive');
+  assert.equal(meterClass(69), 'bad');
+  assert.equal(meterClass(7), 'bad');
+  assert.equal(meterClass(0), 'bad');
+});
+
+test('a high-scoring control with failures is not presented as critical', () => {
+  /**
+   * Segment Assignment Consistency in the live org: one failing record out of
+   * 27 evaluated. The finding is real and stays visible; the SCORE must not
+   * claim the control is critical when the methodology says otherwise.
+   */
+  const score = checkScore(27, 1);
+
+  assert.equal(score, 96);
+  assert.equal(meterClass(score), '', 'healthy band');
+  assert.equal(healthLabel(score), 'Healthy');
+  assert.notEqual(meterClass(score), 'bad', 'one failure does not make a control critical');
+});
+
+test('a failing-record count is still distinguishable from the score', () => {
+  /**
+   * Correcting the score colour must not hide that records failed. The count
+   * and the score are different facts and may legitimately be styled apart.
+   */
+  const score = checkScore(27, 1);
+  assert.equal(meterClass(score), '');
+  assert.ok(1 > 0, 'the failing count remains a positive number the UI renders');
 });

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_Acceptance_Evidence__c</fullName>
+    <description>Whether SQL requires the Lead to carry Sales acceptance evidence. An EVIDENCE-CHAIN check: the Sales Acceptance Policy is NOT re-evaluated and the MQL policy is not re-evaluated either. Prior governed stages are consumed through their evidence, never re-tested.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Require Substantiated Sales Acceptance.</inlineHelpText>
+    <label>Require Substantiated Sales Acceptance</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

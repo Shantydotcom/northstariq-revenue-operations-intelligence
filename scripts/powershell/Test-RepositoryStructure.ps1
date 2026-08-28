@@ -368,6 +368,31 @@ Assert-That -Name "Only approved Flows present" `
             -Detail ("Unapproved: " + ($unapprovedFlows -join ', '))
 Write-Host ("  [INFO] Flows in source: {0}" -f $flowFiles.Count) -ForegroundColor DarkGray
 
+# Each governed stage gate selects its policy by the stage being entered and takes the
+# first record. Salesforce cannot enforce "at most one active policy per stage" on
+# Custom Metadata, so the convention is enforced here instead - a second active
+# record for the same stage would make enforcement depend on sort order.
+$policyFiles = @(Get-ChildItem (Join-Path $RepoRoot 'force-app') -Recurse -File -Force -ErrorAction SilentlyContinue |
+                 Where-Object { $_.Name -like 'MQL_Qualification_Policy.*.md-meta.xml' -or
+                                $_.Name -like 'Sales_Acceptance_Policy.*.md-meta.xml' -or
+                                $_.Name -like 'SQL_Qualification_Policy.*.md-meta.xml' })
+$activeByStage = @{}
+foreach ($f in $policyFiles) {
+    $xml = Get-Content $f.FullName -Raw
+    $isActive = $xml -match '(?s)<field>Is_Active__c</field>\s*<value[^>]*>true<'
+    if (-not $isActive) { continue }
+    if ($xml -match '(?s)<field>(?:Qualified_Stage__c|Accepted_Stage__c)</field>\s*<value[^>]*>([^<]+)<') {
+        $stage = $Matches[1]
+        if ($activeByStage.ContainsKey($stage)) { $activeByStage[$stage] += 1 } else { $activeByStage[$stage] = 1 }
+    }
+}
+$ambiguous = @($activeByStage.GetEnumerator() | Where-Object { $_.Value -gt 1 } |
+               ForEach-Object { "{0}: {1} active" -f $_.Key, $_.Value })
+Assert-That -Name "At most one active qualification policy per governed stage" `
+            -Condition ($ambiguous.Count -eq 0) `
+            -Detail ($ambiguous -join ', ')
+Write-Host ("  [INFO] Stage policy records: {0} ({1} active)" -f $policyFiles.Count, (($activeByStage.Values | Measure-Object -Sum).Sum)) -ForegroundColor DarkGray
+
 $dataFiles = Get-ChildItem (Join-Path $RepoRoot 'data') -Recurse -File -Force -ErrorAction SilentlyContinue |
              Where-Object { $_.Name -ne '.gitkeep' -and $_.Name -ne 'README.md' }
 Assert-That -Name "No synthetic dataset generated yet" `

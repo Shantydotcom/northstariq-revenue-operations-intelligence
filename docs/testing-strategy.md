@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Purpose** | How this project proves that what it built actually works |
-| **Status** | 🟢 **Strategy defined · Increments 1-4 executed with recorded results** — 8/8 · 9/9 · 6/6 · 15/15 Salesforce, 50/50 application unit tests. **The ~190-record synthetic dataset is not generated**, so no scenario has run against the designed population. |
+| **Status** | 🟢 **Strategy defined · Increments 1-4 executed with recorded results** — 8/8 · 9/9 · 6/6 · 15/15 · 9/9 · 2/2 · 10/10 · 11/11 · 9/9 · 11/11 Salesforce, 150/150 application unit tests. **The ~190-record synthetic dataset is not generated**, so no scenario has run against the designed population. |
 | **Related** | [`requirements.md`](requirements.md) · [`architecture.md`](architecture.md) · [`security-model.md`](security-model.md) |
 
 ---
@@ -13,7 +13,7 @@
 **Executed, with results recorded in [`implementation-log.md`](implementation-log.md):** Increment 2
 fixtures (8/8) · Increment 3 routing (9/9) · Seller negative-security and `BR-08` regression (6/6) ·
 Increment 4 SLA (15/15, including 8 negative and guardrail tests) · web application unit tests
-(50/50, fixtures only) · the connected read path (§2g) · Segment Assignment Consistency (§2h).
+(50/50 at §2h, 150/150 as the suite now stands — fixtures only) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run).
 
 **Not executed:** every scenario in §2 against the **designed ~190-record dataset**, which has not
 been generated. The results above came from purpose-built fixtures and from records the org already
@@ -391,6 +391,684 @@ The 49 Leads judged are whatever records increment testing left in the org, **no
 for the later evidence-hardening phase is a query returning `Id, Name, NumberOfEmployees,
 Segment__c, Segment_Basis__c` for Leads where `Segment_Basis__c != null`, which is the exact input
 this control reasons over. It is noted, **not created here.**
+
+---
+
+## 2i. Lifecycle transition enforcement + native Lead conversion — executed 2026-08-27
+
+**Validated Synthetic Test Evidence.** Every record below was a purpose-built fixture created on the
+day of the test and deleted afterwards. **None of it is historical baseline evidence**, and no
+baseline record was modified. The org returned to exactly **49 Leads, 13 Accounts, 20 Contacts, 32
+Opportunities**, with the three `Closed - Converted` / `IsConverted = false` contradictions
+untouched.
+
+### Preventive safeguard — 9 passed, 0 failed
+
+| # | Scenario | Expected | Result |
+|---|---|---|---|
+| A | Create | stamped; segmentation, territory and SLA unaffected | **PASS** |
+| B | Unrelated update (Title) | saved; timestamp unchanged | **PASS** |
+| C | Open - Not Contacted → Working - Contacted | saved; timestamp updated | **PASS** |
+| D | Working - Contacted → MQL | saved; timestamp updated | **PASS** |
+| E | MQL → Closed - Not Converted | saved; timestamp updated | **PASS** |
+| F | Open - Not Contacted → SQL | **blocked**; Status and timestamp unchanged | **PASS** |
+| G | Full path to SQL, then SQL → SAL | forward all 4 succeed; **backward blocked** | **PASS** |
+| H | Re-save, Status unchanged | saved; timestamp unchanged | **PASS** |
+| I | Batch: 4 creates + 3 transitions + 1 unrelated update | all succeed; all stamped; no governor failure | **PASS** |
+
+Bulk safety is asserted at batch volume (I), not inferred. The new lookup is the Flow's fifth Get
+Records and its third against Custom Metadata, which does not consume SOQL query limits.
+
+### Native Salesforce Lead Conversion — 2 scenarios, both passed
+
+Performed with the **native Lightning Convert action**. Not simulated by setting
+`Status = Closed - Converted`, not Apex, not a custom Flow.
+
+| Scenario | Expected | Observed | Result |
+|---|---|---|---|
+| Fixture walked Open → Working → MQL → SAL → SQL, then converted | conversion succeeds and traverses the safeguard | `IsConverted=true`; `ConvertedDate`, `ConvertedAccountId`, `ConvertedContactId`, `ConvertedOpportunityId` all populated; `Lifecycle_Stage_Entered__c` stamped **inside the conversion transaction**, matching `LastModifiedDate` | **PASS** |
+| Control fixture parked at `MQL`, then converted | **blocked** — the policy has no `MQL → Closed - Converted` rule | Custom Error returned in the Convert modal; Status still `MQL`; `IsConverted` still false; timestamp unchanged; **0** Accounts, **0** Contacts, **0** Opportunities created | **PASS** |
+
+**Why the timestamp is the load-bearing observation.** It is written by exactly one Flow element,
+which is reachable only after the Custom Metadata lookup returns a record. One changed value
+therefore evidences the whole chain: the Flow ran inside the conversion transaction, held `SQL` as
+the prior stage and `Closed - Converted` as the new one, executed the lookup, and found the active
+rule.
+
+**Blocking was proven without touching the policy.** Deleting the `SQL → Closed - Converted`
+record to watch a conversion fail would have edited the authoritative business rule. Parking a
+fixture at a stage the policy gives no converted route achieves the same proof and leaves the policy
+intact.
+
+### Detective control — Opportunity Conversion Integrity
+
+**Implemented and tested, deliberately unscored.** It is absent from `runAllChecks` and `CHECK_IDS`,
+so it does not appear in the assessment payload and does not move the score. Unit-tested against
+fixtures: a claimed converted state contradicted by `IsConverted = false` is detected; a legitimate
+converted state passes; a zero-evaluable population scores 100 rather than 0.
+
+**The suite is now 63 tests, 63 pass, 0 fail** — 13 added since the 50 recorded at §2h: the tests for
+this control, and tests for the score bands, which were extracted from the meter component into
+`lib/score-bands.ts` so the runner could reach them without importing `.tsx`.
+
+**Preventive and detective are not redundant.** Prevention governs saves that reach the Flow.
+The three baseline contradictions already hold an unsupported state and no preventive safeguard can
+reach backwards to them. Prevention stops new ones; detection finds the ones already there.
+
+### What these results do not prove
+
+**Only one of the four planned Lifecycle Governance controls exists.** Lifecycle Progression
+Integrity, MQL Qualification Integrity and Sales Acceptance / SQL Integrity are **planned and
+untested**. Nothing here evidences them.
+
+> **Superseded 2026-08-27** — all three were subsequently implemented and validated; see
+> §2n, §2o and §2p. The paragraph is left as written because it records what this
+> increment's evidence actually covered. It is history, not current status.
+
+**Conversion was tested through one route.** The Lightning Convert action. REST
+`/sobjects/LeadConvert` and the standard `convertLead` invocable action both returned HTTP 404 in
+this org, and Apex was outside the increment boundary — so behaviour under SOAP `convertLead()` or
+`Database.convertLead()` is **unverified**.
+
+**The statuses were set, not qualified.** The fixture was walked to `SQL` by direct Status updates.
+**No MQL or Sales-acceptance qualification policy was evaluated**, because none exists yet
+(`PD-14` resolves the direction; the policy itself is unbuilt).
+
+Fixture volume, one org, one user. **No claim is made about production scale.** Re-runnable queries:
+[`lifecycle-transition-policy.soql`](../scripts/soql/lifecycle-transition-policy.soql) and
+[`lead-conversion-evidence.soql`](../scripts/soql/lead-conversion-evidence.soql) — both **new
+reproducibility artifacts created after the work they verify**, not queries used during the original
+validation.
+
+---
+
+## 2j. MQL qualification enforcement — executed 2026-08-27
+
+**Validated Synthetic Test Evidence.** 12 purpose-built Leads and 2 purpose-built Accounts, created
+on the day of the test and all deleted afterwards. **Not historical baseline evidence.** No baseline
+record was modified and **no existing Lead was retroactively qualified** — `MQL_Basis__c` is
+populated on **0** records in the org, which is the correct prospective result.
+
+⚠️ The qualification criteria themselves are a **Synthetic Baseline**, authored for reproducible
+demonstration rather than validated with a client.
+
+### 10 scenarios, 10 passed, 0 failed
+
+| Scenario | Expected | Observed | Result |
+|---|---|---|---|
+| **A.** Fully qualified: `Working - Contacted → MQL` | succeeds; timestamp updates; basis captured | saved; timestamp updated; basis captured | **PASS** |
+| **E.** Existing MQL, unrelated update (Title) | saves; evidence and timestamp both unchanged | both unchanged | **PASS** |
+| **F.** `MQL → SAL` | existing behaviour unchanged; evidence preserved | saved; timestamp updated; basis preserved | **PASS** |
+| **C1.** Ungoverned source (`Purchased List`) | blocked, naming the source | blocked; Status, timestamp and basis all unchanged | **PASS** |
+| **C2.** No governed territory (country `FR`, unmapped) | blocked, naming the territory | blocked; `Territory__c` null | **PASS** |
+| **B / C3.** Segment not eligible (`SMB`) | blocked, naming segment eligibility; no false evidence | blocked; `Segment__c` SMB; basis null | **PASS** |
+| **C4.** Ambiguous match (two Accounts share a domain) | `Match_Status__c = Review`; blocked | Review; blocked | **PASS** |
+| **C5.** Created directly at `Working - Contacted`, never worked | blocked, naming first touch | blocked; `First_Touch_DateTime__c` null | **PASS** |
+| **D.** Qualification-eligible but `Open - Not Contacted → MQL` | blocked by **transition** governance, not qualification | blocked; message named the **transition** policy | **PASS** |
+| **G.** Batch: 4 creates, 4 to Working, 3 MQL + 1 unrelated | all succeed; 3 qualify with evidence | 4/4 and 4/4 ok; 3 at MQL, all with basis | **PASS** |
+
+**Every criterion was failed independently** (C1 — C5), so each one is load-bearing rather than
+carried by its neighbours. Verbatim block, C3:
+
+> This Lead does not meet the governed NorthstarIQ MQL qualification requirements (MQL Policy v1.0).
+> Not satisfied: segment eligible for qualification;
+
+Verbatim evidence captured on the qualified Lead (A):
+
+> Qualified: source Web; territory NA-West; Mid-Market segment eligible; match No Match; first touch
+> recorded | MQL Policy v1.0
+
+**Scenario D is the one that proves the architecture.** The Lead satisfied every qualification
+condition and was still refused, by the *transition* policy, with the transition wording rather than
+the qualification wording. Transition eligibility and qualification eligibility are separately
+governed and separately enforced — demonstrated, not asserted.
+
+**Cleanup:** 13 records deleted; org back to **49 Leads, 13 Accounts, 20 Contacts, 32
+Opportunities**, the three conversion contradictions untouched.
+
+### What these results do not prove
+
+**Only the MQL stage is governed.** SAL and SQL entry are still transition-governed only — no
+acceptance or qualification evidence exists for either, and none is claimed.
+
+**No detective control existed when this was written.** MQL Qualification Integrity was implemented
+later the same day (§2n) and remains **unscored**; nothing in this section evidences it.
+
+**One criterion is weaker than it reads.** `Match_Status__c` is blank when a Lead carries no domain
+to match on, and blank passes criterion 4 — ambiguity is the disqualifier, not absence of
+evaluation. A Lead that was never matched is not thereby treated as suspect.
+
+**Criterion 2 reads a derived value, not the raw test.** Salesforce refuses a formula field
+referenced from a before-save Flow, so routing readiness is evidenced by `Territory__c` being
+resolved rather than by `Data_Quality_Status__c` directly. The two agree in every case tested, but
+they are not the same expression.
+
+Fixture volume, one org, one user. **No claim is made about production scale.**
+
+---
+
+## 2k. MQL policy reconciliation (v1.1) — executed 2026-08-27
+
+**Validated Synthetic Test Evidence.** 12 purpose-built Leads and 2 purpose-built Accounts, created
+and deleted the same day. No baseline record was modified; `MQL_Basis__c` is populated on **0**
+records afterwards.
+
+Two review findings drove this: seller first touch did not belong in a *Marketing* qualification, and
+the requirement set lived in Flow formulas rather than in the policy record. §2j records the v1.0
+behaviour; this section records what changed.
+
+### 11 scenarios, 11 passed, 0 failed
+
+| Scenario | Expected | Observed | Result |
+|---|---|---|---|
+| **A.** Fully qualified `Working - Contacted → MQL` | succeeds; basis shows v1.1 and no first touch | saved; `v1.1`; no first-touch mention | **PASS** |
+| **A2.** *Critical* — created at `Working - Contacted`, `First_Touch_DateTime__c` **null**, then → MQL | **succeeds** (this exact fixture was BLOCKED under v1.0) | saved; First Touch still null; basis captured | **PASS** |
+| **F.** `Match_Status__c = No Match` | **passes** — unambiguous, not matched | MQL granted | **PASS** |
+| **I.** Existing MQL, unrelated Title update | evidence and timestamp unchanged | both unchanged | **PASS** |
+| **H.** `MQL → SAL` | unchanged; no SAL requirement added | saved; evidence preserved | **PASS** |
+| **B.** Ungoverned source (`Purchased List`) | blocked, naming the source | blocked; nothing stamped | **PASS** |
+| **C.** Segment not eligible (`SMB`) | blocked, naming segment eligibility | blocked; basis null | **PASS** |
+| **D.** Country `FR`, unmapped | blocked, naming coverage | blocked; `Territory__c` null | **PASS** |
+| **E.** Two Accounts share a domain | `Review`; blocked | Review; blocked | **PASS** |
+| **G.** Qualified profile, `Open - Not Contacted → MQL` | blocked by **transition** governance | message named the **transition** policy | **PASS** |
+| **J.** Batch: 4 creates + 3 MQL + 1 unrelated | all succeed; 3 qualify | 4/4; 3 at MQL, all with basis | **PASS** |
+
+**A2 is the proof that the definition changed**, and it needed no manual field manipulation: a Lead
+**created** at `Working - Contacted` never has first touch stamped, because that stamp requires a
+Status *change*. The identical fixture was refused under v1.0 for *"seller first touch"* and is
+granted under v1.1.
+
+Evidence captured (A and A2, identical):
+
+> Qualified under MQL Policy v1.1: governed source Web; Mid-Market segment eligible; territory
+> NA-West resolved; account match No Match
+
+Failure message (D), showing the handoff-readiness wording:
+
+> This Lead does not meet the governed NorthstarIQ MQL qualification requirements (MQL Policy v1.1).
+> Not satisfied: resolved governed coverage;
+
+**Cleanup:** 13 records deleted; org back to **49 / 13 / 20 / 32**, the three conversion
+contradictions untouched.
+
+### What these results do not prove
+
+**Only the MQL stage is governed.** SAL and SQL entry remain transition-governed only. `MQL → SAL`
+was verified to be **unchanged** — no acceptance requirement was added.
+
+**No detective control exists.** MQL Qualification Integrity is **planned and unbuilt**. The
+architecture was checked for feasibility, not implemented: the integration principal can now read the
+active policy, the governed source list, the segment bands and the Lead's own values, so the same
+deterministic result is reachable without recreating the definition — but nothing has been built to
+do so.
+
+**One-active-policy-per-stage is a convention, not a platform guarantee.** Salesforce cannot enforce
+it on Custom Metadata. The repository validator now asserts it, and the Flow orders by version
+descending so selection stays defined if it were ever broken. That is weaker than a database
+constraint and is stated as such.
+
+**`Match_Status__c` blank still passes.** A Lead with no domain to match on was never evaluated, and
+absence of evaluation is not ambiguity.
+
+Fixture volume, one org, one user. **No claim is made about production scale.**
+
+---
+
+## 2l. Sales acceptance enforcement — executed 2026-08-27
+
+**Validated Synthetic Test Evidence.** 13 purpose-built Leads, created and deleted the same day. No
+baseline record was modified; afterwards `Sales_Accepted_At__c` and `MQL_Basis__c` are populated on
+**0** records. The acceptance policy itself is a **Synthetic Baseline**.
+
+### 9 scenarios, 9 passed, 0 failed
+
+| Scenario | Expected | Observed | Result |
+|---|---|---|---|
+| **A.** Valid MQL → explicit acceptance → SAL | succeeds; actor/time/basis recorded; MQL evidence preserved | saved; all three captured; MQL basis unchanged | **PASS** |
+| **B.** MQL → SAL with no acceptance | blocked; no acceptance evidence written | blocked; Status still MQL; all three evidence fields null | **PASS** |
+| **C.** Acceptance ticked but **no MQL evidence** | blocked — Sales cannot accept an unsubstantiated handoff | blocked; `MQL_Basis__c` null; nothing stamped | **PASS** |
+| **D.** First Touch recorded, acceptance absent | blocked — activity is not acceptance | blocked; First Touch set; Status still MQL | **PASS** |
+| **E.** Acceptance with `First_Touch_DateTime__c` **null** | succeeds — First Touch is not consulted | saved; First Touch still null; evidence captured | **PASS** |
+| **F.** Existing SAL, unrelated Title update | acceptance evidence unchanged | actor, time and basis all unchanged | **PASS** |
+| **G.** `SAL → SQL` | transition works; acceptance evidence preserved | saved; acceptance and MQL evidence both preserved | **PASS** |
+| **H.** `Working - Contacted → SAL` with acceptance ticked | blocked by **transition** governance | message named the **transition** policy; nothing stamped | **PASS** |
+| **J.** Batch: 4 to MQL, 3 accepted → SAL, 1 unrelated | all succeed; 3 accepted with evidence | 4/4 updates ok; 3 at SAL, all with evidence | **PASS** |
+
+**D and E together are the First Touch argument.** A Lead that a seller had demonstrably touched was
+**refused**; a Lead nobody had touched but that was explicitly accepted was **granted**. Seller
+activity and Sales acceptance are separate facts, and the policy consults only the second.
+
+**How scenario C was built, stated plainly.** A Lead can only reach MQL without `MQL_Basis__c` if no
+MQL policy was in force at the time, so the MQL policy was **deactivated for the few seconds it took
+to create the fixture and then restored**, with both states verified by query and the restore placed
+in a `finally` block. That is a temporary change to deployed governed configuration during a test,
+recorded here rather than glossed over. The MQL policy was confirmed active, governing `MQL`,
+immediately afterwards.
+
+Evidence captured (A), alongside the untouched Marketing evidence:
+
+> Accepted under Sales Acceptance Policy v1.0: explicit seller acceptance recorded; Marketing handoff
+> substantiated by MQL evidence
+
+> Qualified under MQL Policy v1.1: governed source Web; Mid-Market segment eligible; territory
+> NA-West resolved; account match No Match
+
+Blocking messages, showing the two requirements separately:
+
+> This Lead cannot enter the governed NorthstarIQ Sales Acceptance stage (Sales Acceptance Policy
+> v1.0). Not satisfied: explicit Sales acceptance;
+
+> ... Not satisfied: substantiated Marketing handoff evidence;
+
+**Rollback verified in B, C, D and H:** Status, `Lifecycle_Stage_Entered__c` and all three acceptance
+evidence fields were unchanged after every refused attempt. No partial write was observed.
+
+**Cleanup:** all fixtures deleted; org back to **49 / 13 / 20 / 32**, the three conversion
+contradictions untouched.
+
+### What these results do not prove
+
+**SQL is still transition-governed only.** `SAL → SQL` was verified **unchanged** — no
+qualification requirement was added, and none is claimed.
+
+**No detective control exists.** Sales Acceptance / SQL Integrity is **planned and unbuilt**. The
+architecture was checked for feasibility, not implemented.
+
+**Sales rejection is not modelled.** `Closed - Not Converted` is reachable from MQL but carries no
+reason and no actor, so it is a disqualification rather than a recorded rejection of a handoff. The
+two are **not** treated as equivalent, and the gap is left open as a future candidate.
+
+**One identity performed every acceptance.** The tests ran as the RevOps-permissioned administrator,
+so `Sales_Accepted_By__c` was verified to capture *an* authenticated identity — not that two
+different sellers are distinguished in practice. Multi-user behaviour remains untested (§2d).
+
+Fixture volume, one org. **No claim is made about production scale.**
+
+---
+
+## 2m. SQL qualification enforcement — executed 2026-08-27
+
+**Validated Synthetic Test Evidence.** 14 purpose-built Leads, created and deleted the same day, plus
+the Account, Contact and Opportunity produced by one native conversion — all removed. No baseline
+record was modified. Afterwards `MQL_Basis__c`, `Sales_Accepted_At__c` and `SQL_Basis__c` are
+populated on **0** records and `IsConverted = true` on **0**.
+
+**No active governed policy was deactivated at any point.** Every invalid state was produced by
+simply omitting an input, which is the improvement this increment was asked to make over the SAL
+test approach.
+
+### 11 scenarios, 11 passed, 0 failed
+
+| Scenario | Expected | Observed | Result |
+|---|---|---|---|
+| **A / F.** Valid SAL → SQL, future next-step date | succeeds; SQL evidence captured; prior evidence preserved | saved; MQL and acceptance evidence both unchanged | **PASS** |
+| **B.** Missing confirmed need | blocked naming the need | blocked; `Qualified_Need__c` null; nothing stamped | **PASS** |
+| **C.** Missing next-step date | blocked naming the next step | blocked; nothing stamped | **PASS** |
+| **D.** Next-step date **yesterday** | blocked — a lapsed step is not agreed motion | blocked; date `2026-08-26` | **PASS** |
+| **E.** Next-step date **today** | **succeeds** — the boundary is inclusive | saved; date `2026-08-27` | **PASS** |
+| **G.** Invalid need value | platform rejects it; restrictions **not** disabled | `bad value for restricted picklist field: Budget Approved`; field stayed null | **PASS** |
+| **H.** SQL without acceptance evidence | not constructible — proven architecturally | 0 Leads at SAL or SQL lack acceptance evidence | **PASS** |
+| **I.** `MQL → SQL` with all SQL inputs satisfied | blocked by **transition** governance | message named the **transition** policy | **PASS** |
+| **J.** Existing SQL, unrelated update | all three stages' evidence unchanged | unchanged | **PASS** |
+| **K.** Native conversion from SQL | all evidence survives the platform boundary | all six fields preserved; `IsConverted=true` | **PASS** |
+| **L.** Batch: 4 to SAL, 3 qualified → SQL, 1 unrelated | all succeed; 3 with evidence | 4/4 ok; 3 at SQL | **PASS** |
+
+**Scenario H, stated honestly.** The state *"at SAL with no acceptance evidence"* cannot be built:
+the SAL gate stamps `Sales_Accepted_At__c` as the condition of entry, and SAL is the only governed
+route into SQL. Manufacturing it would have required deactivating an active governed policy, which
+this increment forbids. It was therefore **proven architecturally rather than behaviourally**, by
+confirming that **0** Leads at SAL or SQL lack acceptance evidence. The requirement is still live and
+still evaluated — the successful basis strings name it.
+
+**Date boundary, all three sides.** `$Flow.CurrentDate` compared to a Date field, so no Date/DateTime
+coercion: **yesterday blocked, today permitted, future permitted.**
+
+> This Lead does not meet the governed NorthstarIQ SQL qualification requirements (SQL Policy v1.0).
+> Not satisfied: agreed next step dated today or later;
+
+### The observed evidence chain
+
+One synthetic fixture, after native conversion — four stages, four answers:
+
+```
+MQL        Qualified under MQL Policy v1.1: governed source Web; Mid-Market segment eligible;
+           territory NA-West resolved; account match No Match
+SAL        Accepted under Sales Acceptance Policy v1.0: explicit seller acceptance recorded;
+           Marketing handoff substantiated by MQL evidence
+SQL        Qualified under SQL Policy v1.0: need Pipeline Visibility; next step 2026-09-15;
+           substantiated Sales acceptance
+Conversion IsConverted = true on 2026-08-28, with Account, Contact and Opportunity all created
+```
+
+Plus the human context that is never policy: *Next Step: "Forecast workflow review with RevOps VP"*.
+
+### What these results do not prove
+
+**No detective control exists.** SQL Qualification Integrity, Sales Acceptance / SQL Integrity, MQL
+Qualification Integrity and Lifecycle Progression Integrity are all **planned and unbuilt**. The
+assessment is unchanged at 62.
+
+⚠️ **A next-step date valid at qualification will later be in the past.** A future detective
+control must **not** flag `Next_Step_Date__c < TODAY` on historical SQL records. It must judge the
+date against the recorded qualification event — `SQL_Basis__c` carries the date as it stood, and
+Lead Status field history carries when SQL was entered. Preventive validation and historical
+evaluation ask different questions of the same field.
+
+**The need vocabulary is four values chosen by the practitioner.** It is grounded in what the
+business case says NorthstarIQ sells, but it is a **Synthetic Baseline** decision, not a researched
+taxonomy.
+
+**`Next_Step__c` is untested as evidence because it is not evidence** — no condition reads it.
+
+Fixture volume, one org, one user. **No claim is made about production scale.**
+
+---
+
+## 2n. MQL Qualification Integrity — executed 2026-08-27
+
+The first lifecycle **detective** control. **Read-only**: no Salesforce record was created, updated
+or deleted, and the 49 baseline Leads were **not** touched.
+
+⚠️ Created **after** the preventive safeguard was validated. It was **not** used during that
+validation, and nothing here is retroactive evidence for it.
+
+### Unit tests — 22 added, 22 passed, 0 failed
+
+Full suite **85 passed / 0 failed** (63 before this increment).
+
+| # | Scenario | Result |
+|---|---|---|
+| 1 | Every active requirement satisfied | passes |
+| 2 | Ungoverned acquisition source | **demonstrated failure** |
+| 3 | Segment the business does not qualify | **demonstrated failure** |
+| 4 | Territory unresolved | **demonstrated failure** |
+| 5 | Account match `Review` | **demonstrated failure** |
+| 6 | Account match **blank** | **unmeasurable** — not a pass and not a failure |
+| 7 | Blank match **and** ineligible segment | **failure** — a proven violation outranks an unprovable one |
+| 8 | Requirement switched off in the policy | not tested; the same Lead passes |
+| 9 | Match requirement switched off | the blank-match exclusion disappears |
+| 10 | Several violations on one record | one failing record, all causes named |
+| 11 | No Marketing-qualified claims at all | 0 evaluated, score 100, records are *outside* not unmeasurable |
+| 12 | No active policy | **throws** — governance absent is never "everything passes" |
+| 13 | Two active policies | **throws** — refuses to choose |
+| 14 | Policy naming no governed stage | **throws** |
+| 15 | Valid policy record | resolves to exactly what Salesforce declared |
+| 16 | Evidence present, segment ineligible | **failure** — the basis alone never earns a pass |
+| 17 | Progressed past the stage, segment now ineligible | **unmeasurable** — drift is not a violation |
+| 18 | Claim with no recorded evidence | **unmeasurable** — the baseline reality |
+| 19 | Qualified under superseded v1.0 | **unmeasurable** — not judged against v1.1 |
+| 20 | Version parsed from the basis | `v1.1`, or null where absent |
+| 21 | Assessment isolation | `runAllChecks` still returns exactly 7; no Lifecycle Governance result |
+| 22 | Independent control score | computed, and fed to nothing |
+
+### Live read-only execution — 2026-08-27
+
+Governed definition, read from Salesforce at run time:
+
+```
+active MQL policy records : 1
+version                   : v1.1
+governs stage             : MQL
+requirements switched on  : governed acquisition source; eligible segment;
+                            resolved territory; unambiguous account match
+governed sources          : NorthstarIQ Inbound, Phone Inquiry, Web
+MQL-eligible segments     : Enterprise, Mid-Market, Strategic
+```
+
+Result:
+
+| | |
+|---|---:|
+| Org population | 49 Leads |
+| **Evaluated** | **0** |
+| **Failing** | **0** |
+| Not evaluated | 49 (**3 unmeasurable**, 46 outside) |
+| Control score | 100 — computed for inspection, fed to nothing |
+| Finding generated | **no** |
+
+**Zero failures is the correct answer, and no data was altered to change it.** No baseline Lead has
+ever been through the governed lifecycle, so none carries qualification evidence and none sits on the
+qualified stage. Failure detection is proven by the 22 fixture scenarios instead.
+
+**The three unmeasurable records are the interesting result.** They are the same three
+`Closed - Converted` / `IsConverted = false` contradictions the conversion control already surfaces,
+reached here by a different route: a status only reachable through MQL, carrying no qualification
+evidence. The control reports them as **unprovable, not as violations** — they predate the
+evidence field, so NorthstarIQ can say it cannot substantiate the claim, and cannot honestly say the
+claim was wrong.
+
+### What these results do not prove
+
+**The control has never judged a real qualified Lead**, because none exists. Everything it asserts
+about failure detection rests on fixtures.
+
+**It cannot re-judge a Lead that has moved on.** Every input the policy reads is current-state and
+derived, so a Lead at SAL, SQL or converted is reported unmeasurable rather than re-tested. Only a
+Lead still sitting on the governed stage has facts contemporaneous with its own claim.
+
+**It is unscored.** Assessment Model v1 remains 62 — 5 areas, 7 scored controls — verified
+after implementation.
+
+---
+
+## 2o. Lifecycle Progression Integrity — executed 2026-08-27
+
+The second lifecycle **detective** control. **Read-only**: no Salesforce record or metadata was
+created, updated or deleted.
+
+⚠️ Created **after** the preventive safeguard was validated. It was **not** used during that
+validation.
+
+### Evidence capability, established before any code was written
+
+| | |
+|---|---:|
+| Leads | 49 |
+| Status history rows Salesforce still retains | **8**, across **3** Leads |
+| Leads with a stage-entry timestamp | **0** |
+| Leads with MQL / acceptance / SQL evidence | **0 / 0 / 0** |
+| Active transition policy records | 10, all `v1.0` |
+
+**Every retained transition predates the safeguard** (2026-08-22 and 2026-08-23; the safeguard
+deployed 2026-08-27), and the newest baseline Lead was created 2026-08-26. So the control was
+designed knowing that **full historical reconstruction is impossible** — history is bounded, was
+not tracked from the start, and never records a Lead's first status.
+
+### Unit tests — 28 added, 28 passed, 0 failed
+
+Full suite **113 passed / 0 failed** (85 before this increment).
+
+Graph built from policy records · empty policy permits nothing · reachability and dominance ·
+permitted transition passes · **unpermitted transition fails on a governed record** · full
+progression passes · coherent timestamp · **stage entered before the Lead existed fails** ·
+**acceptance before creation fails** · **evidence for an unreachable stage fails** · evidence that
+legitimately survives progression passes · full evidence chain passes · **missing dominating-stage
+evidence fails on a governed record** · **the same absence pre-governance is unmeasurable** ·
+**unpermitted transition predating the safeguard is unmeasurable** · absent history never fails ·
+partial history judged on what it shows · **same-day conversion not ordered against a DateTime** ·
+conversion dated before creation fails · multiple contradictions · **contradiction outranks
+unprovable** · no-progression records are outside · missing policy throws · malformed record
+throws · policy with no entry stage throws · governed early exit permitted · assessment
+isolation · score counts only settled records.
+
+### Live read-only execution — 2026-08-27
+
+| | |
+|---|---:|
+| Org population | 49 Leads |
+| **Evaluated** | **15** |
+| **Failing** | **0** |
+| Unmeasurable | **6** |
+| Outside | 28 |
+| Control score | 100 — inspection only, fed to nothing |
+| Finding generated | **no** |
+
+**Zero failures, and nothing was altered to change that.** The 28 outside are Leads sitting where a
+lifecycle begins with no history and no evidence — they assert no progression. The 15 evaluated
+are Leads that assert progression and whose retained evidence contradicts nothing.
+
+**The 6 unmeasurable are the substantive result**, and they divide into two distinct kinds:
+
+| Count | Why |
+|---:|---|
+| 3 | **A retained transition the governed policy does not permit** — but the lifecycle safeguard never ran on the record |
+| 3 | **A claim that every governed route requires evidence for** — the three `Closed - Converted` records, which every route reaches through SQL, SAL and MQL, none of whose evidence existed then |
+
+The three observed moves are real and specific: two Leads went
+`Closed - Not Converted → Working - Contacted` (a closed record reopened), and one went
+`Working - Contacted → Open - Not Contacted` (a stage stepped backwards). **The policy permits
+neither.** They are reported as **unprovable rather than as violations**, because the safeguard did
+not exist when they happened — the record's own absent stage-entry timestamp is what establishes
+that, and **no effective date was invented anywhere.**
+
+Had those same moves happened on a governed record, the control would have failed them. That is
+unit-tested.
+
+### What these results do not prove
+
+**NorthstarIQ does not reconstruct lifecycle history.** It reasons over the fragment Salesforce
+still retains. A Lead can pass here while its earliest transitions are simply unknown.
+
+**A pass is narrow.** It means nothing in the retained evidence contradicts the governed
+progression — not that the progression was complete, well-judged or correctly evidenced. Eleven of
+the fifteen passes are Leads at `Working - Contacted` with no history at all.
+
+**It is unscored.** Assessment Model v1 remains 62 — 5 areas, 7 scored controls — verified after
+implementation.
+
+---
+
+## 2p. Sales Acceptance / SQL Integrity — executed 2026-08-27
+
+The third lifecycle **detective** control, and the one that covers **two** governed business events.
+**Read-only**: no Salesforce record or metadata was created, updated or deleted.
+
+⚠️ Created **after** both preventive safeguards were validated (§2l, §2m). It was **not** used
+during either validation, and it did **not** govern any record that predates them.
+
+### SAL and SQL are one control and two evaluations
+
+| | The claim being made | Governed by | The evidence that proves the safeguard ran |
+|---|---|---|---|
+| **SAL** | Sales explicitly accepted responsibility for a substantiated Marketing-qualified Lead | `Sales_Acceptance_Policy__mdt` v1.0 | `Sales_Accepted_At__c` |
+| **SQL** | Sales subsequently established enough commercial evidence to justify a genuine pursuit | `SQL_Qualification_Policy__mdt` v1.0 | `SQL_Basis__c` |
+
+They are evaluated separately, against their own policies, and combined into **one population, one
+failing set and one finding**. Accepting a handoff and qualifying a pursuit are different business
+events; merging them would hide the step Sales is accountable for.
+
+### Evidence capability, established before any code was written
+
+| | |
+|---|---:|
+| Leads | 49 |
+| Leads at `MQL` / `SAL` / `SQL` | **0 / 0 / 0** |
+| Leads at `Closed - Converted` | 3 |
+| Leads with `MQL_Basis__c` | **0** |
+| Leads with `Sales_Accepted_At__c` / `_By__c` / `_Basis__c` | **0 / 0 / 0** |
+| Leads with `Sales_Accepted__c` ticked | **0** |
+| Leads with `SQL_Basis__c` | **0** |
+| Leads with `Qualified_Need__c` / `Next_Step_Date__c` | **0 / 0** |
+| Leads with `Lifecycle_Stage_Entered__c` | **0** |
+| Status history rows retained | 8, across 3 Leads — **none** into `SAL` or `SQL` |
+| Active policies | exactly **1** acceptance (v1.0), exactly **1** SQL (v1.0) |
+| Policy versions appearing in recorded evidence | **none** — no evidence exists to carry one |
+
+**No baseline Lead has ever passed through the governed MQL / SAL / SQL architecture.** The control
+was therefore designed knowing its live population would be empty or unmeasurable, rather than
+discovering that afterwards. **No fixture Lead was created in the org to manufacture a result.**
+
+### Evidence temporal classification — decided before the algorithm
+
+| Evidence | Temporal type | Safe for historical validation? | Treatment |
+|---|---|---|---|
+| `MQL_Basis__c` | Immutable — written once at MQL entry, read-only to every principal | ✅ | Consumed as the acceptance policy's evidence-chain prerequisite. **Never re-tested.** |
+| `Sales_Accepted_At__c` | Immutable — written once at acceptance | ✅ | Presence is what proves the acceptance safeguard ran on this record |
+| `Sales_Accepted_By__c` | Immutable — authenticated identity captured at acceptance | ✅ | Judged when the policy requires explicit acceptance |
+| `Sales_Acceptance_Basis__c` | Immutable — records the requirements and the version in force | ✅ | Judged for coherence, and read for the policy version |
+| `Sales_Accepted__c` | **Current-state, mutable** — a seller checkbox | ❌ | Shown as context. **Never accepted as evidence** — it records no time, no actor and no policy |
+| `Qualified_Need__c` | **Current-state, mutable** — a seller picklist | ❌ | Shown as context. The need *at qualification* is read from `SQL_Basis__c` instead |
+| `Next_Step_Date__c` | **Current-state, mutable** — a seller date | ❌ | Shown as context. The date *at qualification* is read from `SQL_Basis__c` instead |
+| `SQL_Basis__c` | Immutable — records the need and the next-step date **as they stood** | ✅ | The qualification evidence the control actually judges |
+| `Lifecycle_Stage_Entered__c` | **Derived, overwritten** on every transition | ⚠️ partial | Trusted only for the stage the Lead holds **now** — used to date the SQL event when it still sits on `SQL` |
+| Lead Status field history | **Partial and bounded** — never records a first status | ⚠️ partial | Used to date the SQL event for a Lead that has moved on. Absence proves nothing |
+| `First_Touch_DateTime__c` | Immutable, but a **different business event** | n/a | **Never read.** A seller working a Lead is activity, not Sales accepting the handoff |
+
+### How the historical next-step date is handled
+
+The preventive gate required `Next_Step_Date__c >= TODAY` **at the moment of qualification** (§2m).
+A correctly qualified Lead's date therefore falls into the past as time passes. The detective
+control **never compares against TODAY**. It:
+
+1. reads the next-step date **out of `SQL_Basis__c`**, where the Flow recorded it as it stood;
+2. establishes when the Lead entered `SQL` — from `Lifecycle_Stage_Entered__c` when it still sits
+   there, otherwise from a retained Status transition into `SQL`;
+3. **fails** the record only when the recorded date was already in the past on the recorded
+   qualification date;
+4. reports the requirement **unmeasurable** when the qualification event cannot be established —
+   rather than substituting today's date and inventing a failure.
+
+The unit fixtures use a next-step date of `2026-06-20` agreed at a qualification on `2026-06-10`,
+both already historical, and one test asserts the fixture date really is in the past — so a
+regression to TODAY-comparison cannot pass silently.
+
+### Unit tests — 37 added, 37 passed, 0 failed
+
+Full suite **150 passed / 0 failed** (113 before this increment).
+
+Complete governed SAL chain passes · **SAL without the MQL evidence it accepted fails** · **SAL with
+no accepting identity fails** · **SAL with no basis fails** · **a ticked seller checkbox alone is
+unmeasurable, not a pass** · **a first-touch timestamp is never read as acceptance** · complete
+governed SQL chain passes · **SQL with no acceptance evidence fails** · **SQL recording no business
+need fails** · **SQL recording no agreed next step fails** · **a next-step date valid at
+qualification does not fail for being in the past** · **a next step already past at qualification
+fails** · **an unestablishable qualification date is unmeasurable, not a failure** · a retained
+transition into `SQL` re-establishes the date · a converted Lead is still judged on the evidence it
+carries, without asserting the conversion contradiction · a SAL claim predating the architecture is
+unmeasurable · a SQL claim predating the architecture is unmeasurable · **a requirement switched off
+by either policy stops being tested** (three cases) · simultaneous conflicts across both stages
+reported once · **contradiction outranks unmeasurable** · superseded acceptance policy version is
+unmeasurable · superseded SQL policy version is unmeasurable · missing acceptance policy throws ·
+two active acceptance policies throw · missing SQL policy throws · two active SQL policies throw ·
+a policy naming no stage throws · valid records resolve to exactly what Salesforce declared ·
+evidence read back from the basis, or reported unknown · the recorded need is judged rather than
+the seller picklist · empty population scores 100 · every Lead accounted for · **assessment
+isolation** · control score computed for inspection only · **unmeasurable records change neither
+numerator nor denominator**.
+
+### Live read-only execution — 2026-08-27
+
+| | |
+|---|---:|
+| Org population | 49 Leads |
+| **Evaluated** | **0** |
+| **Failing** | **0** |
+| Unmeasurable | **3** |
+| Outside | 46 |
+| Control score | 100 — inspection only, fed to nothing |
+| Finding generated | **no** |
+
+**An empty evaluated population is the correct result, and it is stated rather than disguised.** The
+46 outside are Leads at `Open - Not Contacted`, `Working - Contacted` or `Closed - Not Converted`
+carrying no acceptance or qualification evidence: they claim neither the Sales handoff nor sales
+qualification, so there is nothing to substantiate. The 3 unmeasurable are the `Closed - Converted`
+records, which under the governed lifecycle claim both SAL and SQL by status and carry **none** of
+the evidence either claim requires — because none of it existed when they were created.
+
+**Nothing was created in Salesforce to produce a more interesting number.** Failure detection is
+proven by the 37 fixture scenarios above, which is what fixtures are for.
+
+### What these results do not prove
+
+**The control has never failed a live record**, because no live record has ever been through the
+governed handoff. Its failure paths are proven against fixtures only.
+
+**A pass would be narrow.** It would mean the recorded evidence satisfies every requirement the two
+active policies switch on — not that the acceptance was commercially sound, that the business need
+was real, or that the next step ever happened.
+
+**It is unscored.** Assessment Model v1 remains **62 — 5 areas, 7 scored controls, 7 findings** —
+verified by a live run after implementation.
 
 ---
 

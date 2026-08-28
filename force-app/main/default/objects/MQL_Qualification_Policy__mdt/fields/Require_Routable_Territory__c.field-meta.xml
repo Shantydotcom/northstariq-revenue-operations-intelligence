@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_Routable_Territory__c</fullName>
+    <description>HANDOFF READINESS, not buyer quality. Whether MQL requires a resolved governed territory, so Sales is handed something with an actionable coverage path rather than a record bound for the routing exception queue. The country-to-territory map is owned by Routing_Rule__mdt.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Require Resolved Governed Coverage.</inlineHelpText>
+    <label>Require Resolved Governed Coverage</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>
