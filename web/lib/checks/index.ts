@@ -920,22 +920,19 @@ export function segmentConsistency(leads: LeadRecord[]): CheckResult {
 /* ----------------------------------------- Lifecycle Governance (area 6) */
 
 /**
- * OPPORTUNITY CONVERSION INTEGRITY - implemented, tested, NOT YET SCORED.
+ * OPPORTUNITY CONVERSION INTEGRITY - implemented, tested, scored since Model v2.
  *
  * This is the proof control for Lifecycle Governance: it exists to show that a
  * claimed revenue lifecycle state can be checked against Salesforce's own
  * authoritative record of what happened, and that the two can disagree.
  *
- * IT IS DELIBERATELY ABSENT FROM `runAllChecks` AND `CHECK_IDS`.
+ * IT RUNS, AND IT SCORES. Model v2 added it to `CHECK_IDS` and `runAllChecks`.
  *
- * Adding it would create Assessment Area #6, and `overallHealth` is an
- * unweighted mean of areas - so every existing area would move from a fifth of
- * the score to a sixth, and overall health would change without a single
- * existing control changing. That is a user-visible scoring change and a break
- * in comparability between Assessment Model v1 and v2. It is one line, and it
- * is held for human approval rather than taken quietly.
- *
- * The function is complete and unit-tested; nothing here is a placeholder.
+ * Doing so created Assessment Area #6, and `overallHealth` is an unweighted
+ * mean of areas - so every existing area moved from a fifth of the score to a
+ * sixth. That is why a v1 overall and a v2 overall are not comparable, and why
+ * activation was taken as an approved, user-visible scoring change rather than
+ * quietly.
  *
  * WHAT THE CONTROL DOES NOT CLAIM. It does not assert that a converted Lead
  * must have produced an Opportunity. Salesforce lets a Lead be converted with
@@ -1050,13 +1047,11 @@ export function opportunityConversionIntegrity(leads: LeadRecord[]): CheckResult
 
 /* ---------------------------------------- lifecycle detective control 1 */
 /**
- * MQL Qualification Integrity - IMPLEMENTED, DETECTIVE, DELIBERATELY UNSCORED.
+ * MQL Qualification Integrity - IMPLEMENTED, DETECTIVE, SCORED SINCE MODEL v2.
  *
- * Like `opportunityConversionIntegrity`, this control is complete and
- * unit-tested but is absent from `CHECK_IDS` and from `runAllChecks`, so it has
- * no route, no score, and no effect on overall health. Assessment Model v1
- * stays at five areas and seven scored controls until activating Lifecycle
- * Governance is approved as a deliberate, user-visible scoring change.
+ * Like `opportunityConversionIntegrity`, it is in `CHECK_IDS` and runs with the
+ * rest. Whether it produces a score is decided per run: against the current
+ * baseline it judges no Lead, so it reports Not Scored rather than a number.
  *
  * THE QUESTION. Salesforce prevents an unsupported NEW transition into MQL.
  * This asks the other half: of the Leads that already claim Marketing
@@ -1328,11 +1323,10 @@ const STAGE_EVIDENCE: { stage: string; label: string; present: (l: LeadRecord) =
 const day = (iso: string) => iso.slice(0, 10);
 
 /**
- * Lifecycle Progression Integrity - IMPLEMENTED, DETECTIVE, DELIBERATELY UNSCORED.
+ * Lifecycle Progression Integrity - IMPLEMENTED, DETECTIVE, SCORED SINCE MODEL v2.
  *
- * Absent from `CHECK_IDS` and `runAllChecks`, like `mqlQualificationIntegrity`
- * and `opportunityConversionIntegrity`. Assessment Model v1 stays at five areas
- * and seven scored controls.
+ * In `CHECK_IDS` and `runAllChecks`, like `mqlQualificationIntegrity` and
+ * `opportunityConversionIntegrity`.
  *
  * THE QUESTION. Not "was this Lead well qualified" - that is MQL Qualification
  * Integrity - and not "was this conversion real" - that is Opportunity
@@ -1575,10 +1569,10 @@ export function lifecycleProgressionIntegrity(
 
 /* ---------------------------------------- lifecycle detective control 3 */
 /**
- * SALES ACCEPTANCE / SQL INTEGRITY - IMPLEMENTED, DETECTIVE, DELIBERATELY UNSCORED.
+ * SALES ACCEPTANCE / SQL INTEGRITY - IMPLEMENTED, DETECTIVE, SCORED SINCE MODEL v2.
  *
- * Absent from `CHECK_IDS` and `runAllChecks`, like the three lifecycle controls
- * before it. Assessment Model v1 stays at five areas and seven scored controls.
+ * In `CHECK_IDS` and `runAllChecks`, like the three lifecycle checks before it.
+ * Against the current baseline it judges no Lead, so it reports Not Scored.
  *
  * ONE CONTROL, TWO EVALUATIONS. The Marketing -> Sales handoff has two distinct
  * business events and this control keeps them distinct:

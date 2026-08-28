@@ -1,7 +1,7 @@
 import type { Category, CheckId } from './types.ts';
 
 /**
- * Operator-facing content for the seven checks.
+ * Operator-facing content for the eleven checks.
  *
  * Presentation only. Nothing here participates in evaluation or scoring — the
  * canonical rules live in `checks/index.ts` and are untouched by this file.

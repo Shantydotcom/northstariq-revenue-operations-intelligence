@@ -2206,8 +2206,8 @@ th {
 
 /* ------------------------------------------------------------ areas */
 
-/* Rows, not cards: the five areas are one list to work down, not five
-   unrelated objects. Area and score first, then the controls beneath it. */
+/* Rows, not cards: the areas are one list to work down, not a set of
+   unrelated objects. Area and score first, then the checks beneath it. */
 .areas {
   display: flex;
   flex-direction: column;

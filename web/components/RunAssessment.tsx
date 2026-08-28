@@ -110,7 +110,7 @@ export default function RunAssessment({
           Assessment scope
         </h2>
         <p className="scope-lede">
-          Eleven governed controls are evaluated across these six assessment areas.
+          Eleven governed checks are evaluated across these six assessment areas.
         </p>
 
         <ul className="scope-areas">
@@ -160,14 +160,14 @@ export default function RunAssessment({
             <section className="panel run-fact">
               <h2 className="eyebrow">How scoring works</h2>
               <p>
-                A control scores the share of the records it evaluated that passed. An area is the
-                unweighted mean of its controls, and overall health the unweighted mean of the five
-                areas.
+                A check scores the share of the records it evaluated that passed. An area is the
+                unweighted mean of the checks in it that produced a score, and overall health the
+                unweighted mean of the six areas.
               </p>
               <p className="run-formula mono">round(100 × (1 − failing ÷ evaluated))</p>
               <p className="footnote">
-                A control with nothing to evaluate scores 100 — absence of data is not evidence of
-                failure.
+                A check with nothing to evaluate is Not Scored, never 100 and never 0 — absence of
+                evidence is neither a pass nor a failure, so it is left out of the average.
               </p>
             </section>
           </div>
@@ -201,7 +201,7 @@ export default function RunAssessment({
               <span className="run-step-n" aria-hidden="true">
                 2
               </span>
-              <span>Seven governed controls are evaluated across the five assessment areas.</span>
+              <span>Eleven governed checks are evaluated across the six assessment areas.</span>
             </li>
             <li>
               <span className="run-step-n" aria-hidden="true">

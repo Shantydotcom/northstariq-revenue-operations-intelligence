@@ -14,26 +14,22 @@ export type Category =
   | 'SLA Performance'
   | 'Pipeline Hygiene'
   /*
-   * Assessment Area #6, declared but NOT YET SCORED.
+   * Assessment Area #6, scored since Model v2.
    *
-   * Declaring the category costs nothing: `categoryScores` skips a category
-   * with no results, so overall health is unchanged while Lifecycle Governance
-   * holds no control that `runAllChecks` executes. Wiring it in is one line,
-   * and it is deliberately not taken here - see the note on
-   * `opportunityConversionIntegrity` in checks/index.ts.
+   * Its four checks are in CHECK_IDS and run with the rest. Two of them
+   * currently reach no verdict, because the evidence they judge is not
+   * retained in the org - which makes the area Not Scored on those two, not
+   * absent from the model.
    */
   | 'Lifecycle Governance';
 
 /**
- * Every implemented check.
+ * Every implemented check. All eleven are in `CHECK_IDS` and all eleven run.
  *
- * SEVEN OF THESE ARE SCORED. The four Lifecycle Governance controls -
- * `lifecycle-conversion`, `mql-integrity`, `lifecycle-progression` and
- * `sales-acceptance-sql` - are implemented and tested but are not in
- * `CHECK_IDS`, are not run by `runAllChecks`, and therefore have no route and
- * no score - see checks/index.ts. Membership of this union is what makes the
- * presentation and traceability records type-complete; it is `CHECK_IDS` that
- * is the API allow-list.
+ * Whether a check produces a SCORE is a separate question, answered per run:
+ * one that judged no record is Not Scored rather than scored zero. Membership
+ * of this union is what makes the presentation and traceability records
+ * type-complete; `CHECK_IDS` is the API allow-list.
  */
 export type CheckId =
   | 'missing-firmographics'

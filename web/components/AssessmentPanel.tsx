@@ -95,7 +95,7 @@ function storeResult(result: AssessmentResult): void {
  * The Overview.
  *
  * Reading order is the thesis: what the assessment concluded, the strongest
- * traceable evidence for it, then the composite as context, then the five areas
+ * traceable evidence for it, then the composite as context, then the six areas
  * in their canonical order. The composite is not the headline - it is the
  * number furthest from any record, and it earns a supporting position rather
  * than the largest type on the page.
@@ -313,7 +313,7 @@ function FirstRun({ running }: { running: boolean }) {
       <h2>Not yet assessed</h2>
       <p className="conclusion-lead">
         Nothing is shown until the org has been read. Running an assessment queries Leads and
-        Opportunities, applies seven checks and scores five areas.
+        Opportunities and applies eleven checks across six areas.
       </p>
       {running ? <p className="footnote">Querying Salesforce and evaluating checks…</p> : null}
     </section>
@@ -615,11 +615,11 @@ function ScoringDisclosure({ result }: { result: AssessmentResult }) {
             outside that population are excluded rather than counted as passing.
           </dd>
 
-          <dt>How is a control scored?</dt>
+          <dt>How is a check scored?</dt>
           <dd>
-            A control score is the percentage of evaluated records that pass the check, rounded to a
-            whole number. A control with nothing to evaluate scores 100 — absence of data is not
-            evidence of failure.
+            A check score is the percentage of evaluated records that pass, rounded to a whole
+            number. A check with nothing to evaluate is Not Scored — absence of evidence is neither
+            a pass nor a failure, so it is left out of the average rather than counted as 100 or 0.
           </dd>
 
           <dt>How is an assessment-area score calculated?</dt>
