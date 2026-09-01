@@ -69,12 +69,17 @@ The discovery finding that governs this entire document:
 
 ---
 
-## 2. Custom Fields — 21 deployed
+## 2. Custom Fields
 
-**21 built.** Preferred envelope is 15–25. The original proposal held 22 candidates; org inspection
-reduced it, Increment 3 rejected `Match_Basis__c`, and Increment 3 added `Account.Normalized_Domain__c`.
+**`force-app/main/default/objects/*/fields/` is the inventory.** The tables below describe what each
+field is for, what it serves and how it was validated; a total is deliberately not stated here,
+because it moves with every increment and the source tree already answers it exactly.
 
-### Lead — 14 built across Increments 2–4
+Provenance: the original proposal held 22 candidates. Org inspection reduced it, Increment 3
+rejected `Match_Basis__c`, and Increment 3 added `Account.Normalized_Domain__c`. The lifecycle
+increments added the qualification, acceptance and conversion evidence fields recorded below.
+
+### Lead — built across Increments 2–4 and the lifecycle increments
 
 | API name | Type | Purpose | Serves | Status |
 |---|---|---|---|---|

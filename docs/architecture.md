@@ -843,17 +843,20 @@ application assesses what the org did. Nothing here writes to Salesforce.
  ┌────────────────────────────────────────────────────────────┐
  │  SERVER-SIDE API ROUTES                                    │
  │  GET  /api/salesforce/status      connection probe         │
- │  POST /api/assessment/run         run the seven checks     │
+ │  POST /api/assessment/run         run the assessment       │
  │  GET  /api/findings/[checkId]     evidence for one check   │
  │  Salesforce failures are classified into safe codes here   │
  │  and never forwarded verbatim                              │
  └────────────────────────────┬───────────────────────────────┘
                               ▼
  ┌────────────────────────────────────────────────────────────┐
- │  ASSESSMENT · SCORING · CHECK LOGIC                        │
- │  7 rendered checks + 1 negative control                    │
+ │  ASSESSMENT · CONTROL LOGIC · SCORING                      │
+ │  Assessment Model v2: controls grouped into six Revenue    │
+ │  Operations areas. lib/checks is the control registry.     │
  │  Pure functions over records already fetched               │
- │  Mean-based scoring: check → category → overall health     │
+ │  Outcomes are Passed / Failed / Unable to determine        │
+ │  Mean-based scoring still computes internally, check →     │
+ │  area → overall; the MVP interface displays none of it     │
  │  No network here at all — which is why it is unit-testable │
  └────────────────────────────┬───────────────────────────────┘
                               ▼
@@ -938,5 +941,5 @@ carry a stated reliability class) and `BR-23` (recorded reasons and bases are re
 operational write), and the justification is recorded in
 [`implementation-log.md`](implementation-log.md) under the Web MVP entry.
 
-Full application detail, including the seven checks and the scoring formula, is in
+Full application detail, including what each control judges and how outcomes are reported, is in
 [`../web/README.md`](../web/README.md).
