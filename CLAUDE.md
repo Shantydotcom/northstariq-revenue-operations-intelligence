@@ -356,7 +356,153 @@ authoritative sources conflict and the governing truth cannot be established · 
 pre-existing work would be overwritten · a legitimate safeguard would have to be weakened · the
 project's identity is genuinely ambiguous.
 
+**Environment and deployment stop conditions are in §17**, which extends this list rather than
+repeating it.
+
 **Do not stop merely because** — documentation contains a stale count · read-only Salesforce
 inspection is needed · an unrelated defect was discovered · routine maintenance has no `BR-##` · a
 known design deviation exists · an authorised edit caused a localised test, type or compiler problem
 that can be corrected within scope.
+
+## 17. Environment & Deployment Safety
+
+General approval, protected-state and Git-safety behaviour comes from the universal standard and is
+not repeated here. This section answers the NorthstarIQ question: **which environment am I actually
+touching, and what does that permit?**
+
+### Three independent boundaries
+
+Establish each separately before a consequential operation. **None implies the others.**
+
+| Boundary | Values it can take |
+|---|---|
+| **Application** | local development · local production build · Vercel Preview · Vercel Production |
+| **Salesforce** | Developer Edition · sandbox · production |
+| **Git** | current branch · local `HEAD` · working-tree state · `origin/main` · another remote ref |
+
+> **Never infer that a local application means a non-production connected system.** A local
+> application pointed at a production org is a production Salesforce context. Conversely, a Vercel
+> Production deployment connected to a demonstration org is a production *deployment* of the
+> application and a non-production *Salesforce* target. Judge each boundary on its own evidence.
+
+**Current NorthstarIQ reality, stated because it is easy to assume otherwise.** The MVP runs locally
+and targets a **controlled Salesforce Developer Edition** environment. **No Vercel project exists** —
+the deployment status is owned by `docs/architecture.md` and `web/README.md`, not by this file. The
+Preview and Production rules below govern those environments **if and when they are created**; they
+are not a claim that they exist.
+
+### Verify the target, not the command
+
+A command is not a target. Before a consequential operation, establish the actual one — the
+Salesforce org identity and, where determinable, its type; the branch, local `HEAD` and relevant
+remote ref; the application environment and any deployment target.
+
+**Do not carry a target forward from an earlier task, and do not take it from documentation when it
+can be observed directly.** If the target cannot be established well enough for the operation being
+proposed, **STOP** rather than guess.
+
+Verify the *target*; do not record its identifiers here. Mutable Salesforce facts stay out of this
+file and every skill, per §6.
+
+### Reading and mutating are separate permissions
+
+§7 defines this for Salesforce and §8 lists the gated actions; neither is restated here. What this
+section adds is the environment consequence:
+
+**Permission to inspect an environment is never permission to mutate it, and approval for one
+mutation never extends to another** — including the same operation against a different environment.
+Inspecting an org, a branch or a deployment establishes nothing about what may be changed in it.
+
+### The Salesforce target is a hard boundary
+
+Access to the Salesforce CLI is **not** authorisation to modify whichever org happens to be
+authenticated or set as default. Verify the target org before any mutation.
+
+**STOP before mutating** when the target is unexpectedly production, cannot be positively
+identified, or differs from the environment the task authorised. Production mutation requires
+explicit authorisation naming that operation *and* that environment.
+
+**Never silently redirect a command to another org**, and never change the default org to make a
+command succeed — that is itself a change requiring justification and scope.
+
+### Deployment is a separate approval boundary
+
+Treat `edit → validate → commit → push → deploy` as distinct stages. §8 already gates deployment,
+commit and push, and keeps **commit and push as separate approvals**. Extending that:
+
+> **Push approval does not authorise a production deployment or a production configuration change.**
+
+**Where a push would trigger an automatic deployment, that is a foreseeable effect of the push and
+must be surfaced *before* push approval is sought** — not treated as an unrelated later event.
+Identify downstream propagation — deployment, automation, another connected system — as part of the
+pre-push impact check.
+
+**A successful deployment proves the artifact shipped, not that it behaves.** A green build is not
+runtime evidence — §9 and §11 already forbid that inference. Where deployed behaviour is claimed,
+verify it **in the environment it was deployed to**: behaviour observed locally is not evidence about
+Preview or Production.
+
+### Git state before consequential Git operations
+
+The universal standard already requires reading `git status` and the diff before a consequential Git
+operation, and §15 governs what follows — unrelated work is protected, and history is never rewritten
+to reach a clean state. The environment addition: **the repository itself and the remote ref are
+environment boundaries too.** Establish which repository and which remote an operation would reach,
+not only which branch. **If unexpected changes are present, STOP and report them.**
+
+### Environment-specific configuration stays separated
+
+Secrets, credentials, OAuth configuration, Salesforce endpoints, org identifiers and deployment
+variables are **environment-specific**. Do not copy them between local, Preview, Production, or
+between Salesforce environments.
+
+The universal protected-state rule already forbids exposing, echoing, transmitting or committing a
+secret value, and covers environment files; it is not restated here. Protected environment files
+change **only when the task authorises that exact change.** Operational handling is documented in
+`web/README.md`; `.env.example` holds placeholders only.
+
+### Documentation is not proof of the current environment
+
+Documentation states intended architecture. **Runtime evidence establishes the current target.**
+Where they disagree about a Salesforce org, branch, remote, deployment target, environment variable
+or local server state, follow neither silently — **STOP and surface the discrepancy.**
+
+### Stale sources must not become implementation authority
+
+Before implementing from a screenshot, design reference or documentation artifact, confirm it
+corresponds to the intended page, the intended application state and the current approved baseline.
+§12 and `.claude/design-authority.md` govern visual authority; §13 governs dev-server and build-cache
+hygiene. **Design authority and runtime implementation evidence are different things, and neither
+substitutes for the other.** A cached build, obsolete `.next` output, a superseded screenshot or
+another page's design is not authority for anything.
+
+### Pre-mutation checkpoint
+
+Before a consequential mutation, be able to answer the relevant subset — **repository · branch ·
+application environment · external target and its type · read-only or mutating · what exactly is
+authorised to change · whether recovery evidence is required · what could propagate downstream ·
+whether approval for this specific boundary has been given.**
+
+**Proportional, not ceremonial.** A local read answers none of this. The depth scales with
+consequence, exactly as the universal risk model requires.
+
+### Environment stop conditions
+
+Extending §16. **STOP before execution** when: repository identity is ambiguous · environment
+identity affects safety and cannot be verified · the Salesforce target is unexpected or
+unidentifiable · Salesforce production would be mutated without authorisation naming it · the
+mutation exceeds approved scope · a production deployment would occur without its own approval ·
+branch or remote state differs materially from expected · unrelated or pre-existing work would be
+overwritten · a destructive operation is required but unauthorised · protected environment
+configuration would change outside scope · documentation and runtime evidence disagree about the
+target · or a controlled-recovery operation could not be reversed.
+
+Stopping means: **perform no prohibited mutation · preserve current state · report the discrepancy ·
+give the evidence that triggered it · and ask for the smallest decision needed to continue.**
+
+### Proportionality
+
+NorthstarIQ is a portfolio MVP, not a production SaaS platform. This section adds **discipline, not
+infrastructure**. It authorises no environment-management platform, release orchestration, CI/CD
+system, paid deployment architecture or dependency, and the intended model stays local development →
+GitHub → Vercel Hobby, with the controlled Developer Edition org, unless that is explicitly changed.

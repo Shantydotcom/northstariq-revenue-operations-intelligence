@@ -57,6 +57,9 @@ Before observing deployed state:
 2. Determine whether the observation can be performed **read-only**.
 3. Confirm the planned operation cannot mutate records, mutate metadata, deploy, alter permissions or
    sharing, authenticate or re-authenticate, or execute anything destructive.
+4. Establish **which org the operation would actually reach** — the target, not the command. The
+   repository `CLAUDE.md` §17 governs environment identity and when an unverifiable or unexpected
+   target is a stop condition.
 
 **If existing authorised read-only access is available — proceed.** Do not ask for another approval
 merely to inspect.
