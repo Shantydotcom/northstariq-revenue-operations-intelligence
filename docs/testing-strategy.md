@@ -13,7 +13,7 @@
 **Executed, with results recorded in [`implementation-log.md`](implementation-log.md):** Increment 2
 fixtures (8/8) · Increment 3 routing (9/9) · Seller negative-security and `BR-08` regression (6/6) ·
 Increment 4 SLA (15/15, including 8 negative and guardrail tests) · web application unit tests
-(50/50 when §2h was executed; the suite has grown with each increment since and passes in full — fixtures only, no network, no org) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run) · Assessment Model v2 scoring activation (§2q, 8 model scenarios + a live read-only run) · the Finding Detail investigation trail (15 presentation-contract scenarios + a browser review).
+(50/50 when §2h was executed; the suite has grown with each increment since and passes in full — fixtures only, no network, no org) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run) · Assessment Model v2 scoring activation (§2q, 8 model scenarios + a live read-only run) · the Finding Detail investigation trail (15 presentation-contract scenarios + a browser review) · **controlled lifecycle validation against live Salesforce records (§2r, four fixtures, four preventive rejections, native conversion, five assessment checkpoints)**.
 
 **Not executed:** every scenario in §2 against the **designed ~190-record dataset**, which has not
 been generated. The results above came from purpose-built fixtures and from records the org already
@@ -1194,6 +1194,118 @@ not before.
 
 ---
 
+## 2r. Controlled lifecycle validation — executed 2026-09-01
+
+**A distinct testing layer, and the first of its kind in this repository.** Every earlier section
+proved either detector logic against in-memory fixtures or one Salesforce safeguard in isolation.
+This run exercised the whole chain on live records:
+
+| Layer | What it settles | Where |
+|---|---|---|
+| Unit / fixture tests | Detector logic, deterministically, with no org and no network | §2n, §2o, §2p, §2q |
+| Source-versus-deployed parity | That the running Salesforce configuration matches source control | verified 2026-08-31 — 7 Custom Metadata Types, 41 field definitions, 30 governed records, and the active Flow |
+| **Controlled Salesforce fixtures** | End-to-end runtime behaviour of the deployed safeguard on real records | **this section** |
+| **NorthstarIQ assessment checkpoints** | Independent detective behaviour against those same records | **this section** |
+
+**These layers are not substitutes for one another.** A passing unit test says nothing about the
+org; a green parity check says nothing about behaviour; a controlled fixture says nothing about the
+190-record dataset, which still has not been generated.
+
+### The validation chain, preserved in order
+
+```
+governed business rule        Lifecycle_Transition__mdt · MQL / Sales Acceptance / SQL policies
+  → deployed safeguard        Lead_Inbound_Before_Save, active, verified against source 2026-08-31
+  → controlled record         four synthetic fixtures on reserved .invalid domains
+  → detective assessment      NorthstarIQ run read-only at five checkpoints
+  → record-level evidence     the fields, basis strings and Status history each verdict cites
+```
+
+### Four preventive rejections — all refused, all rolled back
+
+Attempted deliberately against the governed-lifecycle fixture, each naming the policy in force:
+
+| Attempted | Refused because |
+|---|---|
+| Unsupported lifecycle transition | No active `Lifecycle_Transition__mdt` rule for the stage pair |
+| Unsupported MQL qualification | Segment not eligible under the active MQL policy |
+| Unsupported Sales acceptance | No explicit seller acceptance under the active acceptance policy |
+| Unsupported SQL qualification | No confirmed need and no agreed next step under the active SQL policy |
+
+**Every rejected transaction rolled back in full.** Status, stage-entry timestamp and evidence
+fields were re-queried after each attempt and were unchanged, and no history row was written.
+
+> ⚠️ **No rejected invalid state persisted, and NorthstarIQ therefore did not subsequently detect
+> any of them.** This is a structural property of a before-save safeguard, not a gap in the
+> detective controls. Any claim that NorthstarIQ "caught" a rejected transition would be false.
+
+### Governed progression, then native conversion
+
+```
+Open - Not Contacted → Working - Contacted → MQL → SAL → SQL
+                     → native Salesforce Lead Conversion → Account · Contact · Opportunity
+```
+
+**The qualification, acceptance and SQL basis strings were generated by the deployed Flow.** None
+was authored by hand, no timestamp was back-dated, and no evidence field was pre-populated to
+manufacture a pass. All three survived the conversion boundary intact.
+
+### First live detective observations
+
+Each is a first for this repository, and each is dated execution evidence rather than a standing
+count:
+
+| Observation | Captured at |
+|---|---|
+| `mql-integrity` — **first live Passed** | while the fixture still sat at `MQL` |
+| `mql-integrity` — **first live Failed** | after qualification drift on a second fixture |
+| `sales-acceptance-sql` — **first live Passed** | after the fixture reached `SQL` |
+| `sales-acceptance-sql` — **first live Failed** | after evidence removal on a third fixture |
+| `lifecycle-progression` — **first live failure path** | the same evidence-removal fixture |
+| `lifecycle-conversion` — **first controlled Passed** | after native conversion |
+
+> ⚠️ **`mql-integrity = Passed` is stage-window dependent.** The control judges a Lead only while
+> its Status still equals the governed qualified stage; once the Lead progresses it reports Unable
+> to Determine, by design. The Passed observation was captured inside that window and is a dated
+> historical result. **The org is not expected to keep holding a passing MQL fixture**, and nothing
+> in this repository depends on it doing so.
+
+### What these results do not prove
+
+**Not the designed ~190-record dataset.** Four purpose-built fixtures are not dataset coverage.
+
+**Not scale.** Bulk-safe design is demonstrated at fixture volume, as everywhere else here.
+
+**Not every contradiction path.** `lifecycle-progression` has several ways to reach a contradiction;
+**one** was exercised. In particular, a *forbidden transition retained in history* remains **not
+safely creatable** — the preventive safeguard correctly refuses and rolls back every unsupported
+transition, so such a row cannot be produced without mutating governed configuration, which was not
+done and is not planned.
+
+**Not negative-direction preventive/detective agreement.** When the preventive safeguard rejects
+a transaction the invalid state does not persist, so NorthstarIQ has no persisted rejected state
+to assess afterward. That is a structural limitation of this validation direction, not a failed
+test, and it is recorded against `G-8` in [`implementation-log.md`](implementation-log.md).
+
+**Not the F-7 sequencing question**, which remains a required and unexecuted targeted test.
+
+### Required next targeted runtime test — F-7, not yet executed
+
+Source inspection suggests the MQL gate may evaluate the **previously stored** `Segment__c` before
+the Flow recalculates segmentation from changed inputs, because the lifecycle branch runs ahead of
+the segmentation assignment. **This has not been established by runtime execution and must not be
+described as a confirmed sequencing defect until it is.** The controlled run deliberately avoided
+the ambiguity by splitting the input correction and the Status change into two saves.
+
+Two same-save cases must be exercised, and **no Flow change is permitted before they are**:
+
+| Case | Starting segment | Single save | Question |
+|---|---|---|---|
+| **A** | `SMB` | company size changed so the Lead should become `Mid-Market`, while attempting `Working - Contacted → MQL` | Which segment does the MQL gate actually evaluate? |
+| **B** | `Mid-Market` | company size changed so the Lead should become `SMB`, while attempting `Working - Contacted → MQL` | Which segment does the MQL gate actually evaluate? |
+
+---
+
 ## 3. Dataset Specification
 
 | Object | Count | Purpose |
@@ -1246,7 +1358,7 @@ found.
 ### Bulk safety
 
 Automation is asserted at batch volume, not one record at a time. **A Flow that works on a single
-record and fails at 200 is the most common automation defect in an org of this shape** (`RISK-009`),
+record and fails at 200 is the most common automation defect in an org of this shape** (`RISK-07`),
 and single-record testing cannot detect it. Fixtures load in batch for exactly this reason.
 
 ### SOQL validation
@@ -1254,13 +1366,21 @@ and single-record testing cannot detect it. Fixtures load in batch for exactly t
 **The SOQL query is the evidence.** A screenshot is an illustration; a query anyone can re-run is a
 result. That standard stands.
 
-**`scripts/soql/` is currently empty.** Validation queries for Increments 1-4 were executed ad hoc
-against the org and their **outcomes** are recorded in
-[`implementation-log.md`](implementation-log.md). The **queries themselves were not committed**, so
-they are **not re-runnable by a reader of this repository today.** This is a stated gap in the
-evidence standard below — not a claim of coverage, and not a reason to weaken the standard.
+**`scripts/soql/` now holds queries for the lifecycle work only.** Validation queries for
+Increments 1-4 were executed ad hoc against the org and their **outcomes** are recorded in
+[`implementation-log.md`](implementation-log.md); those **queries themselves were never committed**,
+so those increments are **still not re-runnable by a reader of this repository today.** The
+committed queries cover lifecycle transition policy, the lifecycle evidence chain, Lead conversion
+evidence, the controlled fixtures, qualification drift, evidence integrity, and lifecycle Status
+history.
 
-Committed queries would live in `scripts/soql/`, versioned alongside the metadata they check, each
+> ⚠️ **Every committed query was written *after* the validation it relates to**, and each says so in
+> its own header. They make a result **re-checkable**; they are **not** the evidence that was used at
+> the time, and must never be presented as such. The gap in the evidence standard below is narrowed
+> for the lifecycle work and remains open for Increments 1-4 — narrowed by committing queries, not
+> by weakening the standard.
+
+Those missing queries would live in `scripts/soql/` too, versioned alongside the metadata they check, each
 answering one question and named for it — every assigned Lead has a routing reason; no Lead sits
 unassigned and unclassified; segment distribution matches the fixture expectation.
 

@@ -76,11 +76,23 @@ Genuinely unresolved. Each has a defined interim behaviour, so **none blocks imp
 | ~~`OD-03`~~ | How is ICP fit weighted? | **CLOSED 2026-08-27 as a Portfolio Decision — see `PD-14`.** Resolved by rejecting weighting entirely: MQL eligibility becomes a set of deterministic conditions that are all required, so nothing is weighted and no scoring model exists to invent. | Closed. `BR-17` remains P2 and unbuilt. |
 | `OD-04` | Who owns each exception class? | All classes visible and owned in two queues | Per-class queue assignment — configuration |
 | `OD-05` | Power BI refresh and historical-data architecture | Manual export for this release; refresh architecture designed, not automated | Production refresh design. **No change to the Salesforce data model.** |
+| `OD-06` | **Advanced Lifecycle Entry** — when may a Lead enter the governed lifecycle at a stage beyond the initial one, and what evidence must substantiate that entry? | Creation at any stage is permitted and stamps `Lifecycle_Stage_Entered__c`; the transition and qualification gates govern transitions only, and are unchanged. The detective controls report what they observe. | Whether advanced-stage entry is gated, and what provenance an import, integration, partner or sales referral, or migration must supply. `lifecycle-progression`'s treatment of advanced-stage creation follows from it. |
+| `OD-07` | **Evidence Ownership Policy** — who owns lifecycle evidence after a governed transition has granted the stage? | The Flow is the only writer of `MQL_Basis__c`, `Sales_Accepted_At__c`/`_By__c`/`_Acceptance_Basis__c` and `SQL_Basis__c`, but nothing prevents a later edit or clearance. The detective controls report the resulting contradiction. | Which evidence fields are system-owned; whether humans or integrations may edit them; whether evidence is immutable after a governed transition; how a legitimate correction or reconstruction works; whether superseded evidence is replaced or retained; which automation is authoritative. **The technical safeguard is deliberately not chosen until the policy is.** |
 
 **Why none of these blocks the build.** Each is either deferred with its scope (`OD-03`), held as
-configuration (`OD-02`, `OD-04`, `OD-05`), or resolved by choosing the conservative option
-(`OD-01` — never merge). The pattern is the same in each case: **where a business rule is unagreed,
+configuration (`OD-02`, `OD-04`, `OD-05`), resolved by choosing the conservative option
+(`OD-01` — never merge), or left to the existing safeguard while the rule is undecided
+(`OD-06`, `OD-07`). The pattern is the same in each case: **where a business rule is unagreed,
 build the capability and leave the rule configurable, rather than inventing the rule.**
+
+> **`OD-06` and `OD-07` were opened by executed evidence, not by design review.** Both were exposed
+> by the controlled lifecycle validation of 2026-09-01, where a controlled fixture entered the
+> lifecycle at an advanced stage and another had its qualification evidence removed after the stage
+> had been granted. In each case the preventive safeguard behaved exactly as designed and the
+> detective control reported the result correctly — what is missing is the business rule, not the
+> mechanism. Evidence in [`implementation-log.md`](implementation-log.md) and
+> [`testing-strategy.md`](testing-strategy.md) §2r. **Neither is remediated, and no safeguard is
+> changed until the rule is decided.**
 
 > The alternative — writing a threshold into a Flow because someone had to pick one — is exactly the
 > failure that produced `PROB-005`, `PROB-010`, and `PROB-017` at NorthstarIQ.
@@ -103,12 +115,13 @@ stakeholders. There is one person, deciding openly.
 | Git 2.55.0 · GitHub CLI 2.98.0 | ✅ Verified 2026-08-22 |
 | Salesforce CLI 2.148.3 | ✅ Verified 2026-08-22 |
 | D2 0.7.1 · Python 3.14.7 · Node 24.19.0 | ✅ Verified 2026-08-22 |
-| **Salesforce Developer Edition org** | 🔵 **Not yet provisioned or authenticated** — blocks all implementation |
+| **Salesforce Developer Edition org** | ✅ **Provisioned and authenticated.** Configuration parity verified against source control, and controlled lifecycle fixtures executed against it — provenance in [`implementation-log.md`](implementation-log.md). Org access is **session-based and can lapse**; re-authentication remains a gated action and is never assumed to be available. |
 | **Power BI Desktop** | ⬜ Not yet required — needed at the analytics stage |
 | Human approval: commit · push · GitHub repository creation · org authentication · deployment · data load | 🔵 Required at each gate |
 
-**The org is the critical path.** Nothing in [`architecture.md`](architecture.md) or
-[`data-model.md`](data-model.md) leaves candidate status until it is inspected.
+**The org was the critical path, and it is no longer blocking.** Nothing in
+[`architecture.md`](architecture.md) or [`data-model.md`](data-model.md) leaves candidate status
+until it is inspected in the org — a rule that still governs every component not yet built.
 
 ---
 

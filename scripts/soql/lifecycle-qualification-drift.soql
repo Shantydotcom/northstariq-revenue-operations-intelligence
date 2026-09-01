@@ -1,0 +1,45 @@
+-- NorthstarIQ — Qualification drift: a Lead still holding a claim its current
+-- business state no longer substantiates
+--
+-- ⚠️ LATER-CREATED REPRODUCIBILITY EVIDENCE — written 2026-09-01 AFTER the
+-- controlled lifecycle validation. It was NOT used during that validation and
+-- is not historical evidence. It exists so the drift pattern can be re-checked.
+--
+-- THE PATTERN. A Lead qualifies at MQL under the active policy, and the Flow
+-- writes MQL_Basis__c naming the segment that qualified it. Later, a legitimate
+-- correction to NumberOfEmployees re-segments the Lead. Status never changes, so
+-- the preventive gate — which fires only on a Status change — never re-runs. The
+-- recorded basis and the current segment now disagree.
+--
+-- ⚠️ THIS IS NOT A SALESFORCE DEFECT. Correcting a company's employee count is
+-- ordinary, legitimate business data maintenance and must stay permitted. The
+-- gate governs the moment of transition; nothing governs the record afterwards.
+-- That gap is precisely why an independent detective control exists.
+--
+-- WHAT THIS QUERY IS AND IS NOT. It surfaces the RECORDS. It does not re-derive
+-- the verdict: MQL eligibility is defined by Segment_Band__mdt.MQL_Eligible__c
+-- and judged by NorthstarIQ's MQL Qualification Integrity control, which reads
+-- the same governed configuration. Do not treat the segment names in the filter
+-- as a second definition of eligibility — read the CMDT for that. They are here
+-- only so the query is selective, and they must be revisited if the bands change.
+--
+-- Observed 2026-09-01 during the controlled run: NIQ Fixture 02 appeared here,
+-- and NorthstarIQ independently reported it Failed — "segment is not one the
+-- business qualifies". That is historical execution evidence, not a current count.
+--
+-- Read-only. Safe to run against any org.
+
+SELECT Id,
+       Name,
+       Company,
+       Status,
+       NumberOfEmployees,
+       Segment__c,
+       Segment_Basis__c,
+       MQL_Basis__c,
+       Lifecycle_Stage_Entered__c
+FROM Lead
+WHERE Status = 'MQL'
+  AND MQL_Basis__c != null
+  AND Segment__c = 'SMB'
+ORDER BY Lifecycle_Stage_Entered__c DESC

@@ -3278,6 +3278,178 @@ committed.
 
 ---
 
+### 2026-09-01 — Controlled lifecycle validation: the governed lifecycle is exercised end to end
+
+Requirement: `BR-15`, `BR-16`, `BR-17`, `PD-09`, `PD-12`, `PD-14`.
+Metadata: **none created or modified.** No Flow change, no Custom Metadata change, no field change,
+no permission change.
+Validation: four controlled synthetic Lead fixtures, four deliberate preventive rejections, one
+native Salesforce Lead Conversion, five read-only NorthstarIQ assessment checkpoints.
+
+**Implemented before this validation, and unchanged by it.** The governed lifecycle taxonomy, the
+seven Custom Metadata Types and their governed records, the before-save Flow with its transition and
+three qualification gates, the lifecycle evidence fields, and all four NorthstarIQ detective
+controls already existed and were already in source control. Source-versus-deployed parity had been
+verified read-only on 2026-08-31 — the Custom Metadata Types, their field definitions, their
+governed records and the active Flow all matched source. **This entry adds no capability. It records
+behaviour.**
+
+**Validated during this execution — and only this.** That the deployed safeguard refuses the
+unsupported cases and rolls them back; that a Lead satisfying the active policies progresses through
+every governed stage and converts natively; that the four detective controls independently reach the
+correct verdict on the resulting records. Nothing else.
+
+#### The validation chain
+
+```
+governed business rule    Lifecycle_Transition__mdt · MQL / Sales Acceptance / SQL policy records
+  → deployed safeguard    Lead_Inbound_Before_Save (active, parity-verified 2026-08-31)
+  → controlled record     four synthetic fixtures, reserved .invalid domains, created 2026-09-01
+  → detective assessment  NorthstarIQ, read-only, at five checkpoints
+  → record-level evidence Status, stage-entry stamp, basis strings, Lead Status field history
+```
+
+#### Four preventive rejections — every one refused, every one rolled back
+
+Attempted deliberately against the governed-lifecycle fixture. Each Custom Error named the policy in
+force and only the conditions actually unsatisfied:
+
+| Attempted operation | Refused because |
+|---|---|
+| Unsupported lifecycle transition | no active transition rule existed for that stage pair |
+| Unsupported MQL qualification | the segment was not eligible under the active MQL policy |
+| Unsupported Sales acceptance | no explicit seller acceptance under the active acceptance policy |
+| Unsupported SQL qualification | no confirmed need and no agreed next step under the active SQL policy |
+
+**Each rejected transaction rolled back in full.** After every attempt the record was re-queried:
+Status, `Lifecycle_Stage_Entered__c` and the evidence fields were unchanged, and no Status history
+row had been written.
+
+> ⚠️ **No rejected invalid state persisted, and NorthstarIQ therefore did not subsequently detect
+> any of those states.** There was nothing to detect. A before-save rejection leaves no record, no
+> history row and no evidence. Any statement that the assessment "caught" one of these four attempts
+> would be false, and none is made anywhere in this repository.
+
+#### The governed progression, and the platform boundary
+
+```
+Open - Not Contacted → Working - Contacted → MQL → SAL → SQL
+                     → native Salesforce Lead Conversion → Account · Contact · Opportunity
+```
+
+Every transition consumed an active `Lifecycle_Transition__mdt` rule. The conversion traversed the
+safeguard as designed and populated `IsConverted`, `ConvertedDate` and all three converted record
+references; both child records were verified pointing at the converted Account.
+
+**The qualification, acceptance and SQL basis strings were written by the deployed Flow, not by
+hand.** No basis field was pre-populated, no timestamp was back-dated, and no evidence was fabricated
+to produce a pass. All three survived the conversion boundary intact.
+
+#### First live detective observations
+
+Each of these had never occurred against live org data before this run:
+
+| First observation | Control | Captured |
+|---|---|---|
+| **Passed** | `mql-integrity` | while the fixture still sat at `MQL` |
+| **Failed** | `mql-integrity` | after qualification drift on a second fixture |
+| **Passed** | `sales-acceptance-sql` | after the fixture reached `SQL` |
+| **Failed** | `sales-acceptance-sql` | after evidence removal on a third fixture |
+| **Failure path reached** | `lifecycle-progression` | the same evidence-removal fixture |
+| **Controlled Passed** | `lifecycle-conversion` | after native conversion |
+
+> ⚠️ **`mql-integrity = Passed` is stage-window dependent.** That control judges a Lead only while
+> its Status still equals the governed qualified stage; once the Lead progresses it correctly reports
+> Unable to Determine. The Passed result was captured inside that window and is a **dated historical
+> observation**. **The org is not expected to keep containing a passing MQL fixture**, and no claim
+> in this repository depends on it doing so.
+
+#### Evidence-gap status
+
+**`G-6` — CLOSED.** The two integrity controls that had never judged a live record did so, in both
+directions: each produced a Passed and a Failed result against controlled Salesforce records. What
+this does *not* establish: `mql-integrity`'s Passed state is transient, as above.
+
+**`G-7` — CLOSED.** `lifecycle-progression` reached a live failure path, through controlled evidence
+removal, naming the governed route and the absent evidence. What this does *not* establish: **not
+every contradiction path was executed** — one was. A **forbidden transition retained in history**
+remains **not safely creatable**, precisely because the preventive safeguard correctly refuses and
+rolls back every unsupported transition. Producing one would require mutating governed configuration.
+That was not done and is not planned.
+
+**`G-8` — PARTIALLY CLOSED.** Positive alignment was demonstrated: on the same record, at the same
+stage, the preventive safeguard first refused invalid inputs, then accepted governed inputs, after
+which NorthstarIQ independently reported the persisted state Passed — **reading the same governed
+configuration the gate had read.** The negative direction is not claimed and cannot be:
+
+> **When the preventive safeguard rejects a transaction, the invalid state does not persist.
+> NorthstarIQ therefore has no persisted rejected state to assess afterward.**
+
+**That is a structural limitation of the validation direction, not a failed test.** No fixture can
+close it.
+
+#### Findings F-1 to F-8 — reviewed disposition
+
+Recorded as reviewed. **None is remediated in this entry**, and no code, Flow, Custom Metadata or
+detector was changed.
+
+| ID | Reviewed disposition |
+|---|---|
+| **F-1** | `BUSINESS CONTEXT REQUIRED — ADVANCED LIFECYCLE ENTRY`. A Lead can be created directly at an advanced stage without the transition or qualification gate running, while `Lifecycle_Stage_Entered__c` is still stamped. **The remediation is not "force every Lead to start at the initial stage"** — imports, integrations, partner and sales referrals and migrations may all legitimately introduce prequalified Leads. The missing artifact is the business rule: when may a Lead enter beyond the initial stage, and what evidence or provenance must substantiate it. Open as `OD-06`. **Neither Flow nor detector changes until it is decided.** |
+| **F-2** | `EXPECTED OPERATIONAL RISK — QUALIFICATION DRIFT DETECTED`. A Lead legitimately qualified at MQL, then a company-size correction re-segmented it so the recorded basis no longer matched the current state. **This is not a Salesforce safeguard defect**: correcting an employee count is legitimate maintenance and must remain permitted. The intended operating concept is *qualification-relevant data changes → re-evaluate qualification → identify drift → flag for RevOps or seller review*; NorthstarIQ supplies the detective half. **No rule preventing legitimate updates, no automatic demotion, no lifecycle mutation.** Any response or remediation workflow is a separate business decision, out of scope here. This finding is the clearest evidence in the repository that preventive and detective controls are complementary rather than redundant. |
+| **F-3** | `GOVERNANCE POLICY REQUIRED — EVIDENCE OWNERSHIP`. Qualification evidence was cleared after the stage had been granted, without a Status change; Salesforce allowed the save and two controls independently detected the contradiction. **The technical safeguard is deliberately not chosen yet.** Immutability, validation, permissions or another mechanism can only be selected once the policy defines which lifecycle evidence fields are system-owned, whether humans or integrations may edit them, whether evidence is immutable after a governed transition, how legitimate correction or reconstruction works, whether superseded evidence is replaced or historically retained, and which automation is authoritative for writing it. Open as `OD-07`. |
+| **F-4** | `CONFIRMED PRODUCT DEFECT — EXPLANATION / PROVENANCE`. The Unable to Determine **classification was correct**, but the explanation asserted that records created during this validation "predate the evidence foundation" — provenance NorthstarIQ did not possess. Required behaviour: where NorthstarIQ holds no evidence that a record predates the evidence architecture, state that the required qualification evidence is *unavailable* and the claim cannot be determined; reserve the "predates the qualification-evidence architecture" explanation for records where actual provenance supports it. **Remediation approved in principle. Not fixed here.** |
+| **F-5** | `CONFIRMED PRODUCT DEFECT — CONTEXTUAL EXPLANATION`. The same explanation does not distinguish a Lead **currently at** MQL from one that has **progressed beyond** it. A Lead at MQL should be told the evidence required for its *current* MQL claim is unavailable; a Lead beyond MQL should be told it progressed beyond MQL but the evidence supporting that earlier stage is unavailable. Final UI wording may be refined during remediation; **the semantic distinction must survive it. Not fixed here.** |
+| **F-6** | `CONFIRMED PRODUCT DEFECT — COSMETIC`. Qualification failure text carries an unnecessary trailing separator. Remediation should remove it **without changing the underlying qualification logic or error semantics. Not fixed here.** |
+| **F-7** | `UNVALIDATED TECHNICAL OBSERVATION — CONTROLLED TEST REQUIRED`. Source inspection suggests the MQL lifecycle gate may evaluate the previously stored `Segment__c` before the Flow recalculates segmentation from changed inputs. **This has not been established by runtime execution and is not described as a confirmed sequencing defect.** The controlled run deliberately avoided the ambiguity by splitting the input correction and the Status change into two saves. Two same-save cases must be exercised before any conclusion is drawn — specified in [`testing-strategy.md`](testing-strategy.md) §2r. **No Flow change is permitted before that test runs.** |
+| **F-8** | `CONTROL-BOUNDARY OBSERVATION — DEPENDENT ON F-1`. A Lead created directly at MQL without qualification evidence was reported Passed by `lifecycle-progression` and Unable to Determine by `mql-integrity`. **`lifecycle-progression` is not defective for declining to duplicate the MQL qualification control** — the two controls evaluate different invariants. What the correct progression behaviour *should* be for advanced-stage creation depends on the unresolved Advanced Lifecycle Entry rule. **No change until `OD-06` is decided.** |
+
+**What these findings have in common.** F-1, F-2 and F-3 are all cases where the preventive
+safeguard behaved exactly as designed and the gap lies **after** the moment it governs. Two of them
+are missing business rules rather than missing mechanisms — which is why the response is an open
+decision, not a code change. The architectural reading is recorded in
+[`architecture.md`](architecture.md) §3 under the four lifecycle governance questions.
+
+#### Fixture provenance and current disposition
+
+**These are controlled validation fixtures created on 2026-09-01.** They are **not** part of the
+Synthetic Baseline, **not** historical records, and **not** customer-like failures or historical
+defects. Three were deliberately damaged *after* being legitimately progressed, in order to exercise
+detective paths that the preventive safeguard correctly prevents from arising unaided.
+
+| Fixture | What it demonstrates | Disposition |
+|---|---|---|
+| **FX-01** Governed Full Lifecycle | The complete governed progression and native Salesforce conversion | **Retained** as controlled validation evidence. Its Account, Contact and Opportunity are equally controlled validation artifacts, created by the conversion. Conversion is irreversible. |
+| **FX-02** MQL Input Drift | Qualification drift (`F-2`) | Retained pending evidence preservation and separate cleanup approval |
+| **FX-03** Acceptance Evidence Removed | Evidence removal and the need for an Evidence Ownership Policy (`F-3`) | Retained pending evidence preservation and separate cleanup approval |
+| **FX-04** MQL Claimed at Creation | The Advanced Lifecycle Entry gap (`F-1`) and explanation defects `F-4` / `F-5` | Retained pending evidence preservation, business-rule resolution and separate cleanup approval |
+
+A fifth fixture designed to create a Lead directly at the sales-qualified stage was **deliberately
+not created** — it would have duplicated an outcome already obtained, and the argument for it was
+scope, not evidence.
+
+**No fixture was deleted, no pre-existing record was mutated, and no fixture is described anywhere as
+historical.** While the three negative fixtures are retained they contribute synthetic failures to
+the org's finding totals; that is a known and deliberate cost of preserving the evidence, and it is
+why their cleanup is a separate approval rather than an assumption.
+
+**Test result: every expected outcome was observed.** All four preventive rejections produced the
+predicted error and a verified rollback; all four detective controls produced the predicted
+classification for every fixture. Three product defects (`F-4`, `F-5`, `F-6`) and three
+safeguard-scope observations (`F-1`, `F-2`, `F-3`) were discovered and **left unfixed** — which is
+what a validation exercise is for. Nothing was repaired, compensated for, or worked around to produce
+a passing result.
+
+⚠️ **Provenance of the reproducibility queries.** The four lifecycle queries added under
+`scripts/soql/` on 2026-09-01 were written **after** this validation had already run. They make the
+results re-checkable; **they were not the evidence used at the time**, and each says so in its own
+header.
+
+**Not committed at the time of writing**; the commit hash will be recorded when the change is
+committed.
+
+---
+
 ## Implementation Status
 
 **Increments 1-4 are deployed, runtime-validated, and human-accepted.** Increments 3 and 4 were

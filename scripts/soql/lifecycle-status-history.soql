@@ -1,0 +1,44 @@
+-- NorthstarIQ — Governed lifecycle transition history, and what is absent from it
+--
+-- ⚠️ LATER-CREATED REPRODUCIBILITY EVIDENCE — written 2026-09-01 AFTER the
+-- controlled lifecycle validation. It was NOT used during that validation and
+-- is not historical evidence. It exists so the transition trail can be re-read.
+--
+-- Purpose: Lead Status field history is the retained transition trail. This
+-- query reads it for the controlled fixtures.
+--
+-- THE ABSENCE IS THE EVIDENCE. During the controlled run four unsupported saves
+-- were deliberately attempted against NIQ Fixture 01 — an unsupported lifecycle
+-- transition, an unsupported MQL qualification, an unsupported Sales acceptance,
+-- and an unsupported SQL qualification. Each was refused by a Custom Error and
+-- the whole transaction rolled back. NONE of them appears in this result, and
+-- none ever will: a before-save rejection writes no history row.
+--
+-- ⚠️ DO NOT READ A REJECTED ATTEMPT AS A DETECTED DEFECT. The rejected states
+-- never persisted, so NorthstarIQ had nothing to detect afterwards. This query
+-- can show that a forbidden transition is ABSENT; it cannot show that anything
+-- caught one.
+--
+-- Observed 2026-09-01: NIQ Fixture 01 showed the complete governed chain
+--   Open - Not Contacted → Working - Contacted → MQL → SAL → SQL
+--   → Closed - Converted (written by native Salesforce Lead Conversion)
+-- with no forbidden transition present. Historical execution evidence.
+--
+-- ⚠️ Salesforce field history is bounded and never records a Lead's INITIAL
+-- status, so an absent row is not proof a transition never happened on an older
+-- record. That limitation is why Lifecycle Progression Integrity reports
+-- Unable to Determine rather than Failed where nothing retained can settle it.
+--
+-- Read-only. Safe to run against any org.
+
+SELECT LeadId,
+       Lead.Company,
+       Lead.Status,
+       Field,
+       OldValue,
+       NewValue,
+       CreatedDate
+FROM LeadHistory
+WHERE Lead.Company LIKE 'NIQ Fixture%'
+  AND Field = 'Status'
+ORDER BY LeadId, CreatedDate

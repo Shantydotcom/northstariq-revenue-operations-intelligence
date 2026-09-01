@@ -1,0 +1,59 @@
+-- NorthstarIQ — Controlled lifecycle validation fixtures: provenance and disposition
+--
+-- ⚠️ LATER-CREATED REPRODUCIBILITY EVIDENCE — written 2026-09-01 AFTER the
+-- controlled lifecycle validation had already been executed. This query was NOT
+-- used during that validation and is not historical evidence of anything. It
+-- exists so the fixture set can be identified and re-inspected on demand.
+--
+-- Purpose: make the four controlled fixtures impossible to misread later.
+--
+-- These are CONTROLLED VALIDATION FIXTURES created on 2026-09-01. They are NOT
+-- part of the Synthetic Baseline, NOT historical records, and NOT customer-like
+-- defects. Three of them were deliberately damaged after being legitimately
+-- progressed, to exercise detective-control failure paths that the preventive
+-- safeguard correctly prevents from arising on its own.
+--
+--   NIQ Fixture 01  Governed Full Lifecycle       progressed Open → Working → MQL
+--                                                 → SAL → SQL, then natively
+--                                                 converted. Retained.
+--   NIQ Fixture 02  MQL Input Drift               legitimately qualified at MQL,
+--                                                 then company size corrected so
+--                                                 the segment became MQL-ineligible.
+--   NIQ Fixture 03  Acceptance Evidence Removed   legitimately progressed to SAL,
+--                                                 then MQL_Basis__c cleared.
+--   NIQ Fixture 04  MQL Claimed at Creation       created directly at MQL; the
+--                                                 create path runs no lifecycle gate.
+--
+-- Every basis string below was written by Lead_Inbound_Before_Save. None was
+-- authored by hand. FX-02's basis still names the segment that qualified it,
+-- which is the drift; FX-03's is null, which is the removal; FX-04 never had one.
+--
+-- Read-only. Safe to run against any org.
+
+SELECT Id,
+       Name,
+       Company,
+       Status,
+       LeadSource,
+       NumberOfEmployees,
+       Segment__c,
+       Segment_Basis__c,
+       Territory__c,
+       Match_Status__c,
+       Lifecycle_Stage_Entered__c,
+       MQL_Basis__c,
+       Sales_Accepted__c,
+       Sales_Accepted_At__c,
+       Sales_Acceptance_Basis__c,
+       Qualified_Need__c,
+       Next_Step_Date__c,
+       SQL_Basis__c,
+       IsConverted,
+       ConvertedDate,
+       ConvertedAccountId,
+       ConvertedContactId,
+       ConvertedOpportunityId,
+       CreatedDate
+FROM Lead
+WHERE Company LIKE 'NIQ Fixture%'
+ORDER BY Company

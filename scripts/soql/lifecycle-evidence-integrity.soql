@@ -1,0 +1,44 @@
+-- NorthstarIQ — Lifecycle evidence integrity: a stage granted on evidence that
+-- is no longer present
+--
+-- ⚠️ LATER-CREATED REPRODUCIBILITY EVIDENCE — written 2026-09-01 AFTER the
+-- controlled lifecycle validation. It was NOT used during that validation and
+-- is not historical evidence. It exists so the pattern can be re-checked.
+--
+-- THE PATTERN. Sales acceptance requires substantiating MQL evidence: the SAL
+-- gate refuses the transition when MQL_Basis__c is blank, and the Flow records
+-- Sales_Accepted_At__c only when it grants acceptance. A Lead therefore cannot
+-- REACH SAL without MQL evidence. It can, however, hold acceptance evidence and
+-- then lose the MQL evidence afterwards — the fields are ordinary writable
+-- custom fields, no Status change is involved, and the gate never re-runs.
+--
+-- ⚠️ WHAT THIS EXPOSES IS A GOVERNANCE GAP, NOT A FLOW DEFECT. The Flow governs
+-- transitions; nothing currently governs who may edit lifecycle evidence after
+-- a transition has been granted. Which fields are system-owned, whether they are
+-- immutable, and how a legitimate correction should work are undecided — see the
+-- Evidence Ownership Policy open decision in docs/assumptions.md.
+--
+-- Observed 2026-09-01 during the controlled run: NIQ Fixture 03 appeared here
+-- after MQL_Basis__c was deliberately cleared, and TWO NorthstarIQ controls
+-- independently reported it Failed — Lifecycle Progression Integrity (the
+-- governed route to SAL passes through MQL, whose evidence is absent) and Sales
+-- Acceptance / SQL Integrity (acceptance recorded against an unsubstantiated
+-- handoff). Historical execution evidence, not a current count.
+--
+-- Read-only. Safe to run against any org.
+
+SELECT Id,
+       Name,
+       Company,
+       Status,
+       MQL_Basis__c,
+       Sales_Accepted__c,
+       Sales_Accepted_At__c,
+       Sales_Accepted_By__c,
+       Sales_Acceptance_Basis__c,
+       SQL_Basis__c,
+       Lifecycle_Stage_Entered__c
+FROM Lead
+WHERE Sales_Accepted_At__c != null
+  AND MQL_Basis__c = null
+ORDER BY Sales_Accepted_At__c DESC

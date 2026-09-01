@@ -154,7 +154,7 @@ that administrator is already the constraint.
 | Rule | Why |
 |---|---|
 | **Before-save for same-record field assignment** | Avoids a second DML per record. The most common Flow performance defect in an org this shape. |
-| **Bulk-safe: no DML or SOQL inside a loop** | `RISK-009`. Must hold at 200 records, not just at 1. |
+| **Bulk-safe: no DML or SOQL inside a loop** | `RISK-07`. Must hold at 200 records, not just at 1. |
 | **Fault paths on every element that can fail** | A silent failure leaves a record in a partial state, which is worse than not processing it. |
 | **No hard-coded thresholds, IDs, or mappings** | `BR-21`. Anything the business may change lives in configuration. |
 | **Recursion control on after-save updates** | Assignment writes to the record that triggered the Flow. |
@@ -543,6 +543,35 @@ requirement invented ahead of the platform's own model would be methodology cosp
 
 **Evidence survives the boundary.** All four stages' evidence was verified intact on a Lead taken
 through native conversion from SQL, so a converted record still answers all four questions.
+
+### Four lifecycle governance questions — an interpretation, not four controls
+
+The controlled lifecycle validation of 2026-09-01 exposed that "is this lifecycle claim governed?"
+is really **four** questions, and that the implemented safeguard answers two of them. This table is
+a **business and architecture interpretation of what that validation revealed.** It is not a
+description of four product controls, and nothing here should be read as implemented capability
+beyond what the status column states.
+
+| Question | Governs | Status |
+|---|---|---|
+| **Entry governance** — under what conditions may a record enter a lifecycle stage, *including at creation*? | Whether a Lead may be created directly at an advanced stage, and what provenance must substantiate it | 🟡 **Undecided — `OD-06` Advanced Lifecycle Entry.** The create path stamps `Lifecycle_Stage_Entered__c` and runs no lifecycle gate. **Observed, not inferred.** |
+| **Transition governance** — may an existing record move from its current stage to the requested one? | `Lifecycle_Transition__mdt`, enforced by the before-save Flow | ✅ **Implemented and validated.** Four unsupported saves were refused and rolled back on 2026-09-01. |
+| **Evidence governance** — does the evidence supporting the claim exist, remain trustworthy, and have an owner? | Who may write or clear `MQL_Basis__c`, the acceptance fields and `SQL_Basis__c` after a stage is granted | 🟡 **Undecided — `OD-07` Evidence Ownership Policy.** The Flow is the only writer; nothing prevents a later edit. **Observed, not inferred.** |
+| **Ongoing integrity** — does the record's *current* business state still substantiate a claim already granted? | Nothing preventive. NorthstarIQ's detective controls report it. | ✅ **Detective only, validated.** Qualification drift was detected on 2026-09-01 after a legitimate data correction. |
+
+**The two implemented answers are both about a moment; the two gaps are both about the time
+afterwards.** A gate fires on a Status change and is then finished with the record. Everything in
+the record's remaining life — a corrected employee count, a cleared evidence field, a record that
+never transitioned at all because it was created where it stands — is outside its scope by design.
+
+> **This is the architectural case for keeping preventive and detective controls separate.** They
+> are not redundant implementations of one rule; they cover different windows in a record's life.
+> Prevention could not have caught the drift, because no rule was broken at the moment it governs.
+
+**Neither gap is remediated.** Changing the Flow or the detectors before `OD-06` and `OD-07` are
+decided would be inventing a business rule to make a gap close, which is the failure this project
+exists to demonstrate against. Evidence in [`implementation-log.md`](implementation-log.md) and
+[`testing-strategy.md`](testing-strategy.md) §2r.
 
 ### What is deliberately *not* automated
 
