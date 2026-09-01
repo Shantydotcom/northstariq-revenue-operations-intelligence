@@ -13,7 +13,7 @@
 **Executed, with results recorded in [`implementation-log.md`](implementation-log.md):** Increment 2
 fixtures (8/8) · Increment 3 routing (9/9) · Seller negative-security and `BR-08` regression (6/6) ·
 Increment 4 SLA (15/15, including 8 negative and guardrail tests) · web application unit tests
-(50/50 when §2h was executed; the suite has grown with each increment since and passes in full — fixtures only, no network, no org) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run) · Assessment Model v2 scoring activation (§2q, 8 model scenarios + a live read-only run) · the Finding Detail investigation trail (15 presentation-contract scenarios + a browser review) · **controlled lifecycle validation against live Salesforce records (§2r, four fixtures, four preventive rejections, native conversion, five assessment checkpoints)**.
+(50/50 when §2h was executed; the suite has grown with each increment since and passes in full — fixtures only, no network, no org) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run) · Assessment Model v2 scoring activation (§2q, 8 model scenarios + a live read-only run) · the Finding Detail investigation trail (15 presentation-contract scenarios + a browser review) · **controlled lifecycle validation against live Salesforce records (§2r, four fixtures, four preventive rejections, native conversion, five assessment checkpoints)** · **F-7 same-transaction sequencing (§2s, two directional cases, one rejected and one accepted)**.
 
 **Not executed:** every scenario in §2 against the **designed ~190-record dataset**, which has not
 been generated. The results above came from purpose-built fixtures and from records the org already
@@ -1287,22 +1287,105 @@ a transaction the invalid state does not persist, so NorthstarIQ has no persiste
 to assess afterward. That is a structural limitation of this validation direction, not a failed
 test, and it is recorded against `G-8` in [`implementation-log.md`](implementation-log.md).
 
-**Not the F-7 sequencing question**, which remains a required and unexecuted targeted test.
+**Not the F-7 sequencing question.** This run deliberately split the input correction and the
+Status change into two saves, so it could not settle it. That question was settled separately by
+the targeted experiment in §2s.
 
-### Required next targeted runtime test — F-7, not yet executed
+## 2s. F-7 same-transaction sequencing — executed 2026-09-01
 
-Source inspection suggests the MQL gate may evaluate the **previously stored** `Segment__c` before
-the Flow recalculates segmentation from changed inputs, because the lifecycle branch runs ahead of
-the segmentation assignment. **This has not been established by runtime execution and must not be
-described as a confirmed sequencing defect until it is.** The controlled run deliberately avoided
-the ambiguity by splitting the input correction and the Status change into two saves.
+**A targeted two-case experiment, not a coverage run.** It answers one question: when a
+qualification-relevant company-size input and a lifecycle Status change arrive in the **same
+Salesforce save**, does the MQL gate evaluate the previously stored `Segment__c` or the segment the
+new input implies?
 
-Two same-save cases must be exercised, and **no Flow change is permitted before they are**:
+Both fixtures satisfied every other requirement of the active MQL policy — governed source, routable
+territory, unambiguous account match — so **segment eligibility was the only condition that could
+fail**. That isolation is what makes the result interpretable.
 
-| Case | Starting segment | Single save | Question |
-|---|---|---|---|
-| **A** | `SMB` | company size changed so the Lead should become `Mid-Market`, while attempting `Working - Contacted → MQL` | Which segment does the MQL gate actually evaluate? |
-| **B** | `Mid-Market` | company size changed so the Lead should become `SMB`, while attempting `Working - Contacted → MQL` | Which segment does the MQL gate actually evaluate? |
+Governed values, read from deployed configuration rather than chosen: `40` employees resolves to
+**SMB** (not MQL-eligible), `250` resolves to **Mid-Market** (MQL-eligible). Both sit well inside
+their bands, so no boundary interpretation was required.
+
+### Case A — `SMB → Mid-Market` + MQL, one save · **REJECTED**
+
+Pre-test persisted state: `Working - Contacted` · 40 employees · Segment `SMB` · no MQL evidence.
+One save changed employees `40 → 250` **and** Status `Working - Contacted → MQL`.
+
+Salesforce refused it, naming **`segment eligible for qualification`** — and nothing else.
+
+**Rollback verified by re-query, not inferred from the error response.** Status remained
+`Working - Contacted`, employees remained `40`, Segment remained `SMB`, no MQL basis persisted, and
+no MQL history row was written.
+
+**Classification: false-negative stale-value behaviour.** The incoming employee count would have
+produced Mid-Market and satisfied the requirement. The only segment that yields this refusal is the
+previously stored `SMB`.
+
+> **F7-A created no persisted invalid state.** The transaction rolled back completely, so there was
+> nothing for NorthstarIQ to assess afterwards, and **no claim is made that any control detected the
+> rejected attempt.**
+
+### Case B — `Mid-Market → SMB` + MQL, one save · **ACCEPTED**
+
+Pre-test persisted state: `Working - Contacted` · 250 employees · Segment `Mid-Market` · no MQL
+evidence. One save changed employees `250 → 40` **and** Status `Working - Contacted → MQL`.
+
+Salesforce accepted it. The record persisted as **`MQL` + Segment `SMB`** — a stage the active
+policy does not permit for that segment — carrying two Flow-generated strings written **in the same
+transaction** that contradict each other:
+
+```
+MQL basis      Qualified under MQL Policy v1.1: ... Mid-Market segment eligible; ...
+Segment basis  Employee Count: 40 -> SMB | Rule v1.0
+```
+
+**Classification: false-positive stale-value behaviour, and the material governance defect.** A Lead
+persists as Marketing-qualified while its final governed business state is ineligible, and its own
+evidence cites a segment it no longer holds. **The contradictory evidence string is a consequence of
+the sequencing defect, not a separate cosmetic issue.**
+
+### The chain Case B demonstrated
+
+```
+same-save business input + lifecycle transition
+  → preventive gate evaluates the stale Segment
+  → invalid MQL state persists
+  → segmentation recalculates the record to SMB
+  → NorthstarIQ evaluates the persisted current state
+  → mql-integrity = Failed
+```
+
+**The detective layer caught a contradiction the preventive layer admitted** — *"Not substantiated —
+segment is not one the business qualifies."*
+
+`lifecycle-progression` returned **Passed** for the same record, which is **correct under its
+contract**: it evaluates progression consistency, not qualification integrity, and MQL evidence is
+present for the stage held. It is not expected to fail here, and it should not be changed to — the
+same control-boundary reasoning already recorded for `F-8`.
+
+### What proves the ordering, and what does not
+
+| Weight | Evidence |
+|---|---|
+| **Primary** | The Salesforce transaction results, the persisted field values after each save, and the two contradictory Flow-generated basis strings written in one transaction |
+| **Corroborating** | Source connector ordering — the MQL segment-band lookup executes before segmentation is recalculated — and `mql-integrity` independently failing the persisted record |
+
+> ⚠️ **The NorthstarIQ assessment does not prove Flow execution order.** It evaluates persisted
+> state. The Salesforce record is the primary runtime evidence.
+
+### Result
+
+**`F-7 CONFIRMED — STALE SEGMENT EVALUATION`**, in both directions. **Confirmed, not remediated.**
+No Flow, Custom Metadata or application change was made, and no remediation design was chosen.
+
+**Any remediation must be revalidated by rerunning both directions**, unchanged. A fix that corrects
+one direction and not the other has not closed this defect.
+
+### What this does not establish
+
+**Not all Flow sequencing**, and **not every MQL transition combination** — two same-save cases were
+exercised against one qualification requirement. Other same-transaction interactions between derived
+fields and lifecycle gates remain untested.
 
 ---
 

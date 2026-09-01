@@ -3401,7 +3401,7 @@ detector was changed.
 | **F-4** | `CONFIRMED PRODUCT DEFECT — EXPLANATION / PROVENANCE`. The Unable to Determine **classification was correct**, but the explanation asserted that records created during this validation "predate the evidence foundation" — provenance NorthstarIQ did not possess. Required behaviour: where NorthstarIQ holds no evidence that a record predates the evidence architecture, state that the required qualification evidence is *unavailable* and the claim cannot be determined; reserve the "predates the qualification-evidence architecture" explanation for records where actual provenance supports it. **Remediation approved in principle. Not fixed here.** |
 | **F-5** | `CONFIRMED PRODUCT DEFECT — CONTEXTUAL EXPLANATION`. The same explanation does not distinguish a Lead **currently at** MQL from one that has **progressed beyond** it. A Lead at MQL should be told the evidence required for its *current* MQL claim is unavailable; a Lead beyond MQL should be told it progressed beyond MQL but the evidence supporting that earlier stage is unavailable. Final UI wording may be refined during remediation; **the semantic distinction must survive it. Not fixed here.** |
 | **F-6** | `CONFIRMED PRODUCT DEFECT — COSMETIC`. Qualification failure text carries an unnecessary trailing separator. Remediation should remove it **without changing the underlying qualification logic or error semantics. Not fixed here.** |
-| **F-7** | `UNVALIDATED TECHNICAL OBSERVATION — CONTROLLED TEST REQUIRED`. Source inspection suggests the MQL lifecycle gate may evaluate the previously stored `Segment__c` before the Flow recalculates segmentation from changed inputs. **This has not been established by runtime execution and is not described as a confirmed sequencing defect.** The controlled run deliberately avoided the ambiguity by splitting the input correction and the Status change into two saves. Two same-save cases must be exercised before any conclusion is drawn — specified in [`testing-strategy.md`](testing-strategy.md) §2r. **No Flow change is permitted before that test runs.** |
+| **F-7** | `CONFIRMED RUNTIME DEFECT — STALE SEGMENT EVALUATION`. **Superseded 2026-09-01 by executed evidence** — this was first recorded as an unvalidated source-derived observation, and the targeted two-case experiment then confirmed it in both directions. When a qualification-relevant company-size input and a Status change arrive in the same save, the MQL gate evaluates the **previously stored** `Segment__c`: a Lead the same transaction makes eligible is refused (**false negative**), and a Lead the same transaction makes ineligible is granted MQL and **persists as `MQL` + `SMB`** (**false positive** — the material defect). The Flow wrote both contradicting basis strings in one transaction. **Confirmed, not remediated**; no remediation design has been chosen, and any fix must be revalidated by rerunning both directions. See the 2026-09-01 F-7 entry below and [`testing-strategy.md`](testing-strategy.md) §2s. |
 | **F-8** | `CONTROL-BOUNDARY OBSERVATION — DEPENDENT ON F-1`. A Lead created directly at MQL without qualification evidence was reported Passed by `lifecycle-progression` and Unable to Determine by `mql-integrity`. **`lifecycle-progression` is not defective for declining to duplicate the MQL qualification control** — the two controls evaluate different invariants. What the correct progression behaviour *should* be for advanced-stage creation depends on the unresolved Advanced Lifecycle Entry rule. **No change until `OD-06` is decided.** |
 
 **What these findings have in common.** F-1, F-2 and F-3 are all cases where the preventive
@@ -3444,6 +3444,81 @@ a passing result.
 `scripts/soql/` on 2026-09-01 were written **after** this validation had already run. They make the
 results re-checkable; **they were not the evidence used at the time**, and each says so in its own
 header.
+
+**Not committed at the time of writing**; the commit hash will be recorded when the change is
+committed.
+
+---
+
+### 2026-09-01 — F-7 runtime-confirmed: the MQL gate evaluates a stale segment
+
+Requirement: `BR-17`, `PD-14`.
+Metadata: **none created or modified.** No Flow change, no Custom Metadata change, no application or
+assessment change.
+Validation: two controlled synthetic Leads, one same-save transaction each, in opposite directions.
+
+**F-7 moves from source-derived and unvalidated to runtime-confirmed.** It was recorded earlier the
+same day as an observation that must not be called a defect until executed evidence supported it.
+That evidence now exists.
+
+**The question.** When a qualification-relevant company-size input and a lifecycle Status change
+arrive in the **same Salesforce save**, does the MQL gate evaluate the previously stored
+`Segment__c`, or the segment the new input implies? Both fixtures satisfied every other requirement
+of the active MQL policy, so segment eligibility was the only condition that could fail.
+
+| Direction | Same-save change | Salesforce result | Persisted outcome |
+|---|---|---|---|
+| **Case A** — `SMB → Mid-Market` | employees `40 → 250`, Status `Working - Contacted → MQL` | **Rejected**, naming `segment eligible for qualification` | **Rolled back completely.** Re-query confirmed Status, employees, Segment and evidence all unchanged, and no MQL history row |
+| **Case B** — `Mid-Market → SMB` | employees `250 → 40`, Status `Working - Contacted → MQL` | **Accepted** | **Unsafe state persisted:** `MQL` with Segment `SMB` |
+
+**Both directions are stale-value behaviour.** Case A is the **false negative** — a Lead the same
+transaction makes legitimately eligible is refused. Case B is the **false positive**, and it is the
+material governance defect: a Lead persists as Marketing-qualified while its final governed business
+state is ineligible under the active policy.
+
+**The contradictory evidence is the strongest proof, and the Flow wrote both halves of it** in one
+transaction:
+
+```
+MQL basis      Qualified under MQL Policy v1.1: ... Mid-Market segment eligible; ...
+Segment basis  Employee Count: 40 -> SMB | Rule v1.0
+```
+
+The stale evidence string is a **consequence of the sequencing defect**, not a separate cosmetic
+problem.
+
+**The preventive → detective chain, demonstrated end to end.** The gate admitted the state;
+segmentation then recalculated the record to SMB; NorthstarIQ evaluated the persisted current state
+and **`mql-integrity` independently returned Failed** — *"Not substantiated — segment is not one the
+business qualifies."* `lifecycle-progression` returned **Passed**, which is **correct under its
+contract**: it evaluates progression consistency rather than qualification integrity, and is not
+expected to duplicate the MQL control — the same boundary already recorded for `F-8`.
+
+**Evidence hierarchy, kept explicit.** The Salesforce transaction results and the persisted field
+values are the **primary** evidence. Source connector ordering and the `mql-integrity` result are
+**corroborating**. ⚠️ **The NorthstarIQ assessment does not prove Flow execution order** — it
+evaluates persisted state.
+
+**F7-A created no persisted invalid state.** Its transaction rolled back in full, so no control had
+anything to assess, and **no claim is made that anything detected the rejected attempt.**
+
+**Status: confirmed but NOT remediated.** No remediation design was chosen. Whether segmentation
+should move ahead of lifecycle qualification, whether the gate should derive eligibility from the
+incoming company-size input, or whether another bounded Flow design is right, is a separate
+remediation-design task with its own context discovery and approval. **Any fix must be revalidated
+by rerunning both directions** — correcting one direction alone does not close this.
+
+**Fixture disposition.** Both are controlled validation fixtures created 2026-09-01, not baseline
+data and not historical records. **F7-A** rests in its controlled pre-test state
+(`Working - Contacted`, SMB) after its transaction rolled back. **F7-B is retained deliberately** as
+the evidence of the confirmed defect: the deployed lifecycle graph offers **no governed
+`MQL → Working - Contacted` recovery path** (only `MQL → SAL` and `MQL → Closed - Not Converted`), and
+clearing its Flow-generated basis would destroy the evidence while leaving the defect. Neither was
+deleted. Cleanup requires separate approval after remediation and revalidation.
+
+**What this does not establish.** Not all Flow sequencing, and not every MQL transition combination
+— two same-save cases against one qualification requirement. Evidence in
+[`testing-strategy.md`](testing-strategy.md) §2s.
 
 **Not committed at the time of writing**; the commit hash will be recorded when the change is
 committed.
