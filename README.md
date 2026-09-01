@@ -11,6 +11,21 @@ that process against the org and shows the records behind every number.
 
 [`docs/implementation-log.md`](docs/implementation-log.md) is the sole authority on what exists.
 
+### What it covers
+
+The operating surface is the **Lead-to-Opportunity portion of the revenue engine**:
+
+```text
+inbound Lead capture → Lead data quality and segmentation → account matching
+   → territory and ownership routing → response SLA
+      → governed lifecycle progression and conversion → open Opportunity date health
+```
+
+Each stage corresponds to an implemented assessment area, and `Lead` and `Opportunity` are the only
+objects read in full. **NorthstarIQ does not cover the whole revenue lifecycle** — nothing after the
+Opportunity is created is assessed, and pipeline coverage stops at whether open Opportunities carry
+a current close date.
+
 ---
 
 ## What is implemented
@@ -53,15 +68,34 @@ Three terms stay distinct throughout, in the documentation and in the interface:
 ## Implemented workflow
 
 ```text
-Salesforce configuration
-  → governed operational data written at the decision point
-    → read-only assessment over the org
-      → assessment areas and checks
-        → findings
-          → record-level evidence, linked into the org
-            → the implemented safeguard behind the condition
-              → the verification executed against it
+BR-##   the business requirement that created the need
+  → the governed business definition of what "correct" means
+    → its technical representation on the record and in configuration
+      → the Salesforce architecture that implements it
+        → the preventive safeguard, where one was built
+          → independent read-only assessment over the org
+            → assessment areas and controls
+              → an exception becomes a finding
+                → record-level source evidence, linked into the org
+                  → the verification executed against the safeguard
 ```
+
+Where each link lives:
+
+| Link | Authority |
+|---|---|
+| Business requirement | [`docs/requirements.md`](docs/requirements.md) — `BR-##`, stated as an outcome, never as a mechanism |
+| Governed business definition | The Custom Metadata record that holds the rule, where the business is expected to change it. **The record is the definition**, not the prose describing it. |
+| Technical representation | [`docs/data-model.md`](docs/data-model.md) — the fields that carry the decision and the evidence behind it |
+| Salesforce architecture | [`docs/architecture.md`](docs/architecture.md) — how the requirement is met in the org |
+| Preventive safeguard | The before-save automation that stops or safely redirects the outcome, where one was built |
+| Independent assessment | The read-only application, which judges the org's own record of what happened |
+| Finding, source evidence, verification | Findings and Finding Detail, with the executed results in [`docs/implementation-log.md`](docs/implementation-log.md) |
+
+**The safeguard and the assessment are deliberately separate.** A safeguard is **preventive** —
+Salesforce stops or redirects the outcome. An assessment is **detective** — NorthstarIQ reports a
+condition it finds and prevents nothing. Some controls have both; some have only the detective half,
+and the application says so rather than implying a safeguard exists.
 
 **The Salesforce integration is read-only by construction.** The only operation the application can
 perform is a SOQL query, and every query is a static string literal with no interpolation. **There
@@ -78,6 +112,18 @@ adds to it.
 ## Application experience
 
 NorthstarIQ separates operational orientation, assessment evaluation and record-level investigation.
+
+The intended investigation journey is:
+
+```text
+Dashboard → Assessment → Findings → Finding Detail → Remediation → Verification
+   └──────────── implemented ────────────┘          └──── target ────┘
+```
+
+**The first four are implemented and described below.** Remediation and Verification are **target
+capability, not built**: neither has a route, and the application renders both as non-interactive
+rows marked *Planned*, with no link to follow. They are stated here so the intended journey is
+legible, not to suggest an evaluator can walk it today.
 
 ### Dashboard / Homepage
 
@@ -128,6 +174,18 @@ the implemented safeguard where one exists, and its verification.
 Finding Detail answers:
 
 > **Why did this fail, what evidence supports that conclusion, and what safeguard exists?**
+
+### Remediation and Verification — target, not implemented
+
+Remediation would be the governed response to an investigated finding, and Verification would
+establish whether an approved response produced the expected result. **Neither has an implemented
+route, page or behaviour in this repository** — both appear in the rail as non-interactive rows with
+no destination — and no Salesforce write path exists anywhere in the application to carry one; the
+integration is read-only by construction.
+
+Their place in the journey is recorded so the product's intent is understandable. Nothing in the
+repository should be read as evidence that either is built; `docs/implementation-log.md` remains the
+sole authority on that.
 
 These experiences are related but are not interchangeable.
 
@@ -459,7 +517,9 @@ Every implemented component traces to a numbered business requirement. If a chan
 **Executed and recorded:** 8/8 Increment 2 fixtures at every segment boundary, bulk-safe at batch 8 ·
 9/9 Increment 3 routing fixtures covering all three ownership outcomes · 6/6 Seller negative-security
 and regression tests · 15/15 Increment 4 SLA scenarios including 8 negative and guardrail tests ·
-50/50 application unit tests against fixtures with no network.
+50/50 application unit tests against fixtures with no network **at that increment**. The
+application suite has grown with every increment since and passes in full; `npm test` in `web/`
+prints the current figure, and a count repeated here would go stale the next time a test is added.
 
 **Validated** means the metadata is in source control, the scenario was executed, the outcome was
 recorded **including failures**, a re-runnable query or report supports it, and the date and org

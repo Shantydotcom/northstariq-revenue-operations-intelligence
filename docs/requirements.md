@@ -30,7 +30,7 @@ what the org already provides.
 | Level | Meaning |
 |---|---|
 | **P0** | Must be built and validated in this release |
-| **P1** | Built if the complexity envelope allows after org inspection |
+| **P1** | Built where the requirement justifies the configuration it needs, after org inspection |
 | **P2** | Documented and deferred — the requirement stands, the build does not |
 
 **Build intent is not the same as importance.** A P2 requirement is not less valid; it is less
