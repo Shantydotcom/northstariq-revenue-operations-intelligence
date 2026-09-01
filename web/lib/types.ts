@@ -90,6 +90,18 @@ export interface NotEvaluatedRecord {
 export interface RecordRef {
   id: string;
   label: string;
+  /**
+   * The organisation the record belongs to - Lead.Company, Opportunity Account.
+   *
+   * PRESENTATION ONLY, AND ALREADY QUERIED. Both fields below come off the
+   * same row the detector was already holding; no query changed to obtain
+   * them. They exist so a retained record can be shown in a named column
+   * rather than as an anonymous link, and nothing evaluates, counts or scores
+   * on them. Null where the object has no such field.
+   */
+  context: string | null;
+  /** The record's own lifecycle state - Lead Status, Opportunity Stage. */
+  state: string | null;
 }
 
 /**
@@ -291,6 +303,17 @@ export interface ControlSummary {
   unmeasurableCount: number;
   score: number | null;
   scoreReason: ScoreReason | null;
+  /**
+   * Why the undetermined records could not be settled, as the detector said it.
+   *
+   * ALREADY COMPUTED, NOT DERIVED HERE. Each detector records a cause every
+   * time it declines to judge a record, and `CheckResult` has carried the
+   * tally since Model v2 - it simply never reached the summary the Assessment
+   * page reads. Without it the page could say a control was undetermined but
+   * not which evidence was absent, which is the only part a reader can act on.
+   * Empty where nothing was declined.
+   */
+  exclusionBreakdown: BreakdownLine[];
 }
 
 export interface AssessmentResult {

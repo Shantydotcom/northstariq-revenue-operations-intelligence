@@ -144,6 +144,7 @@ export function toControls(results: CheckResult[]): ControlSummary[] {
     unmeasurableCount: r.unmeasurableCount,
     score: r.score,
     scoreReason: r.scoreReason,
+    exclusionBreakdown: r.exclusionBreakdown,
   }));
 }
 

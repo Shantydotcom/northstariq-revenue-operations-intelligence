@@ -52,6 +52,18 @@ export interface ControlExplanation {
    */
   notEvaluated: string;
   /**
+   * What the records OUTSIDE this control have in common, as a predicate.
+   *
+   * `notEvaluated` above covers both not-evaluated states in one clause -
+   * "either assert no progression at all, or assert one nothing can settle".
+   * The Assessment page counts those two separately, so it needs the first
+   * half on its own. Reads as "28 Leads <notClaimed>."
+   *
+   * Present only on the lifecycle controls, which are the ones the Assessment
+   * page states a population story for.
+   */
+  notClaimed?: string;
+  /**
    * One short line limiting what a pass proves.
    *
    * Kept out of the summary but not dropped: without it "13 passed" reads as
@@ -139,8 +151,22 @@ export interface SourceEvidenceNote {
 }
 
 export interface CheckPresentation {
-  /** Operator-facing name. The canonical title stays available as context. */
+  /**
+   * The formal name, and the name of the FINDING this check can raise.
+   *
+   * "Converted Lifecycle State Not Substantiated" names a problem, which is
+   * what the findings queue and the finding page are for.
+   */
   label: string;
+  /**
+   * What the Assessment page calls the check itself.
+   *
+   * Present only where naming the CHECK differs from naming its FAILURE - the
+   * lifecycle four, whose formal label is a finding sentence. Everywhere else
+   * the label already reads as a check name and this is omitted, so there is
+   * one string to maintain rather than two saying the same thing.
+   */
+  checkName?: string;
   /** One line, used on the Overview rows. */
   blurb: string;
   /**
@@ -301,6 +327,7 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
 
   'lifecycle-progression': {
     label: 'Lead Lifecycle Progression Conflicts',
+    checkName: 'Stage Progression',
     blurb: 'Leads whose lifecycle evidence contradicts the governed progression.',
     headlinePredicate:
       'Leads carry lifecycle evidence that contradicts the governed progression.',
@@ -319,6 +346,8 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
     explain: {
       inScope:
         'because retained evidence \u2014 transition history, a stage-entry timestamp, or stage evidence \u2014 is sufficient to settle whether their progression agrees with the governed model',
+      notClaimed:
+        'have not moved from where their lifecycle begins, so there is no movement to evaluate',
       notEvaluated:
         'either assert no progression at all, or assert one that nothing Salesforce still retains can settle \u2014 field history is bounded and the stage evidence fields did not exist when the baseline was created',
       proves:
@@ -362,6 +391,7 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
 
   'mql-integrity': {
     label: 'Marketing-Qualified Claims Not Substantiated',
+    checkName: 'MQL Qualification',
     blurb: 'Leads claiming Marketing qualification the governed policy does not support.',
     headlinePredicate:
       'Leads claim Marketing qualification the governed policy does not support.',
@@ -380,6 +410,8 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
     explain: {
       inScope:
         'because they sit on the governed qualified stage with recorded qualification evidence, so their current values are the ones that qualified them',
+      notClaimed:
+        'make no Marketing-qualified claim, so there is nothing to substantiate',
       notEvaluated:
         'either make no Marketing-qualified claim, or make one that cannot be re-judged honestly \u2014 no recorded evidence, a superseded policy version, progression past the stage, or a condition that was never evaluated',
       proves:
@@ -428,6 +460,7 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
 
   'sales-acceptance-sql': {
     label: 'Sales Handoff and Qualification Evidence Conflicts',
+    checkName: 'Sales Handoff & Qualification',
     blurb: 'Leads whose Sales acceptance or qualification evidence conflicts with the policy that permitted it.',
     headlinePredicate:
       'Leads carry Sales handoff evidence that conflicts with the governed policy.',
@@ -446,6 +479,8 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
     explain: {
       inScope:
         'because they claim Sales acceptance or sales qualification and carry the governed evidence needed to settle that claim',
+      notClaimed:
+        'claim neither the Sales handoff nor sales qualification',
       notEvaluated:
         'either claim neither, or claim one the evidence cannot settle — the claim predates the acceptance and qualification fields, it was recorded under a superseded policy version, or nothing Salesforce retains establishes when it was qualified',
       proves:
@@ -502,6 +537,7 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
 
   'lifecycle-conversion': {
     label: 'Converted Lifecycle State Not Substantiated',
+    checkName: 'Opportunity Conversion',
     blurb: 'Leads claiming conversion that Salesforce does not record as converted.',
     headlinePredicate:
       'Leads claim a converted lifecycle state Salesforce does not substantiate.',
@@ -519,6 +555,8 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
       `${f} of ${e} Leads claiming a converted lifecycle state ${f === 1 ? 'has' : 'have'} no Salesforce conversion record to support it.`,
     explain: {
       inScope: 'because their status claims the Lead was converted',
+      notClaimed:
+        'make no claim to have been converted',
       notEvaluated: 'make no claim to have been converted, so there is nothing to substantiate',
       proves:
         'A pass means Salesforce records the Lead as converted. It does not mean the conversion met any qualification criteria, produced an Opportunity, or happened at the right time \u2014 a converted Lead may legitimately have no Opportunity at all.',
@@ -753,7 +791,22 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
  * here participates in a calculation.
  */
 export interface AreaPresentation {
+  /**
+   * The formal name of the assessment area.
+   *
+   * Kept where precision is the point: the finding page heading, traceability
+   * records and the export files, which are audit artefacts.
+   */
   label: string;
+  /**
+   * What an evaluator reads on the Assessment page.
+   *
+   * The approved Assessment design names areas in the language a Revenue
+   * Operations reader already uses. A display string and nothing else -
+   * `Category` remains the identity, and no score, filter or export is keyed
+   * on this.
+   */
+  displayName: string;
   /** One line: what population and process the score covers. */
   scope: string;
   /** The operator question this area answers. Asked, then scored. */
@@ -763,27 +816,32 @@ export interface AreaPresentation {
 export const AREAS: Record<Category, AreaPresentation> = {
   'Data Quality': {
     label: 'Inbound Lead Data Integrity',
+    displayName: 'Lead Information',
     scope: 'Routing data completeness, and Segment consistency with recorded segmentation evidence.',
     question:
       'Do Leads carry the data routing needs, and does the Segment they hold still agree with the evidence behind it?',
   },
   Routing: {
     label: 'Lead Routing Reliability',
+    displayName: 'Lead Assignment',
     scope: 'Territory coverage and safe owner assignment.',
     question: 'Are governed inbound Leads reaching a valid territory and owner path?',
   },
   'Identity & Matching': {
     label: 'Account Match Confidence',
+    displayName: 'Account Matching',
     scope: 'Lead-to-Account matching without unresolved review.',
     question: 'Can Leads be matched to an Account without ambiguity?',
   },
   'SLA Performance': {
     label: 'Lead Response SLA',
+    displayName: 'Lead Follow-Up',
     scope: 'Response performance for Leads with an SLA commitment.',
     question: 'Are Leads with a measurable SLA within the expected response window?',
   },
   'Pipeline Hygiene': {
     label: 'Open Pipeline Date Health',
+    displayName: 'Opportunity Dates',
     scope: 'Close Date integrity across open Opportunities.',
     question: 'Do open Opportunities have a current or future Close Date?',
   },
@@ -796,11 +854,28 @@ export const AREAS: Record<Category, AreaPresentation> = {
    */
   'Lifecycle Governance': {
     label: 'Lifecycle Governance',
+    displayName: 'Lead Lifecycle',
     scope: 'Lifecycle claims against the Salesforce record that substantiates them.',
     question:
       'Do Leads reach each lifecycle stage by a route the business permits, with the governed evidence to support the claim?',
   },
 };
+
+/** What the Assessment page calls this area. */
+export function areaDisplayName(category: Category): string {
+  return AREAS[category].displayName;
+}
+
+/**
+ * What the Assessment page calls this check.
+ *
+ * Falls back to the formal label, which already reads as a check name for the
+ * seven checks outside the lifecycle area.
+ */
+export function checkDisplayName(id: CheckId): string {
+  const p = PRESENTATION[id];
+  return p.checkName ?? p.label;
+}
 
 /**
  * Population wording for one finding in the queue, from the live result.

@@ -194,11 +194,14 @@ export function toSafeError(err: unknown): SafeError {
   return { code: 'UNKNOWN', message: 'An unexpected error occurred.' };
 }
 
-/** Build a Salesforce record URL from the connected instance host only. */
-export function recordUrl(instanceHost: string | undefined, recordId: string): string | null {
-  if (!instanceHost || !/^[a-zA-Z0-9]{15,18}$/.test(recordId)) return null;
-  return `https://${instanceHost}/lightning/r/${recordId}/view`;
-}
+/**
+ * Build a Salesforce record URL from the connected instance host only.
+ *
+ * Re-exported rather than defined here: the Assessment population panels run
+ * in the browser and need the same rule, and this module is `server-only`.
+ * One definition, reachable from both sides.
+ */
+export { recordUrl } from './record-url.ts';
 
 /** The only objects this application reads, and so the only ones it links to. */
 const LINKABLE_OBJECTS = new Set(['Lead', 'Opportunity', 'Account', 'Contact']);

@@ -80,7 +80,21 @@ const NOT_EVALUATED_LIMIT = 50;
 const RECORD_SAMPLE_LIMIT = 50;
 
 /** Identity only. Both Lead and Opportunity carry Id and Name. */
-const refOf = (r: { Id: string; Name: string }): RecordRef => ({ id: r.Id, label: r.Name });
+const refOf = (r: {
+  Id: string;
+  Name: string;
+  Company?: string | null;
+  Status?: string | null;
+  StageName?: string | null;
+  Account?: { Name?: string | null } | null;
+}): RecordRef => ({
+  id: r.Id,
+  label: r.Name,
+  /* Read off the row already in hand. Neither field narrows or widens a
+   * population, and no check consults them. */
+  context: r.Company ?? r.Account?.Name ?? null,
+  state: r.Status ?? r.StageName ?? null,
+});
 
 /*
  * Which Lead Sources carry a routing-readiness expectation is Salesforce's
