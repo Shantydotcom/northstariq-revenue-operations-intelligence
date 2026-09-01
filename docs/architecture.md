@@ -32,60 +32,59 @@ SOQL read; it exercised no Salesforce control.
 
 ## 1. Design Principles
 
-### The evaluation order
+### Choosing an implementation
 
-Every candidate component must be justified against this order, top first:
+Prefer **standard Salesforce capability**. Then **reuse existing org configuration**. Only then
+introduce something new — and choose the **minimum appropriate mechanism for the verified
+requirement**.
 
-```
-Standard Salesforce capability
-        ↓
-Existing org configuration
-        ↓
-Formula field / validation rule / configuration
-        ↓
-Flow
-        ↓
-Custom Metadata Type (where configuration genuinely benefits)
-        ↓
-Custom field
-        ↓
-Apex  ← last resort only
-```
+Formula field, validation rule, Custom Metadata Type, custom field and Flow are **alternatives
+weighed against what the requirement actually needs**, not a fixed ladder to descend. A validation
+rule is not automatically the simpler answer than a Flow, and a Custom Metadata Type earns its place
+when a rule the business is expected to change would otherwise be buried inside automation.
 
 **Do not create custom metadata that duplicates standard Salesforce capability.** The discovery
 found that what was missing at NorthstarIQ was rarely storage — it was governed behaviour and
 explainability. Firmographic data, business hours, holidays, record hierarchy, and field history are
-all standard capabilities and will be used as such.
+all standard capabilities and are used as such.
 
-### Complexity budget
+**Declarative first, without treating Apex as permanently forbidden.** Declarative implementation is
+preferred for this MVP. Apex requires a verified need that cannot be safely or maintainably
+satisfied by an appropriate declarative capability, with the justification recorded before a class
+is written.
 
-Preferred envelope. **Not hard limits** — exceeding one requires a documented reason recorded in
-[`implementation-log.md`](implementation-log.md). **Never add metadata to reach a number.**
+### MVP scope discipline
 
-| Component | Preferred | Candidate count |
-|---|---|---:|
-| Custom fields | ~15–25 | **12** — deployed, Increment 1 |
-| Flows | ~3–5 | **1 deployed** (extended in Increment 3) |
-| Queues | ~1–3 | **3 deployed** — coverage pools, zero licences |
-| Custom Metadata Types | ~1–3 | **2** — approved, Increment 1 |
-| Permission sets | ~3–5 | **3** — approved, Increment 1 (`NIQ_Analytics_Read` deferred) |
-| Queues | ~1–3 | 2 — candidate |
-| Reports | ~5–8 | 7 — candidate, built incrementally |
-| Dashboards | 1 | 1 — candidate |
-| Validation rules | — | 2 — candidate |
-| Apex classes | **0** | **1** — approved: business-hours seam only |
+NorthstarIQ is a portfolio MVP, and the target is the **minimum sufficient configuration that
+demonstrates the required capability** — not the most complete system that could be built. Every
+component is chosen against a verified business and technical requirement.
 
-**On Apex — one exception, justified and recorded.** Zero was the target. Org inspection falsified
-`ASM-13`: **Salesforce Flow has no business-hours element and formula syntax has no business-hours
-function.** `BusinessHours.add()` is Apex-only, and `BR-10` requires elapsed time measured on
-business hours excluding holidays.
+**There is no numeric quota.** An earlier revision of this section set preferred component counts
+per metadata type. They were retired: a number cannot say whether a particular field earns its
+place, while a requirement can, and a quota invites both padding and false alarm. The governing
+constraint is justification — see [`CLAUDE.md`](../CLAUDE.md).
 
-**Approved: one narrowly scoped invocable Apex utility wrapping `BusinessHours.add()`, and nothing
-else.** Routing, segmentation, matching, data quality, and lifecycle logic must not move into Apex.
-It requires a test class with boundary cases including a holiday scenario.
+What the discipline rules out: speculative enterprise architecture, abstraction built for a future
+that has not been specified, a second mechanism for something the org already does, and metadata
+created to satisfy a design document rather than a requirement.
 
-The alternative was a weekend-only formula that silently ignores holidays — which would have forced
-us to skip the single highest-value SLA test.
+**Source-controlled implementation is the authority on what currently exists.** This section states
+how components are chosen, not how many there are. `force-app/main/default/` answers that exactly,
+and [`implementation-log.md`](implementation-log.md) records when each was built and validated.
+
+### Historical — the Apex seam that was approved and never needed
+
+Recorded because it is the declarative-first principle working rather than being asserted.
+
+Org inspection falsified `ASM-13`: **Salesforce Flow has no business-hours element and formula
+syntax has no business-hours function.** `BusinessHours.add()` is Apex-only, and `BR-10` requires
+elapsed time measured on business hours excluding holidays. One narrowly scoped invocable Apex
+utility wrapping `BusinessHours.add()` was approved on that basis, with routing, segmentation,
+matching, data quality and lifecycle logic explicitly excluded from it.
+
+**It was never implemented.** Increment 4 shipped a weekend-aware declarative calculation instead,
+with its limits documented rather than hidden: no holiday awareness, and it shifts days rather than
+time of day. The approval stands as recorded; no Apex exists in this repository.
 
 ---
 
