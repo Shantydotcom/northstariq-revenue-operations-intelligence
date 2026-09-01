@@ -1478,6 +1478,79 @@ against the previous detector implementation; Part 2 changed it afterwards.
 
 ---
 
+## 2u. Canonical lifecycle end to end under Flow v13 — executed 2026-09-01
+
+**Why it was needed.** Every lifecycle chain recorded above was produced under `Lead_Inbound_Before_Save`
+**version 12**. Version 13 carries the F-7 sequencing remediation (§2t), so no completed
+`Lead → MQL → SAL → SQL → Conversion → Opportunity` traversal existed under the Flow now active. This
+closes that, with **one** controlled synthetic Lead. Nothing above was re-run for extra evidence, and
+no historical fixture was reused, because mutating one would destroy the results it already carries.
+
+**One Lead, seven user operations.** `NIQ Fixture S4-E2E` (`00Qaj00000vENqLEAW`) — `Web`, US/WA, 250
+employees, a reserved `.invalid` domain. Six lifecycle operations, plus one that is disclosed
+separately below.
+
+| Stage | Gate | Outcome | Evidence Salesforce wrote |
+|---|---|---|---|
+| Create → `Open - Not Contacted` | create path (ungated, `OD-06`) | Accepted | Segment `Mid-Market`, Territory `NA-West`, Match `No Match`, stage stamp |
+| → `Working - Contacted` | transition policy | Accepted | stage stamp, first touch |
+| → `MQL` | MQL Policy **v1.1** | Accepted | `MQL_Basis__c`, citing governed source, segment, territory and match |
+| → `SAL` | Sales Acceptance Policy **v1.0** | Accepted | `Sales_Accepted_At__c`, `Sales_Accepted_By__c`, `Sales_Acceptance_Basis__c` |
+| → `SQL` | SQL Policy **v1.0** | Accepted | `SQL_Basis__c`, citing need, next step and prior acceptance |
+| → `Closed - Converted` | `SQL → Closed - Converted` | Accepted | Account, Contact and Opportunity created |
+
+**No basis string was hand-authored.** Each was written by the Flow and read back by re-querying
+Salesforce; a deployment or a call result was never treated as the outcome.
+
+**Detective determinations, each observed at the point it could be observed.**
+
+| Control | Determination | When |
+|---|---|:--:|
+| `mql-integrity` | **Passed** | while the Lead was at `MQL` — evaluated 9 → 10, failing unchanged |
+| `lifecycle-progression` | **Passed** | after conversion — evaluated 37 → 38, failing unchanged |
+| `sales-acceptance-sql` | **Passed** | after conversion — evaluated 3 → 4, failing unchanged |
+| `lifecycle-conversion` | **Passed** | after conversion — evaluated 4 → 5, failing unchanged |
+| `mql-integrity` | **Unable to determine** | after conversion, and **expected** |
+
+The final row is the documented stage window, not a regression: once the Lead moves to
+`Closed - Converted` the control can no longer read the inputs the policy names, and says so. That is
+precisely why the `MQL` observation had to be taken while the record was still at that stage — it is
+**not recoverable afterwards**, and was not reconstructed.
+
+**No failing count moved on any control.** The new record added passes only. Bounded side effects
+appeared where expected — `missing-firmographics`, `segment-consistency`, `ambiguous-match`,
+`missing-territory` and `stale-opportunities` each gained one evaluated record with failing counts
+unchanged — and the org held **11 findings before and after**.
+
+**Preservation, verified rather than assumed.** All **22** retained fixtures were snapshotted by
+`LastModifiedDate` before the run and re-queried after: **none changed, none missing.**
+
+**Exactly one Lead was created**, and Salesforce created the Account, Contact and Opportunity from
+the conversion — object counts moved 14→15, 21→22, 33→34.
+
+### What this does not establish
+
+**Not original lifecycle validation, not F-7 discovery, and not F-7 remediation validation.** This is
+**post-remediation** evidence produced afterwards, and replaces none of them. §2r–§2t stand as
+written, and FX-01 remains the pre-v13 chain.
+
+**Not negative or preventive proof.** No refused transition was re-tested here; that evidence is §2t's.
+
+**Not scale.** Bounded fixture volume, as everywhere in this document.
+
+### Two disclosures
+
+**Conversion used `Database.convertLead()` through anonymous Apex** — the platform's native
+conversion API, which has no REST or CLI equivalent. **No Apex was added to the repository or
+deployed**, matching the mechanism §2i used.
+
+**A seventh operation occurred.** Conversion defaulted the Opportunity `CloseDate` to `2026-09-30`;
+it was set to `2026-12-31` to match the FX-01 convention on a retained fixture. `Amount` was left
+null and was **not** populated for appearance. This is recorded as a distinct operation rather than
+folded into the six-step plan.
+
+---
+
 ## 3. Dataset Specification
 
 | Object | Count | Purpose |

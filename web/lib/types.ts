@@ -49,6 +49,22 @@ export interface EvidenceColumn {
   key: string;
   label: string;
   mono?: boolean;
+  /**
+   * This column carries a value the FAILING PREDICATE actually read.
+   *
+   * The test is per record: if this field held a different value on this row,
+   * could this record's determination change? Where the answer is no, the
+   * column is context - useful for investigating, but not what proved the
+   * finding - and it is deliberately left unmarked so the two cannot be read
+   * as the same kind of evidence.
+   *
+   * POPULATION GATES ARE NOT MARKED. Which records a control was allowed to
+   * judge is a control-level fact, stated by `population`, by the explanation
+   * paragraph, and per record in the records-not-evaluated table. Repeating it
+   * as a proving column on rows where it holds by construction would make the
+   * marker mean two different things.
+   */
+  proving?: boolean;
 }
 
 /** One evidence row: raw field values keyed by EvidenceColumn.key. */

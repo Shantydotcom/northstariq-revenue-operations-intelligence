@@ -20,6 +20,14 @@ import type { EvidenceColumn, EvidenceRow } from '@/lib/types';
  * Record links arrive pre-resolved from the server: `recordUrl` lives behind
  * the `server-only` Salesforce boundary, so the href cannot be built here
  * without duplicating the rule that builds it.
+ *
+ * PROVING EVIDENCE IS MARKED, NOT MERELY ORDERED. A column flagged `proving`
+ * carries a value the control's failing predicate actually read; the rest are
+ * context. Both are worth showing - an operator investigating needs the
+ * Company and the routing reason - but a reader must be able to tell which
+ * values produced the determination and which merely accompany it. The
+ * distinction is carried in the accessible name as well as the styling, so it
+ * survives without colour.
  */
 
 /** Rows shown before the reader asks for the rest. */
@@ -117,6 +125,7 @@ export default function RecordTable({
   }
 
   const labelOf = (key: string) => columns.find((c) => c.key === key)?.label ?? key;
+  const hasProving = columns.some((c) => c.proving);
 
   return (
     <>
@@ -180,6 +189,14 @@ export default function RecordTable({
         </div>
       ) : null}
 
+      {hasProving ? (
+        <p className="proving-legend">
+          <span className="proving-key" aria-hidden="true" />
+          Marked columns are the values this control&rsquo;s determination turns on. The rest are
+          context for investigating the record, and did not decide the result.
+        </p>
+      ) : null}
+
       {matched.length === 0 ? (
         <div className="empty">No records match the current filters.</div>
       ) : (
@@ -192,7 +209,14 @@ export default function RecordTable({
                   const isActive = value.trim() !== '';
                   const isOpen = openColumn === c.key;
                   return (
-                    <th key={c.key} className={isActive ? 'col-filtered' : undefined}>
+                    <th
+                      key={c.key}
+                      className={
+                        [isActive ? 'col-filtered' : '', c.proving ? 'col-proving' : '']
+                          .filter(Boolean)
+                          .join(' ') || undefined
+                      }
+                    >
                       <button
                         type="button"
                         className="col-filter-trigger"
@@ -201,6 +225,12 @@ export default function RecordTable({
                         onClick={() => setOpenColumn(isOpen ? null : c.key)}
                       >
                         {c.label}
+                        {c.proving ? (
+                          <span className="sr-only">
+                            {' '}
+                            — proving evidence, read by this control to reach its result
+                          </span>
+                        ) : null}
                         <span aria-hidden="true" className="col-filter-caret">
                           {isActive ? '▾●' : '▾'}
                         </span>
@@ -243,7 +273,14 @@ export default function RecordTable({
                     // holds, but an 18-character key is not something to click.
                     const linked = href !== null && c.key === 'Name';
                     return (
-                      <td key={c.key} className={c.mono ? 'mono' : undefined}>
+                      <td
+                        key={c.key}
+                        className={
+                          [c.mono ? 'mono' : '', c.proving ? 'col-proving' : '']
+                            .filter(Boolean)
+                            .join(' ') || undefined
+                        }
+                      >
                         {linked ? (
                           <a className="record-link" href={href} target="_blank" rel="noreferrer">
                             {display}

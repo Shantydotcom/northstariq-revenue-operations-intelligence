@@ -14,7 +14,6 @@ import {
 import { TRACEABILITY } from '@/lib/traceability';
 import { resolveSetupLinks, setupLinkFor, fieldLinkFor } from '@/lib/setup-links';
 import EvidenceTable from '@/components/EvidenceTable';
-import { meterClass, NOT_SCORED, notScoredReason } from '@/components/ScoreMeter';
 import Notice, { DisconnectedNotice } from '@/components/Notice';
 import type { CheckResult } from '@/lib/types';
 
@@ -163,6 +162,12 @@ export default async function FindingDetailPage({
            * Failing and unmeasurable are deliberately NOT metrics here - one is
            * a share of evaluated, the other a share of not-evaluated, and four
            * peer figures invite a reader to add them together.
+           *
+           * NO SCORE. The engine still computes one - it is on `CheckResult`
+           * and the tests still assert it - but the experience does not show
+           * it, here or anywhere else. These four figures account for the
+           * whole population, which is the fact a reader can check against the
+           * evidence below; a number out of 100 is not.
            */}
           <dl className="metrics">
             <div>
@@ -180,21 +185,6 @@ export default async function FindingDetailPage({
             <div>
               <dt>Not applicable</dt>
               <dd>{check.notEvaluatedCount - check.unmeasurableCount}</dd>
-            </div>
-            {/*
-             * A control reaching no pass or fail has no score. Rendering
-             * "null/100" or a 0 meter here would be the exact claim Model v2
-             * removed, so the cell says what happened instead.
-             */}
-            <div>
-              <dt>Score</dt>
-              {check.score === null ? (
-                <dd>
-                  {NOT_SCORED} — {notScoredReason(check.scoreReason).toLowerCase()}
-                </dd>
-              ) : (
-                <dd className={meterClass(check.score)}>{check.score}/100</dd>
-              )}
             </div>
           </dl>
           <p className="explain">{explainControl(check, p.explain)}</p>

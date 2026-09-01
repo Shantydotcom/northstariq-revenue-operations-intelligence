@@ -14,7 +14,14 @@ import assert from 'node:assert/strict';
 
 import { PRESENTATION, evidenceUrl } from '../lib/presentation.ts';
 import { TRACEABILITY } from '../lib/traceability.ts';
-import { CHECK_IDS, opportunityConversionIntegrity, runAllChecks } from '../lib/checks/index.ts';
+import {
+  CHECK_IDS,
+  missingTerritory,
+  opportunityConversionIntegrity,
+  routingExceptions,
+  runAllChecks,
+  staleOpportunities,
+} from '../lib/checks/index.ts';
 import { buildAssessment } from '../lib/score.ts';
 import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, TODAY, lead, opportunity } from './fixtures.ts';
 import type { CheckId } from '../lib/types.ts';
@@ -274,4 +281,101 @@ test('status and evidence labels read correctly without colour', () => {
   }
   // The not-evaluated table always carries a per-record reason.
   assert.ok(r.notEvaluatedColumns.some((c) => /why/i.test(c.label)));
+});
+
+/* ----------- 11. the evidence a reader sees is the evidence that decided it */
+
+/**
+ * THE RULE THESE ENFORCE, stated once.
+ *
+ * A column is proving when its value ON THAT RECORD could change THAT
+ * record's determination. Everything else is context - worth showing, because
+ * an operator investigating needs the company and the routing reason, but not
+ * what proved anything. Without the distinction a reader has to reverse the
+ * detector out of a table of related-looking fields, which is precisely the
+ * work an investigation trail exists to save them.
+ */
+
+test('every control marks the evidence its determination actually turns on', () => {
+  const checks = runAllChecks(
+    [
+      lead(),
+      lead({ Status: 'Closed - Converted', IsConverted: false }),
+      lead({ Owner: { Name: 'NIQ Routing Exception', Type: 'Queue' } }),
+      lead({ Territory__c: null }),
+      lead({ CountryCode: null }),
+    ],
+    [opportunity({ CloseDate: '2026-01-31' })],
+    TODAY,
+    READINESS_SOURCES,
+    GOVERNANCE,
+    NO_HISTORY,
+  );
+
+  for (const c of checks) {
+    const proving = c.evidenceColumns.filter((x) => x.proving);
+    assert.ok(proving.length > 0, `${c.id}: nothing is marked as having decided the result`);
+    // Identity is how a reader FINDS the record. It never explains it.
+    assert.ok(
+      !proving.some((x) => x.key === 'Name' || x.key === 'Id'),
+      `${c.id}: an identifier is not proof`,
+    );
+    // The Result column states the conclusion; a conclusion is not its evidence.
+    assert.ok(
+      !proving.some((x) => x.key === 'Result'),
+      `${c.id}: the conclusion is marked as its own evidence`,
+    );
+  }
+});
+
+test('a finding decided by a field the table never showed is not an investigation trail', () => {
+  /**
+   * Routing exceptions turn on exactly one fact: routing declined to pick an
+   * owner and left the Lead with the exception queue. Exception Type and
+   * Routing Reason are the Flow's own account of why - useful, and neither of
+   * them decides anything.
+   */
+  const r = routingExceptions([
+    lead({
+      Owner: { Name: 'NIQ Routing Exception', Type: 'Queue' },
+      Exception_Type__c: 'Unsupported Geography',
+    }),
+  ]);
+
+  assert.equal(r.failing, 1);
+  assert.ok(r.evidenceColumns.find((c) => c.key === 'Owner')?.proving, 'the owner decided it');
+  assert.equal(r.evidence[0].Owner, 'NIQ Routing Exception', 'and its value is on the row');
+  assert.ok(
+    !r.evidenceColumns.find((c) => c.key === 'Exception_Type__c')?.proving,
+    'the Flow’s explanation is context, not proof',
+  );
+});
+
+test('a control that fails a record on an absent value shows the absence', () => {
+  const r = missingTerritory([lead({ Territory__c: null, CountryCode: 'JP' })]);
+
+  assert.equal(r.failing, 1);
+  assert.ok(r.evidenceColumns.find((c) => c.key === 'Territory__c')?.proving);
+  assert.match(String(r.evidence[0].Territory__c), /none derived/, 'the blank is the evidence');
+  // Absent geography and uncovered geography are different problems, and the
+  // row says which one this record is.
+  assert.match(String(r.evidence[0].Result), /JP is not covered/);
+  assert.match(
+    String(missingTerritory([lead({ Territory__c: null, CountryCode: null })]).evidence[0].Result),
+    /no Country recorded/,
+  );
+});
+
+test('a comparison finding shows both sides of the comparison', () => {
+  /**
+   * The close date was always on the row. The date it was compared against
+   * never was, so a reader had to supply today's date themselves to see why
+   * the record failed.
+   */
+  const r = staleOpportunities([opportunity({ CloseDate: '2026-08-13' })], TODAY);
+
+  assert.equal(r.failing, 1);
+  assert.ok(r.evidenceColumns.find((c) => c.key === 'CloseDate')?.proving);
+  assert.match(String(r.evidence[0].Result), /10 days/, 'how far past');
+  assert.match(String(r.evidence[0].Result), /2026-08-23/, 'past what');
 });

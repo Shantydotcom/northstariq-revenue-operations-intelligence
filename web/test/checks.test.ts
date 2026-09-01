@@ -483,7 +483,13 @@ test('a Segment differing from the recorded segmentation result fails', () => {
   assert.equal(row.Expected_Segment, 'Mid-Market');
   assert.equal(row.Current_Segment, 'SMB');
   assert.equal(row.NumberOfEmployees, 500);
-  assert.equal(row.Result, 'Mismatch');
+  /*
+   * The Result names THIS record's drift, not the class of finding. "Mismatch"
+   * was true of every failing row and so told a reader nothing they could not
+   * already see; the direction of the disagreement is the part that is
+   * specific to the record in front of them.
+   */
+  assert.equal(row.Result, 'Mid-Market recorded as SMB');
 });
 
 test('the failing evidence names Salesforce Custom Metadata as the source of the expected Segment', () => {
@@ -818,7 +824,15 @@ test('a converted status with no Salesforce conversion record fails', () => {
   assert.equal(result.failing, 1);
   assert.equal(result.score, 0);
   assert.equal(result.healthy, false);
-  assert.equal(result.evidence[0].Result, 'Not substantiated');
+  /*
+   * Names the two values that decided it. A bare "Not substantiated" restated
+   * the finding's title; this states the contradiction, so the row can be read
+   * without reconstructing the predicate from the columns beside it.
+   */
+  const result0 = String(result.evidence[0].Result);
+  assert.match(result0, /^Not substantiated/);
+  assert.match(result0, /Closed - Converted/, 'the status the Lead claims');
+  assert.match(result0, /IsConverted/, 'the Salesforce fact that contradicts it');
   assert.equal(result.evidence[0].IsConverted, 'No');
 });
 

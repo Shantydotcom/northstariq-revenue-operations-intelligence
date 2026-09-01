@@ -3617,6 +3617,82 @@ committed.
 
 ---
 
+### 2026-09-01 — The lifecycle proven end to end under Flow v13, and findings acquire proving evidence
+
+Requirement: `BR-17`, `PD-14`, `M-07`.
+Metadata: **none** — no Flow, Custom Metadata, field, object, permission or configuration change.
+Salesforce: one controlled synthetic Lead created and progressed; **no existing record mutated**.
+Application: evidence presentation only. **No detector predicate, population rule, scoring rule or
+lifecycle definition was changed.**
+
+#### The lifecycle, once, under the Flow that is actually active
+
+Every completed chain recorded before this ran under version **12**. Version 13 carries the F-7
+remediation, so the org held no `Lead → MQL → SAL → SQL → Conversion → Opportunity` traversal under
+the current safeguard. One Lead closed that: five governed gates accepted it, the Flow wrote the
+qualification, acceptance and sales-qualification evidence at each milestone, and native conversion
+produced an Account, Contact and Opportunity.
+
+`mql-integrity` returned **Passed while the Lead stood at `MQL`** — the only moment that observation
+exists, since the control cannot read the policy's inputs once the record moves on. After conversion
+`lifecycle-progression`, `sales-acceptance-sql` and `lifecycle-conversion` all returned **Passed**,
+and `mql-integrity` returned **Unable to determine**, which is the documented stage window and not a
+regression.
+
+**No failing count moved on any control, and the finding total held at 11.** All **22** retained
+fixtures were verified unchanged by comparing `LastModifiedDate` before and after. Evidence, the two
+disclosures it carries, and what it does not establish are in
+[`testing-strategy.md`](testing-strategy.md) §2u.
+
+⚠️ **This is post-remediation evidence.** It is not the original lifecycle validation, not F-7
+discovery, not F-7 remediation validation, and not the timestamp-anomaly work. §2r–§2t stand
+unchanged, and FX-01 remains the pre-v13 chain.
+
+#### The finding pages now show what actually decided each finding
+
+Reviewing the evidence tables against the detectors exposed a real gap: **two controls were decided
+by a field the reader could not see.** `routing-exceptions` fails a Lead on one fact — routing left
+it owned by the exception queue — yet the table carried only Company, Exception Type and Routing
+Reason, none of which decides anything. `missing-territory` fails on a blank `Territory__c` that was
+never displayed. Both fields were already queried; neither was shown.
+
+Each evidence column now declares whether it is **proving** — a value that control's failing
+predicate actually read, where a different value on that record could change that record's
+determination — or **context**, which an operator investigating still needs but which proved
+nothing. The distinction is carried in each column's accessible name as well as its styling, so it
+survives without colour. Population gates are deliberately **not** marked: which records a control
+was permitted to judge is a control-level fact the page already states, and per record in the
+records-not-evaluated table.
+
+Three per-record results stopped restating the finding's own title and now name the record's own
+values: the segment drift's direction, the two dates a stale Opportunity was compared across, and
+which of the two territory failures a Lead is. `stale-opportunities` in particular was a comparison
+with only its left-hand side on screen — a reader had to supply today's date themselves.
+
+**The engine was not touched to make any of this easier to display.** Counts, populations, scores and
+determinations are identical; every change is presentation of values the detectors already held.
+
+**The Finding Detail score cell was removed.** `CLAUDE.md` §10 puts scoring outside the current MVP
+experience, and this was the last `/100` anywhere in the application — it predates that rule rather
+than deviating from it deliberately. The engine still computes a score, the type still carries it and
+the tests still assert it; the four population figures beside it already account for every record,
+which is the part a reader can check against the evidence below.
+
+**Validated:** evidence rendering checked against the **live read-only org** for six controls, each
+failing set re-derived independently from raw SOQL and compared to the detector — counts matched,
+every displayed row was genuinely failing, every record link resolved to the right record, and no
+not-evaluated record appeared as a failure. Application tests **269/269** (265 before; four added for
+the proving contract), `tsc --noEmit` clean, production build clean across 12 routes, repository
+validator 50 passed / 0 warnings / 0 failed.
+
+Two existing assertions were updated, not relaxed: both pinned the old constant strings
+`'Mismatch'` and `'Not substantiated'`, and now assert the specific values the row actually names.
+
+**Not committed at the time of writing**; the commit hash will be recorded when the change is
+committed.
+
+---
+
 ## Implementation Status
 
 **Increments 1-4 are deployed, runtime-validated, and human-accepted.** Increments 3 and 4 were

@@ -2042,6 +2042,48 @@ th.col-filtered {
 th.col-filtered .col-filter-caret {
   color: var(--accent);
 }
+
+/*
+ * PROVING EVIDENCE, MARKED RATHER THAN MERELY ORDERED.
+ *
+ * A tinted column separates the values a control's failing predicate actually
+ * read from the context beside them. Colour is never the only carrier: every
+ * proving header states it in its accessible name too, and the underline rule
+ * keeps the boundary visible in greyscale and forced-colours, so the
+ * distinction never depends on seeing the tint.
+ */
+th.col-proving {
+  color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+td.col-proving {
+  background: var(--surface-muted);
+  color: var(--ink);
+  font-weight: var(--w-medium);
+}
+/* The mono treatment mutes its ink; a proving value keeps full contrast. */
+td.col-proving.mono {
+  color: var(--ink);
+}
+.proving-legend {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: var(--t-meta);
+  line-height: 1.5;
+  color: var(--ink-faint);
+  white-space: normal;
+}
+.proving-key {
+  flex: none;
+  width: 15px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--accent-soft);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
 th {
   position: relative;
 }

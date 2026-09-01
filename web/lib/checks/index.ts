@@ -357,8 +357,8 @@ export function missingFirmographics(
         { key: 'Name', label: 'Lead' },
         { key: 'Id', label: 'Record ID', mono: true },
         { key: 'LeadSource', label: 'Lead Source' },
-        { key: 'NumberOfEmployees', label: 'Employees', mono: true },
-        { key: 'CountryCode', label: 'Country', mono: true },
+        { key: 'NumberOfEmployees', label: 'Employees', mono: true, proving: true },
+        { key: 'CountryCode', label: 'Country', mono: true, proving: true },
         { key: 'Data_Quality_Detail__c', label: 'Data Quality Detail' },
       ],
       notEvaluatedColumns: leadNotEvaluatedColumns(
@@ -437,6 +437,15 @@ export function routingExceptions(leads: LeadRecord[]): CheckResult {
         { key: 'Name', label: 'Lead' },
         { key: 'Id', label: 'Record ID', mono: true },
         { key: 'Company', label: 'Company' },
+        /*
+         * The failing predicate, made visible.
+         *
+         * This control fails a Lead on one fact: routing left it owned by the
+         * exception queue. Exception Type and Routing Reason are the Flow's
+         * own account of why - genuinely useful, but neither decides the
+         * finding, and a reader could previously see only those two.
+         */
+        { key: 'Owner', label: 'Current Owner', proving: true },
         { key: 'Exception_Type__c', label: 'Exception Type' },
         { key: 'Routing_Reason__c', label: 'Routing Reason' },
       ],
@@ -451,6 +460,8 @@ export function routingExceptions(leads: LeadRecord[]): CheckResult {
     failing.map((l) => ({
       Name: l.Name,
       Company: l.Company,
+      // Already queried and already used by this control - never a new read.
+      Owner: ownerName(l) ?? '— (none recorded)',
       Exception_Type__c: l.Exception_Type__c ?? '—',
       Routing_Reason__c: l.Routing_Reason__c,
       Id: l.Id,
@@ -552,7 +563,7 @@ export function slaRisk(leads: LeadRecord[]): CheckResult {
         { key: 'Name', label: 'Lead' },
         { key: 'Id', label: 'Record ID', mono: true },
         { key: 'Segment__c', label: 'Segment' },
-        { key: 'SLA_Status__c', label: 'SLA Status' },
+        { key: 'SLA_Status__c', label: 'SLA Status', proving: true },
         { key: 'SLA_Target_DateTime__c', label: 'SLA Target', mono: true },
         { key: 'First_Touch_DateTime__c', label: 'First Touch', mono: true },
       ],
@@ -633,7 +644,7 @@ export function ambiguousMatch(leads: LeadRecord[]): CheckResult {
         { key: 'Id', label: 'Record ID', mono: true },
         { key: 'Company', label: 'Company' },
         { key: 'Normalized_Domain__c', label: 'Normalized Domain', mono: true },
-        { key: 'Match_Status__c', label: 'Match Status' },
+        { key: 'Match_Status__c', label: 'Match Status', proving: true },
         { key: 'Matched_Account__c', label: 'Matched Account', mono: true },
       ],
       notEvaluatedColumns: leadNotEvaluatedColumns('Match_Status__c', 'Match Status'),
@@ -670,6 +681,17 @@ export function missingTerritory(leads: LeadRecord[]): CheckResult {
   const population = leads.filter(wasProcessedAtIntake);
   const failing = population.filter((l) => l.Territory__c === null);
 
+  /*
+   * Absent geography or uncovered geography - the one discriminator, declared
+   * once. The per-record Result below and the summary further down are two
+   * renderings of this predicate, so they cannot come to disagree.
+   */
+  const geographyAbsent = (l: LeadRecord) => l.CountryCode === null;
+  const whyNoTerritory = (l: LeadRecord) =>
+    geographyAbsent(l)
+      ? 'No territory derived — no Country recorded on the Lead'
+      : `No territory derived — ${l.CountryCode} is not covered by the territory map`;
+
   const notEvaluated = leads
     .filter((l) => !wasProcessedAtIntake(l))
     .map((l) =>
@@ -700,8 +722,8 @@ export function missingTerritory(leads: LeadRecord[]): CheckResult {
         failing.length === 0
           ? ''
           : (() => {
-              const absent = failing.filter((l) => l.CountryCode === null).length;
-              const uncovered = failing.filter((l) => l.CountryCode !== null);
+              const absent = failing.filter(geographyAbsent).length;
+              const uncovered = failing.filter((l) => !geographyAbsent(l));
               const codes = [...new Set(uncovered.map((l) => l.CountryCode as string))];
               const parts: string[] = [];
               if (absent > 0) parts.push(`${absent} ${be(absent)} missing a country`);
@@ -722,7 +744,15 @@ export function missingTerritory(leads: LeadRecord[]): CheckResult {
         { key: 'Id', label: 'Record ID', mono: true },
         { key: 'Company', label: 'Company' },
         { key: 'CountryCode', label: 'Country', mono: true },
+        /*
+         * The field the failing predicate reads. It is blank on every row here
+         * by definition, and that blank IS the evidence - a reader should not
+         * have to take the finding's word for it while looking at a table of
+         * fields none of which decided anything.
+         */
+        { key: 'Territory__c', label: 'Territory', proving: true },
         { key: 'Exception_Type__c', label: 'Exception Type' },
+        { key: 'Result', label: 'Result' },
       ],
       notEvaluatedColumns: leadNotEvaluatedColumns('Territory__c', 'Territory'),
     },
@@ -730,7 +760,9 @@ export function missingTerritory(leads: LeadRecord[]): CheckResult {
       Name: l.Name,
       Company: l.Company,
       CountryCode: l.CountryCode ?? '—',
+      Territory__c: '— (none derived)',
       Exception_Type__c: l.Exception_Type__c ?? '—',
+      Result: whyNoTerritory(l),
       Id: l.Id,
     })),
     notEvaluated,
@@ -743,6 +775,18 @@ export function staleOpportunities(opps: OpportunityRecord[], today: Date): Chec
   const population = opps.filter((o) => !o.IsClosed);
   const cutoff = today.toISOString().slice(0, 10);
   const failing = population.filter((o) => o.CloseDate !== null && o.CloseDate < cutoff);
+
+  /*
+   * How far past, against what.
+   *
+   * The finding is a COMPARISON, and only its left-hand side was on screen: a
+   * reader saw a close date and had to supply today's date themselves to see
+   * why it failed. Both dates are the detector's own - `cutoff` is the same
+   * value the predicate above used - so this states the comparison rather
+   * than re-deriving it.
+   */
+  const overdueBy = (closeDate: string) =>
+    Math.round((Date.parse(cutoff) - Date.parse(closeDate)) / 86_400_000);
 
   const notEvaluated: NotEvaluatedRecord[] = opps
     .filter((o) => o.IsClosed)
@@ -785,8 +829,9 @@ export function staleOpportunities(opps: OpportunityRecord[], today: Date): Chec
         { key: 'Id', label: 'Record ID', mono: true },
         { key: 'AccountName', label: 'Account' },
         { key: 'StageName', label: 'Stage' },
-        { key: 'CloseDate', label: 'Close Date', mono: true },
+        { key: 'CloseDate', label: 'Close Date', mono: true, proving: true },
         { key: 'Amount', label: 'Amount', mono: true },
+        { key: 'Result', label: 'Result' },
       ],
       notEvaluatedColumns: [
         { key: 'Name', label: 'Opportunity' },
@@ -803,6 +848,12 @@ export function staleOpportunities(opps: OpportunityRecord[], today: Date): Chec
       StageName: o.StageName,
       CloseDate: o.CloseDate,
       Amount: o.Amount === null ? '—' : o.Amount,
+      Result:
+        o.CloseDate === null
+          ? '—'
+          : `Overdue by ${overdueBy(o.CloseDate)} ${
+              overdueBy(o.CloseDate) === 1 ? 'day' : 'days'
+            }, measured against the ${cutoff} assessment date`,
       Id: o.Id,
     })),
     notEvaluated,
@@ -888,9 +939,9 @@ export function segmentConsistency(leads: LeadRecord[]): CheckResult {
         { key: 'Name', label: 'Lead' },
         { key: 'Id', label: 'Record ID', mono: true },
         { key: 'NumberOfEmployees', label: 'Employee Count', mono: true },
-        { key: 'Expected_Segment', label: 'Expected Segment' },
-        { key: 'Current_Segment', label: 'Current Segment' },
-        { key: 'Source_Evidence', label: 'Source Evidence' },
+        { key: 'Expected_Segment', label: 'Expected Segment', proving: true },
+        { key: 'Current_Segment', label: 'Current Segment', proving: true },
+        { key: 'Source_Evidence', label: 'Source Evidence', proving: true },
         { key: 'Result', label: 'Result' },
       ],
       notEvaluatedColumns: [
@@ -909,7 +960,10 @@ export function segmentConsistency(leads: LeadRecord[]): CheckResult {
       Current_Segment: segmentLabel(currentSegment(lead.Segment__c)),
       // Written to stay readable in an export, away from this application.
       Source_Evidence: sourceEvidenceCell(evidence),
-      Result: 'Mismatch',
+      // The drift this record actually shows, not the class of finding it is.
+      // Same function the breakdown below counts by, so the row and the tally
+      // are the same statement at two resolutions.
+      Result: drift({ lead, evidence }),
     })),
     notEvaluated,
     population.map(({ lead }) => refOf(lead)),
@@ -1027,7 +1081,7 @@ export function opportunityConversionIntegrity(leads: LeadRecord[]): CheckResult
         { key: 'Name', label: 'Lead' },
         { key: 'Id', label: 'Record ID', mono: true },
         { key: 'Status', label: 'Lead Status' },
-        { key: 'IsConverted', label: 'Converted (Salesforce)' },
+        { key: 'IsConverted', label: 'Converted (Salesforce)', proving: true },
         { key: 'ConvertedDate', label: 'Converted Date', mono: true },
         { key: 'ConvertedAccountId', label: 'Converted Account', mono: true },
         { key: 'ConvertedContactId', label: 'Converted Contact', mono: true },
@@ -1051,7 +1105,13 @@ export function opportunityConversionIntegrity(leads: LeadRecord[]): CheckResult
       ConvertedAccountId: orDash(l.ConvertedAccountId),
       ConvertedContactId: orDash(l.ConvertedContactId),
       ConvertedOpportunityId: orDash(l.ConvertedOpportunityId),
-      Result: 'Not substantiated',
+      /*
+       * What is actually absent, not the class of finding. The four converted
+       * references beside it are context: none of them decides this control,
+       * and the Opportunity is optional by design - saying so here stops a
+       * reader treating an empty Opportunity cell as the defect.
+       */
+      Result: `Not substantiated — Lead Status claims "${CONVERTED_LEAD_STATUS}" while Salesforce records IsConverted as false`,
     })),
     notEvaluated,
     population.map(refOf),
@@ -1288,11 +1348,11 @@ export function mqlQualificationIntegrity(
         { key: 'Name', label: 'Lead' },
         { key: 'Id', label: 'Record ID', mono: true },
         { key: 'Status', label: 'Lead Status' },
-        { key: 'LeadSource', label: 'Lead Source' },
-        { key: 'Segment', label: 'Segment' },
-        { key: 'Territory', label: 'Territory' },
-        { key: 'Match Status', label: 'Account Match' },
-        { key: 'MQL Basis', label: 'Recorded Qualification Evidence' },
+        { key: 'LeadSource', label: 'Lead Source', proving: true },
+        { key: 'Segment', label: 'Segment', proving: true },
+        { key: 'Territory', label: 'Territory', proving: true },
+        { key: 'Match Status', label: 'Account Match', proving: true },
+        { key: 'MQL Basis', label: 'Recorded Qualification Evidence', proving: true },
         { key: 'Result', label: 'Result' },
       ],
       notEvaluatedColumns: [
@@ -1566,10 +1626,10 @@ export function lifecycleProgressionIntegrity(
       evidenceColumns: [
         { key: 'Name', label: 'Lead' },
         { key: 'Id', label: 'Record ID', mono: true },
-        { key: 'Status', label: 'Lead Status' },
-        { key: 'Stage Entered', label: 'Current Stage Entered', mono: true },
-        { key: 'Observed Transitions', label: 'Transitions Salesforce Retains' },
-        { key: 'Stage Evidence Held', label: 'Stage Evidence Held' },
+        { key: 'Status', label: 'Lead Status', proving: true },
+        { key: 'Stage Entered', label: 'Current Stage Entered', mono: true, proving: true },
+        { key: 'Observed Transitions', label: 'Transitions Salesforce Retains', proving: true },
+        { key: 'Stage Evidence Held', label: 'Stage Evidence Held', proving: true },
         { key: 'Result', label: 'Result' },
       ],
       notEvaluatedColumns: [
@@ -1953,14 +2013,26 @@ export function salesAcceptanceSqlIntegrity(
       evidenceColumns: [
         { key: 'Name', label: 'Lead' },
         { key: 'Id', label: 'Record ID', mono: true },
+        /*
+         * Status is the CLAIM GATE, not the determination - it decides whether
+         * this Lead asserts a handoff at all, exactly as on MQL Qualification
+         * Integrity, and is left unmarked for the same reason.
+         *
+         * The two "(current value)" columns are context by design. The verdicts
+         * below read the need and the next step OUT OF `SQL_Basis__c`, never
+         * off the live fields: a need that changed after qualification is not
+         * evidence the qualification was wrong. They are shown so a reader can
+         * see where the record stands today, and marking them would claim they
+         * decided something they never touched.
+         */
         { key: 'Status', label: 'Lead Status' },
-        { key: 'MQL Evidence', label: 'Marketing Qualification Evidence' },
-        { key: 'Sales Accepted At', label: 'Accepted At', mono: true },
-        { key: 'Sales Accepted By', label: 'Accepted By', mono: true },
-        { key: 'Acceptance Basis', label: 'Recorded Acceptance Evidence' },
+        { key: 'MQL Evidence', label: 'Marketing Qualification Evidence', proving: true },
+        { key: 'Sales Accepted At', label: 'Accepted At', mono: true, proving: true },
+        { key: 'Sales Accepted By', label: 'Accepted By', mono: true, proving: true },
+        { key: 'Acceptance Basis', label: 'Recorded Acceptance Evidence', proving: true },
         { key: 'Qualified Need (now)', label: 'Qualified Need (current value)' },
         { key: 'Next Step Date (now)', label: 'Next Step Date (current value)' },
-        { key: 'SQL Basis', label: 'Recorded Qualification Evidence' },
+        { key: 'SQL Basis', label: 'Recorded Qualification Evidence', proving: true },
         { key: 'Result', label: 'Result' },
       ],
       notEvaluatedColumns: [
