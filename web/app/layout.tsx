@@ -1,8 +1,22 @@
 import type { Metadata } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
-import { getStatus } from '@/lib/salesforce';
 import AppSidebar from '@/components/AppSidebar';
-import AppHeader from '@/components/AppHeader';
+
+/*
+ * Inter, self-hosted at build time by next/font. No package was added - this
+ * ships inside Next - and no request leaves the reader's browser for it.
+ *
+ * It is here for two things the system stack cannot do: a real medium weight,
+ * and tabular figures. Every population count on the assessment sits in a
+ * column, and proportional digits do not line up in one.
+ */
+const inter = Inter({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-inter',
+});
 
 export const metadata: Metadata = {
   title: 'NorthstarIQ — Revenue Operations Intelligence',
@@ -11,32 +25,29 @@ export const metadata: Metadata = {
 };
 
 /**
- * The application shell: a permanent navy rail, a status header, and a canvas.
+ * The application shell: a permanent navy rail and a canvas.
  *
- * The connection is read here rather than per page, because it belongs to the
- * shell in both approved mockups - the sidebar panel and the header line are
- * the same fact stated in the two places a reader looks. `getStatus` already
- * fails closed and returns a shape rather than throwing, so a Salesforce
- * outage degrades the header instead of taking the layout down with it.
+ * THE CONNECTION IS NOT STATED HERE. Salesforce connection and read-only
+ * status belong to Integrations, which already carries them in full - the
+ * status pill, the connected-org card and the credential handling notes. A
+ * shell line repeating "Salesforce connected · Read-only assessment" above
+ * every page put integration state where the reader was looking for a result,
+ * and neither approved reference shows it.
  */
 export const dynamic = 'force-dynamic';
 
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const status = await getStatus();
-
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" className={inter.variable}>
       <body>
         <a className="skip-link" href="#main">
           Skip to content
         </a>
 
         <div className="app">
-          <AppSidebar status={status} />
+          <AppSidebar />
 
           <div className="app-main">
-            <AppHeader status={status} />
-
             <main className="page" id="main">
               {children}
             </main>

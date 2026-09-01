@@ -833,7 +833,8 @@ application assesses what the org did. Nothing here writes to Salesforce.
         ▼
  ┌────────────────────────────────────────────────────────────┐
  │  NEXT.JS WEB MVP  (web/)                                   │
- │  Overview · Findings · Finding detail · Integrations       │
+ │  Dashboard · Assessment · Findings · Finding detail ·      │
+ │  Integrations                                              │
  │  Server Components render on the server; the browser       │
  │  receives rendered output and scored results only          │
  └────────────────────────────┬───────────────────────────────┘
@@ -871,6 +872,24 @@ application assesses what the org did. Nothing here writes to Salesforce.
    SALESFORCE DEVELOPER EDITION  (`northstariq-dev`)
    Lead · Opportunity — read. Account · Contact — counted only.
 ```
+
+### Route ownership
+
+Each route owns one job, and no route absorbs another's. The boundary is architectural rather than
+cosmetic: it is what stops the same result being reported in two places with two different framings.
+
+| Route | Owns |
+|---|---|
+| `/` — Dashboard | Orientation: what an assessment reads, what it will not do, the areas it covers, and the action that starts it |
+| `/assessment` | What was evaluated, which populations each control could judge, the governed lifecycle, and what each control determined |
+| `/findings` | The specific detected conditions |
+| `/findings/[checkId]` | The investigation trail for one condition |
+| `/integrations` | The Salesforce connection and its governance boundaries |
+
+**The Dashboard holds one page architecture regardless of assessment state.** Completing a run
+changes the values, statuses and action labels the Dashboard can truthfully state; it does not
+replace the page. An earlier design branched into a separate completed-Dashboard experience — that
+model is retired, and the evaluation experience it carried belongs to `/assessment`.
 
 ### Credentials are server-side, and the browser is not trusted with them
 

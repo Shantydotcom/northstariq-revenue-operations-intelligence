@@ -13,8 +13,9 @@ checks failed, and open the actual records behind every number.
 
 | | |
 |---|---|
-| **Routes** | Pages: Overview (`/`) · Findings (`/findings`, `/findings/[checkId]`) · Integrations (`/integrations`). APIs: `GET /api/salesforce/status` · `POST /api/assessment/run` · `GET /api/findings/[checkId]` |
-| **Checks** | 7, all deterministic and pure |
+| **Pages** | Dashboard (`/`) · Assessment (`/assessment`) · Findings (`/findings`) · Finding Detail (`/findings/[checkId]`) · Integrations (`/integrations`) |
+| **API routes** | Server-side only — connection status, assessment run, per-check findings, and CSV/Excel export. Enumerate `app/api` for the current set. |
+| **Controls** | Deterministic and pure, grouped into Revenue Operations areas. The registry in `lib/checks/` is the authority on which controls exist. |
 | **Objects read** | `Lead`, `Opportunity` — plus record counts for `Account` and `Contact` |
 | **Salesforce operations** | SOQL query only |
 | **Runtime dependencies** | `next`, `react`, `react-dom`, `server-only` |
@@ -29,7 +30,11 @@ database, no queue and no scheduled work, because it targets the Vercel Hobby fr
 
 ---
 
-## The seven checks
+## What the controls judge
+
+The table below is a **worked illustration of the population model**, not the current inventory —
+read `lib/checks/` for that. What matters here is the pattern every control follows: each one names
+the population it is entitled to judge, and judges only that.
 
 | # | Check | Area | Population it judges |
 |---|---|---|---|
@@ -51,9 +56,10 @@ configuration record, not a deployment. Ownership routing stays narrower — its
 `LeadSource = 'NorthstarIQ Inbound'` — because the process makes no promise about Leads it never
 handled.
 
-One further check runs and is never displayed: every governed Lead should carry a segment. It
-returns zero. It stays in the suite as evidence that the engine reports what it finds rather than
-manufacturing work.
+The suite has since grown to cover the governed Lead lifecycle as well — progression between
+milestones, and whether an MQL, a Sales handoff or a conversion is substantiated by evidence
+Salesforce still holds. Those controls follow the same rule: a claim nothing can settle is reported
+as **Unable to determine**, never as a pass.
 
 ### Source Evidence — how check 2 knows what to expect
 
@@ -92,26 +98,23 @@ Metadata during a run. No permission was added to obtain that reconciliation.
 
 ---
 
-## Scoring
+## Outcomes, not scores
 
-Every number is traceable from the records upward. No weights, no adjustment.
+**The interface shows no score.** No overall score, no `/100`, no area score, no gauge, no threshold
+and no score-derived health label. The engine still computes one internally and the payload still
+carries it for compatibility, but nothing in the user experience displays it. Historical entries in
+`docs/implementation-log.md` that record a past score are dated evidence and stay as they are.
 
-```
-checkScore    = evaluated === 0 ? 100 : round(100 × (1 − failing / evaluated))
-categoryScore = round(mean(check scores in that category))
-overallHealth = round(mean(category scores))
-```
+What a control reports instead is an outcome — **Passed**, **Failed**, or **Unable to determine** —
+and the populations behind it:
 
-Two decisions are worth stating plainly:
-
-- **Mean, not minimum.** A category with one weak check and one perfect check is not as bad as its
-  worst check.
-- **`evaluated` is what the check could judge, not the size of the org.** SLA is measured only over
-  Leads that carry an SLA target. A Lead created before the SLA capability existed has no
+- **`evaluated` is what the control could judge, not the size of the org.** SLA is measured only
+  over Leads that carry an SLA target. A Lead created before the SLA capability existed has no
   commitment to miss, so counting it as a breach would overstate failure. **Unmeasurable is not
   Breached.**
-
-A check that evaluated nothing scores 100. Absence of data is not evidence of failure.
+- **A control that evaluated nothing is never reported as passing.** Absence of data is not evidence
+  of health; it is reported as *Unable to determine*, with the reason the detector itself recorded
+  for each record it declined to judge.
 
 ---
 
@@ -128,7 +131,7 @@ Without credentials the application still runs and renders its disconnected stat
 show invented results.
 
 ```bash
-npm test     # 50 unit tests over the checks and the scoring, no network
+npm test     # unit tests over the controls, derivations and presentation — no network, no org
 npm run build
 ```
 
@@ -166,20 +169,25 @@ security token, unlike the JWT Bearer and Username-Password flows.
 ```
 web/
   app/
-    page.tsx                    Overview — connection state and the assessment
+    page.tsx                    Dashboard — orientation, and the action that starts a run
+    assessment/page.tsx         Assessment — what was evaluated, and what it determined
     findings/page.tsx           Findings list
     findings/[checkId]/page.tsx Evidence for one check
     integrations/page.tsx       Connection detail and what is read
-    api/                        status · assessment/run · findings/[checkId]
+    api/                        Server-side routes — status, run, findings, export
   components/                   Presentational only
   lib/
     salesforce.ts               The only module that holds credentials
     soql.ts                     Static SOQL literals — no interpolation
-    checks/index.ts             The seven checks, pure functions
-    score.ts                    Scoring, pure functions
-    assessment.ts               Fetch, run, score
+    checks/index.ts             The controls, pure functions
+    score.ts                    Internal scoring, pure functions — not displayed
+    assessment.ts               Fetch, run, evaluate
+    assessment-store.ts         The one completed run, shared by Dashboard and Assessment
+    dashboard.ts                What the Dashboard derives from a result
+    assessment-view.ts          Control status and population helpers
+    lifecycle-journey.ts        The governed Lead lifecycle, and the marks it carries
     presentation.ts             Operator-facing labels, safeguards, verification strings
-  test/                         node:test — checks and scoring
+  test/                         node:test — controls, derivations, presentation contract
 ```
 
 Checks and scoring are pure functions over records already fetched, which is why they can be tested
@@ -189,11 +197,14 @@ against fixtures with no org and no network.
 
 ## Status
 
-**Implemented and unit-tested** — 20 of 20 tests pass against fixtures, with no network.
+**Implemented and unit-tested** — the suite passes in full against fixtures, with no network and no
+org. Run `npm test` for the current result; a count quoted here would be stale by the next
+increment.
 
 **The connected read path was exercised against the Developer Edition org on 2026-08-24.** One
 assessment returned HTTP 200: 81 records, overall health 68, six findings. That validates
-**authentication and SOQL read, and nothing further.**
+**authentication and SOQL read, and nothing further.** It is a dated record of that run — the score
+in it belongs to the model of the day and is not displayed by the current interface.
 
 **What that run does not establish.** The application reads what the org already recorded — **a
 finding is a symptom report, not a control test.** It exercises no Salesforce control, asserts no

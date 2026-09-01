@@ -3,18 +3,16 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import type { SalesforceStatus } from '@/lib/types';
+import { readStoredResult } from '@/lib/assessment-store';
 import {
   AnalyticsIcon,
   AssessmentIcon,
   AuditIcon,
   ChevronLeftIcon,
-  CloudIcon,
   DashboardIcon,
   FindingsIcon,
   IntegrationsIcon,
   RemediationIcon,
-  SettingsIcon,
   StarMark,
   VerificationIcon,
 } from './Icons';
@@ -36,7 +34,6 @@ import {
 
 interface Item {
   label: string;
-  hint: string;
   icon: (p: { className?: string }) => React.ReactElement;
   /** Absent where the destination is approved architecture but not built. */
   href?: string;
@@ -49,35 +46,32 @@ interface Group {
 
 const GROUPS: Group[] = [
   {
-    heading: 'Control lifecycle',
+    heading: 'Control surface',
     items: [
-      { label: 'Dashboard', hint: 'At a glance', icon: DashboardIcon },
+      { label: 'Dashboard', icon: DashboardIcon, href: '/' },
       {
         label: 'Assessment',
-        hint: 'Run & review assessments',
         icon: AssessmentIcon,
-        href: '/',
+        href: '/assessment',
       },
-      { label: 'Findings', hint: 'Investigate issues', icon: FindingsIcon, href: '/findings' },
-      { label: 'Remediation', hint: 'Correct & track', icon: RemediationIcon },
-      { label: 'Verification', hint: 'Reassess & confirm', icon: VerificationIcon },
+      { label: 'Findings', icon: FindingsIcon, href: '/findings' },
+      { label: 'Remediation', icon: RemediationIcon },
+      { label: 'Verification', icon: VerificationIcon },
     ],
   },
   {
     heading: 'Intelligence',
-    items: [{ label: 'Analytics', hint: 'Trends & reporting', icon: AnalyticsIcon }],
+    items: [{ label: 'Analytics', icon: AnalyticsIcon }],
   },
   {
     heading: 'System',
     items: [
       {
         label: 'Integrations',
-        hint: 'Salesforce & Power BI',
         icon: IntegrationsIcon,
         href: '/integrations',
       },
-      { label: 'Audit Log', hint: 'Activity history', icon: AuditIcon },
-      { label: 'Settings', hint: 'Preferences', icon: SettingsIcon },
+      { label: 'Audit Log', icon: AuditIcon },
     ],
   },
 ];
@@ -85,9 +79,22 @@ const GROUPS: Group[] = [
 const isActive = (pathname: string, href: string) =>
   href === '/' ? pathname === '/' : pathname.startsWith(href);
 
-export default function AppSidebar({ status }: { status: SalesforceStatus }) {
+export default function AppSidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  /**
+   * How many findings the completed assessment raised, or null before one.
+   *
+   * Read once after mount from the same store the pages read. It is never a
+   * placeholder: with no completed run there is no badge at all, because a
+   * count nothing produced would be a number the reader could not trace.
+   */
+  const [findings, setFindings] = useState<number | null>(null);
+
+  useEffect(() => {
+    const stored = readStoredResult();
+    setFindings(stored ? stored.findingCount : null);
+  }, [pathname]);
 
   /*
    * The collapsed choice belongs to the reader, not to the session. It is the
@@ -116,7 +123,17 @@ export default function AppSidebar({ status }: { status: SalesforceStatus }) {
 
   return (
     <aside className={`sidebar${collapsed ? ' is-collapsed' : ''}`} data-collapsed={collapsed}>
-      <Link className="brand" href="/">
+      {/*
+       * The wordmark is the way home, from every page.
+       *
+       * It carries its own accessible name rather than borrowing one from its
+       * contents. Two reasons: the composed name read as
+       * "NORTHSTAR IQRevenue Operations Intelligence", and the collapsed rail
+       * hides `.brand-text` entirely while the star is decorative - which left
+       * the link with NO accessible name at all whenever the sidebar was
+       * collapsed.
+       */}
+      <Link className="brand" href="/" aria-label="NorthstarIQ home">
         <StarMark className="brand-star" />
         <span className="brand-text">
           <span className="brand-name">
@@ -142,12 +159,9 @@ export default function AppSidebar({ status }: { status: SalesforceStatus }) {
                     <li key={item.label}>
                       <span className="nav-item is-planned" aria-disabled="true">
                         <Icon className="nav-icon" />
-                        <span className="nav-text">
-                          <span className="nav-label">
-                            {item.label}
-                            <span className="nav-planned">Planned</span>
-                          </span>
-                          <span className="nav-hint">{item.hint}</span>
+                        <span className="nav-label">
+                          {item.label}
+                          <span className="nav-planned">Planned</span>
                         </span>
                       </span>
                     </li>
@@ -160,13 +174,16 @@ export default function AppSidebar({ status }: { status: SalesforceStatus }) {
                       className={`nav-item${active ? ' is-active' : ''}`}
                       href={item.href}
                       aria-current={active ? 'page' : undefined}
-                      title={collapsed ? `${item.label} — ${item.hint}` : undefined}
+                      title={collapsed ? item.label : undefined}
                     >
                       <Icon className="nav-icon" />
-                      <span className="nav-text">
-                        <span className="nav-label">{item.label}</span>
-                        <span className="nav-hint">{item.hint}</span>
-                      </span>
+                      <span className="nav-label">{item.label}</span>
+                      {item.label === 'Findings' && findings !== null && findings > 0 ? (
+                        <span className="nav-count">
+                          {findings}
+                          <span className="sr-only"> findings need attention</span>
+                        </span>
+                      ) : null}
                     </Link>
                   </li>
                 );
@@ -176,28 +193,6 @@ export default function AppSidebar({ status }: { status: SalesforceStatus }) {
         ))}
       </nav>
 
-      {/*
-       * The connection, restated where the reader already is.
-       *
-       * Live state, never a hard-coded "Connected" - a panel that claims a
-       * connection the application does not have is the one thing this rail
-       * must never do.
-       */}
-      <div className={`side-conn${status.connected ? '' : ' is-down'}`}>
-        <p className="side-conn-top">
-          <CloudIcon className="side-conn-cloud" />
-          <span>Salesforce</span>
-        </p>
-        <p className="side-conn-state">
-          <span className="side-dot" aria-hidden="true" />
-          {status.connected
-            ? 'Connected'
-            : status.configured
-              ? 'Unavailable'
-              : 'Not configured'}
-        </p>
-        <p className="side-conn-note">Read-only assessment</p>
-      </div>
 
       <button type="button" className="side-collapse" onClick={toggle} aria-pressed={collapsed}>
         <ChevronLeftIcon className="side-collapse-icon" />

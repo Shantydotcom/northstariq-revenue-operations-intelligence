@@ -137,9 +137,9 @@ export default function RunAssessment({
             <section className="panel run-fact">
               <h2 className="eyebrow">What is evaluated</h2>
               <p>
-                Every control is scored only over the records it can actually judge. Records outside
-                that population are reported with the reason they were left out — they are never
-                counted as passing.
+                Every check judges only the records it can actually judge. Records outside that
+                population are reported with the reason they were left out — they are never counted
+                as passing.
               </p>
               <dl className="run-fact-list">
                 <div>
@@ -158,16 +158,16 @@ export default function RunAssessment({
             </section>
 
             <section className="panel run-fact">
-              <h2 className="eyebrow">How scoring works</h2>
+              <h2 className="eyebrow">How results are reported</h2>
               <p>
-                A check scores the share of the records it evaluated that passed. An area is the
-                unweighted mean of the checks in it that produced a score, and overall health the
-                unweighted mean of the six areas.
+                Every check reports one of three outcomes over the records it judged, with the count
+                behind each: <strong>Passed</strong>, <strong>Failed</strong>, or{' '}
+                <strong>No result</strong>. A failure becomes a finding with the affected records
+                attached.
               </p>
-              <p className="run-formula mono">round(100 × (1 − failing ÷ evaluated))</p>
               <p className="footnote">
-                A check with nothing to evaluate is Not Scored, never 100 and never 0 — absence of
-                evidence is neither a pass nor a failure, so it is left out of the average.
+                A check with nothing it could judge reports No result. Absence of evidence is
+                neither a pass nor a failure, so it is never presented as either.
               </p>
             </section>
           </div>

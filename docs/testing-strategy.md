@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Purpose** | How this project proves that what it built actually works |
-| **Status** | 🟢 **Strategy defined · Increments 1-4 executed with recorded results** — 8/8 · 9/9 · 6/6 · 15/15 · 9/9 · 2/2 · 10/10 · 11/11 · 9/9 · 11/11 Salesforce, 181/181 application unit tests. **Assessment Model v2 is active**: 6 areas, 11 scored controls. **The ~190-record synthetic dataset is not generated**, so no scenario has run against the designed population. |
+| **Status** | 🟢 **Strategy defined · Increments 1-4 executed with recorded results** — 8/8 · 9/9 · 6/6 · 15/15 · 9/9 · 2/2 · 10/10 · 11/11 · 9/9 · 11/11 Salesforce, and the application unit suite passing in full. **Assessment Model v2 is active.** The suite total is deliberately not quoted here — run `npm test` in `web/` for the current figure; the per-increment Salesforce results above are dated evidence and do not move. **The ~190-record synthetic dataset is not generated**, so no scenario has run against the designed population. |
 | **Related** | [`requirements.md`](requirements.md) · [`architecture.md`](architecture.md) · [`security-model.md`](security-model.md) |
 
 ---
@@ -13,7 +13,7 @@
 **Executed, with results recorded in [`implementation-log.md`](implementation-log.md):** Increment 2
 fixtures (8/8) · Increment 3 routing (9/9) · Seller negative-security and `BR-08` regression (6/6) ·
 Increment 4 SLA (15/15, including 8 negative and guardrail tests) · web application unit tests
-(50/50 at §2h, 181/181 as the suite now stands — fixtures only) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run) · Assessment Model v2 scoring activation (§2q, 8 model scenarios + a live read-only run) · the Finding Detail investigation trail (15 presentation-contract scenarios + a browser review).
+(50/50 when §2h was executed; the suite has grown with each increment since and passes in full — fixtures only, no network, no org) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run) · Assessment Model v2 scoring activation (§2q, 8 model scenarios + a live read-only run) · the Finding Detail investigation trail (15 presentation-contract scenarios + a browser review).
 
 **Not executed:** every scenario in §2 against the **designed ~190-record dataset**, which has not
 been generated. The results above came from purpose-built fixtures and from records the org already

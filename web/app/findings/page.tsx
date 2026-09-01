@@ -5,6 +5,7 @@ import Notice, { DisconnectedNotice } from '@/components/Notice';
 import { formatObservedAt } from '@/lib/presentation';
 import ExportLinks from '@/components/ExportLinks';
 import { applyAreaFilter, readAreaFilter } from '@/lib/area-filter';
+import { AreaIndex, QuietChecks } from '@/components/FindingsAreas';
 import type { AssessmentResult } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
@@ -90,6 +91,15 @@ export default async function FindingsPage({
       </p>
       </div>
 
+      {/*
+       * The Revenue Operations areas, and the way into each.
+       *
+       * Shown only on the whole queue: once a filter is on, the chip below
+       * already names the area, and a second list offering to change it turned
+       * the filter into a navigation bar.
+       */}
+      {filter.kind !== 'area' ? <AreaIndex result={result} /> : null}
+
       {/* The filter states itself, and offers the way back to the full queue. */}
       {filter.kind === 'area' ? (
         <p className="area-filter" data-testid="area-filter">
@@ -151,6 +161,12 @@ export default async function FindingsPage({
           </div>
         </div>
       )}
+
+      {/*
+       * Every control that ran without raising anything, so the page accounts
+       * for the whole check suite rather than only its failures.
+       */}
+      <QuietChecks result={result} area={filter.kind === 'area' ? filter.area : null} />
     </>
   );
 }

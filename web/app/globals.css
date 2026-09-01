@@ -108,7 +108,8 @@ body {
 body {
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-family: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
   font-size: var(--t-body);
   font-weight: var(--w-normal);
   line-height: 1.55;
@@ -187,6 +188,13 @@ a {
   color: inherit;
   border-bottom: 1px solid var(--navy-line);
   margin-bottom: 18px;
+}
+
+/* It is a link, so it has to show focus. There was no rule for it at all. */
+.brand:focus-visible {
+  outline: 2px solid #4d94ff;
+  outline-offset: 3px;
+  border-radius: var(--radius-sm);
 }
 
 .brand-star {
@@ -466,59 +474,22 @@ a.nav-item:hover .nav-icon {
 
 /* ------------------------------------------------------ header + canvas */
 
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  flex-wrap: wrap;
-  padding: 16px 32px;
-  background: var(--canvas);
-}
 
-.app-conn {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin: 0;
-}
 
-.app-conn-mark {
-  display: flex;
-  color: var(--ok);
-  flex: none;
-}
 
-.app-conn.is-down .app-conn-mark {
-  color: var(--medium);
-}
 
-.app-conn-label,
-.app-conn-sub {
-  display: block;
-  line-height: 1.3;
-}
 
-.app-conn-label {
-  font-size: var(--t-ui);
-  font-weight: var(--w-bold);
-  color: var(--ink);
-}
 
-.app-conn-sub {
-  font-size: var(--t-small);
-  color: var(--ink-muted);
-}
 
-.app-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
 
+/*
+ * The canvas carries its own top gap. It previously inherited one from the
+ * shell header's padding; that header is gone, and page content sitting flush
+ * against the top of the viewport is not what any reference shows.
+ */
 .page {
   flex: 1 1 auto;
-  padding: 0 32px 40px;
+  padding: 26px 32px 40px;
   max-width: 1320px;
   width: 100%;
 }
@@ -1003,15 +974,6 @@ h2.scope-eyebrow {
   text-align: right;
 }
 
-.run-formula {
-  display: block;
-  padding: 10px 14px;
-  background: var(--surface-muted);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--ink) !important;
-  margin-bottom: 10px !important;
-}
 
 /* The action band: the page's one primary decision, on the deep rung. */
 .run-cta {
@@ -2650,7 +2612,6 @@ th {
     display: none;
   }
 
-  .app-header,
   .page,
   .app-foot {
     padding-left: 20px;
@@ -3159,4 +3120,2921 @@ th {
   margin-left: auto;
   font-size: var(--t-small);
   font-weight: var(--w-medium);
+}
+
+/* ==========================================================================
+   ASSESSMENT — OPTION C
+   Executive enough to read cold, technical enough to trace. Every value below
+   comes from the tokens at the top of this file; nothing here introduces a
+   colour, a radius or a shadow of its own.
+   ========================================================================== */
+
+.oc-eyebrow {
+  margin: 0;
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ------------------------------------------------------------- overall --- */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ---------------------------------------------------------- disclosure --- */
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* --------------------------------------------------------------- areas --- */
+
+.oc-area {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+  overflow: hidden;
+}
+
+
+.oc-area-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 18px 24px;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.oc-area-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.oc-area-head h1,
+.oc-area-head h2,
+.oc-area-head h3 {
+  margin: 0;
+  font-size: var(--t-lede);
+  font-weight: var(--w-bold);
+  letter-spacing: -0.014em;
+}
+
+.oc-area-question {
+  margin: 5px 0 0;
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-muted);
+  max-width: 78ch;
+}
+
+.oc-area-meta {
+  margin: 0;
+  flex: none;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+
+
+/* ------------------------------------------------------- lead journey --- */
+
+.oc-journey {
+  padding: 18px 24px 20px;
+  background: var(--surface-muted);
+  border-bottom: 1px solid var(--border);
+}
+
+.oc-journey-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.oc-journey-hint {
+  margin: 0;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+}
+
+.oc-stages {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.oc-stage {
+  position: relative;
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: 13px 6px;
+  cursor: pointer;
+  text-align: center;
+}
+
+.oc-stage:hover {
+  border-color: var(--accent);
+}
+
+.oc-stage:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Selection is fill plus weight plus aria-selected, never colour alone. */
+.oc-stage.is-selected {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: var(--on-navy);
+  font-weight: var(--w-bold);
+}
+
+/* The mark is assessment information; shape carries it, not hue. */
+.oc-stage-mark {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+
+
+
+
+/* -------------------------------------------------------- stage panel --- */
+
+.oc-stage-panel {
+  margin-top: 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+}
+
+.oc-stage-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  margin: 0 0 14px;
+}
+
+.oc-stage-panel-name {
+  font-size: var(--t-lede);
+  font-weight: var(--w-bold);
+  letter-spacing: -0.014em;
+}
+
+.oc-stage-panel-expanded {
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+}
+
+.oc-stage-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px;
+}
+
+.oc-field-label {
+  margin: 0 0 6px;
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.oc-field-body {
+  margin: 0;
+  font-size: var(--t-small);
+  line-height: 1.65;
+  color: var(--ink);
+}
+
+.oc-stage-related {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 16px 0 0;
+  padding-top: 13px;
+  border-top: 1px solid var(--border);
+}
+
+.oc-stage-related .oc-field-label {
+  margin: 0;
+}
+
+.oc-related-link {
+  display: inline-block;
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.oc-related-link:hover {
+  border-color: var(--accent);
+}
+
+.oc-related-link:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.oc-stage-mark-text {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+}
+
+/* --------------------------------------------------------------------------
+   The global table rules above dress every th as a column label: uppercase,
+   label-sized, on a tinted ground. A row header here is a CHECK NAME, so the
+   assessment table opts out rather than inheriting a treatment meant for
+   something else. Scoped to .oc-checks so no other table moves.
+   -------------------------------------------------------------------------- */
+
+.oc-checks th,
+.oc-checks td {
+  border-bottom: 0;
+  white-space: normal;
+}
+
+.oc-checks thead th {
+  background: transparent;
+  letter-spacing: 0.09em;
+}
+
+.oc-checks .check-cell {
+  background: transparent;
+  font-size: var(--t-ui);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink);
+  font-weight: var(--w-normal);
+  white-space: normal;
+}
+
+.oc-checks .pop-cell,
+.oc-checks .action-cell {
+  white-space: nowrap;
+}
+
+.oc-checks .check-panel-row td {
+  background: transparent;
+}
+
+/* ------------------------------------------------------------- checks --- */
+
+.oc-results {
+  padding: 16px 24px 4px;
+}
+
+.oc-checks {
+  width: 100%;
+  border-collapse: collapse;
+  /*
+   * A containing block for the visually-hidden labels inside this table.
+   * `.sr-only` is absolutely positioned; without a positioned ancestor each
+   * one resolves against the viewport and widens the document at narrow
+   * widths, even though the table itself is clipped by its scroll container.
+   */
+  position: relative;
+}
+
+.oc-checks thead th {
+  text-align: right;
+  padding: 10px 12px;
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.oc-checks thead th:first-child {
+  text-align: left;
+  padding-left: 24px;
+}
+
+.oc-checks thead th:last-child {
+  padding-right: 24px;
+}
+
+.oc-results .oc-checks thead th:first-child {
+  padding-left: 0;
+}
+
+.oc-results .check-cell {
+  padding-left: 0;
+}
+
+.oc-results .oc-checks thead th:last-child,
+.oc-results .action-cell {
+  padding-right: 0;
+}
+
+.oc-results .check-panel-row td {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.check-row > * {
+  border-top: 1px solid var(--surface-muted);
+  vertical-align: top;
+}
+
+.check-cell {
+  text-align: left;
+  font-weight: var(--w-normal);
+  padding: 12px 12px 12px 24px;
+}
+
+.check-name {
+  font-size: var(--t-ui);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.check-name:hover {
+  color: var(--accent);
+}
+
+.check-name:focus-visible,
+.check-name:target {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+/* The row is not hidden under the sticky header when a fragment lands on it. */
+.check-name {
+  scroll-margin-top: 96px;
+}
+
+
+.pop-cell {
+  text-align: right;
+  padding: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pop-zero {
+  font-size: var(--t-small);
+  color: var(--ink-faint);
+}
+
+.pop-open {
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.pop-open:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pop-open:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.pop-open.is-open {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: var(--on-navy);
+}
+
+.pop-open.bad {
+  color: var(--high);
+  border-color: var(--high-soft);
+}
+
+.pop-open.bad.is-open {
+  background: var(--high);
+  border-color: var(--high);
+  color: var(--on-navy);
+}
+
+
+
+
+
+
+
+/* -------------------------------------------------- population panel --- */
+
+.check-panel-row td {
+  padding: 0 24px 14px;
+}
+
+.pop-panel {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+}
+
+.pop-panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 0 12px;
+}
+
+.pop-panel-title {
+  font-size: var(--t-ui);
+  font-weight: var(--w-medium);
+}
+
+.pop-panel-meaning {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  line-height: 1.55;
+}
+
+.pop-note,
+.pop-status {
+  margin: 0 0 10px;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+
+a.pop-record:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+a.pop-record:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+
+
+
+
+.pop-onward {
+  margin: 12px 0 0;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+}
+
+/* ---------------------------------------------------------- area foot --- */
+
+
+
+
+/* ------------------------------------------------- standard container --- */
+
+
+
+
+
+
+
+/* ------------------------------------------------------------ narrower --- */
+
+@media (max-width: 1180px) {
+  .oc-stage-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 900px) {
+  .oc-area-head {
+    flex-wrap: wrap;
+  }
+
+  .oc-stages {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .oc-area {
+    overflow-x: auto;
+  }
+
+  .oc-checks {
+    min-width: 46rem;
+  }
+}
+
+/* ==========================================================================
+   ASSESSMENT — ALIGNMENT TO design-references/Assessment Page.png
+   Header, not-scored strip, compact Lead Journey, area heads and footers.
+   Later in the file than the Option C block above, so these win.
+   ========================================================================== */
+
+/* ------------------------------------------------------------- header --- */
+
+/*
+ * One line at desktop width. Wrapping was letting the action drop below the
+ * title on its own, which read as a stray button rather than the page action.
+ */
+/*
+ * The page action, on its own line and on the container's right edge.
+ *
+ * It is no longer beside a title, so the row exists only to place the action
+ * where a reader already expects a page-level control. The margin below is
+ * what keeps the card from riding up under it once the heading is gone.
+ */
+.oc-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 20px;
+  flex-wrap: nowrap;
+  margin-bottom: 20px;
+}
+
+/* The title takes the room that is left, so the action never wraps alone. */
+
+
+
+.oc-head-aside {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-left: auto;
+  flex: none;
+}
+
+
+.oc-head-run {
+  flex: none;
+}
+
+/* -------------------------------------------------- not-scored strip --- */
+
+
+
+
+
+
+
+
+
+/* --------------------------------------------------------- area head --- */
+
+/* One row: icon, the area and its question, then scope and run time. */
+.oc-area-head {
+  gap: 16px;
+}
+
+.oc-area-icon {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.oc-area-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.oc-area-head h1,
+.oc-area-head h2,
+.oc-area-head h3 {
+  flex: none;
+}
+
+.oc-area-identity {
+  flex: 1;
+  min-width: 0;
+}
+
+.oc-area-question {
+  margin: 4px 0 0;
+}
+
+/* ------------------------------------------------- compact Lead Journey - */
+
+/*
+ * Auto-width chips on one left-aligned row, as the reference shows. Six equal
+ * columns stretched the strip across the whole page and made an orientation
+ * device read like a data table.
+ */
+.oc-stages {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  grid-template-columns: none;
+}
+
+.oc-stage {
+  flex: none;
+  min-width: 5.5rem;
+  padding: 12px 18px;
+}
+
+/* ------------------------------------------------------- area footer --- */
+
+
+
+
+/* Names the concept before the count, so the two never blur together. */
+
+
+/* ------------------------------------------------------------ narrower --- */
+
+@media (max-width: 1180px) {
+  /* Below this the three parts need their own lines to stay legible. */
+  .oc-head {
+    flex-wrap: wrap;
+  }
+
+  .oc-head-aside {
+    margin-left: 0;
+  }
+
+}
+
+@media (max-width: 900px) {
+  .oc-area-head {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .oc-area-question {
+    flex-basis: 100%;
+    order: 3;
+  }
+
+  .oc-area-meta {
+    margin-left: auto;
+  }
+}
+
+
+/* ==========================================================================
+   ASSESSMENT — OUTCOMES, NOT SCORES
+   The journey legend, the stage-progression result, and the check row as the
+   approved reference draws it: name, state, what was observed, and the way to
+   investigate it. No figure on this page is a score.
+   ========================================================================== */
+
+/* --------------------------------------------------- lead journey legend - */
+
+/* Pushed to the far end of the head, as the reference places it. */
+.oc-journey-legend {
+  margin: 0 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.oc-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+
+.oc-legend-mark {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+}
+
+
+
+/* ------------------------------------------------- stage progression note - */
+
+/*
+ * The result that belongs to the arrows, set on the rule between the stage
+ * strip and the stage panel - which is where the reference puts it, and the
+ * only place on the journey that is not a stage.
+ */
+
+
+
+
+
+
+
+
+
+/* The disclaimer now closes the journey rather than interrupting it. */
+
+/* ----------------------------------------------------------- check rows -- */
+
+.check-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/*
+ * The state, in words and in a mark - never in colour alone, and never as a
+ * number. Three states, because the engine produces three.
+ */
+.check-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 9px 3px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: var(--t-meta);
+  font-weight: var(--w-medium);
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ink-muted);
+  white-space: nowrap;
+}
+
+.check-status-mark {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--ink-faint);
+}
+
+.check-status.is-passed {
+  border-color: #c3ddcf;
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.check-status.is-passed .check-status-mark {
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: none;
+  line-height: 1;
+}
+
+.check-status.is-passed .check-status-mark::after {
+  content: '✓';
+  font-size: var(--t-meta);
+}
+
+.check-status.is-failed {
+  border-color: #f2cbc7;
+  background: var(--high-soft);
+  color: var(--high);
+}
+
+.check-status.is-failed .check-status-mark {
+  background: var(--high);
+}
+
+.check-status.is-no-result {
+  color: var(--ink-faint);
+}
+
+.check-status.is-no-result .check-status-mark {
+  background: none;
+  border: 1.5px solid var(--ink-faint);
+}
+
+/* What the check observed, in its own numbers, under its own name. */
+.check-outcome {
+  display: block;
+  margin-top: 6px;
+  max-width: 52ch;
+  font-size: var(--t-meta);
+  font-weight: var(--w-normal);
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+
+
+/* The row the selected stage draws its result from. */
+
+
+/* ------------------------------------------------------------- actions --- */
+
+.action-cell {
+  text-align: right;
+  padding: 12px 24px 12px 12px;
+  white-space: nowrap;
+}
+
+.oc-results .action-cell {
+  padding-right: 0;
+}
+
+.check-act {
+  display: inline-block;
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  line-height: 1.2;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 13px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.check-act:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.check-act:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* One action per row can be the loud one, and only a failure earns it. */
+.check-act.is-primary {
+  background: var(--navy);
+  border-color: var(--navy);
+  color: var(--on-navy);
+}
+
+.check-act.is-primary:hover {
+  background: var(--navy-2);
+  border-color: var(--navy-2);
+  color: var(--on-navy);
+}
+
+/* ------------------------------------------------------------ narrower --- */
+
+@media (max-width: 1180px) {
+  .oc-journey-legend {
+    margin-left: 0;
+    flex-basis: 100%;
+  }
+}
+
+
+/* ==========================================================================
+   ASSESSMENT — RESULTS BY STAGE AS THE CENTREPIECE
+   The lifecycle is the whole page now, so the table gets the room the
+   Revenue Operations container used to take. Room, not size: the type ramp
+   is unchanged and every gain is in separation and alignment.
+   ========================================================================== */
+
+.oc-results {
+  padding: 20px 24px 8px;
+}
+
+/* A real rule between rows. A near-invisible one made four rows read as one
+   block once each carried a sentence of its own. */
+.oc-checks .check-row > * {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+  padding-bottom: 16px;
+}
+
+.oc-checks thead th {
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-strong);
+}
+
+/* The name leads; the state sits with it; the sentence sits under both. */
+.oc-checks .check-name {
+  font-size: var(--t-ui);
+  font-weight: var(--w-bold);
+}
+
+.check-outcome {
+  margin-top: 7px;
+  max-width: 60ch;
+}
+
+/* A caveat about the check, not a second description of the result. */
+
+/* Columns of figures need air between them once rows are this tall. */
+.oc-checks .pop-cell {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.oc-checks thead th:not(:first-child) {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* ------------------------------------------------------- record panel --- */
+
+.pop-panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.pop-panel-title {
+  margin: 0;
+  font-size: var(--t-ui);
+  font-weight: var(--w-bold);
+  color: var(--ink);
+}
+
+.pop-panel-count {
+  margin-left: 10px;
+  font-weight: var(--w-normal);
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.pop-panel-meaning {
+  flex: 1 1 22rem;
+  min-width: 0;
+  margin: 0;
+  font-size: var(--t-meta);
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+.pop-panel-close {
+  flex: none;
+  margin-left: auto;
+  font: inherit;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  cursor: pointer;
+}
+
+.pop-panel-close:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pop-panel-close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---------------------------------------------------- outside this check - */
+
+
+
+
+/*
+ * One line per control: the name, then the count, on a rule that runs between
+ * them. Four badges saying NOT APPLICABLE said the same word four times and
+ * left the reader to find the number.
+ */
+
+
+
+
+/* ==========================================================================
+   FINDINGS — THE REVENUE OPERATIONS CONTROLS
+   ========================================================================== */
+
+.fx-areas {
+  margin-bottom: 18px;
+}
+
+.fx-areas-label {
+  margin: 0 0 9px;
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* One row of six at desktop, one card per area. A stranded sixth card on a
+   second row read as an overflow rather than as the last area. */
+.fx-areas ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 10px;
+}
+
+.fx-area {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+}
+
+.fx-area:hover {
+  border-color: var(--accent);
+}
+
+.fx-area:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* An area with work in it is marked, and also says so in words. */
+.fx-area.needs-attention {
+  border-left: 3px solid var(--high);
+}
+
+.fx-area-name {
+  font-size: var(--t-ui);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.fx-area-meta {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-area-needs {
+  color: var(--high);
+  font-weight: var(--w-medium);
+}
+
+/* ------------------------------------------------------ quiet controls --- */
+
+.fx-quiet {
+  margin-top: 20px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.fx-quiet .eyebrow {
+  margin: 0 0 5px;
+}
+
+.fx-quiet .footnote {
+  margin: 0 0 12px;
+}
+
+.fx-quiet-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.fx-quiet-list li {
+  padding: 11px 0;
+  border-top: 1px solid var(--surface-muted);
+}
+
+.fx-quiet-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fx-quiet-name {
+  font-size: var(--t-ui);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.fx-quiet-area {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+}
+
+.fx-quiet-outcome {
+  display: block;
+  margin-top: 5px;
+  max-width: 68ch;
+  font-size: var(--t-meta);
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+
+
+/*
+ * A gutter for the selected-stage marker.
+ *
+ * The bar is drawn inside the row cell, so without somewhere to sit it lands
+ * under the first character of the check name. The table is pulled left by the
+ * same amount it gains in padding, so the columns stay where the header puts
+ * them.
+ */
+
+
+
+/* ==========================================================================
+   ASSESSMENT — THE LIFECYCLE STORY
+   Scope beside the run that produced it, the journey explained where it is
+   drawn, and one control at a time when a reader asks for one.
+   ========================================================================== */
+
+/* ------------------------------------------------------------- scope ----- */
+
+/*
+ * Two facts, secondary by construction: what the run read, and when. They sit
+ * with the lifecycle they describe rather than beside the page title, where
+ * they competed with the heading and the only action on the page.
+ */
+.oc-area-scope {
+  flex: none;
+  margin: 0;
+  text-align: right;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.oc-scope-figure,
+.oc-scope-when {
+  display: block;
+  white-space: nowrap;
+}
+
+.oc-scope-figure {
+  color: var(--ink-muted);
+  font-weight: var(--w-medium);
+}
+
+.oc-scope-when {
+  margin-top: 2px;
+}
+
+/* --------------------------------------------------- about this lifecycle - */
+
+/*
+ * The qualification the diagram needs, given the weight of a note rather than
+ * of a disclaimer: a tinted panel on the same ground as the journey, directly
+ * beneath the milestone it qualifies.
+ */
+
+
+
+/* ------------------------------------------------- lifecycle assessment --- */
+
+.oc-results-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+
+.oc-results-title {
+  margin: 0;
+  font-size: var(--t-lede);
+  font-weight: var(--w-bold);
+  letter-spacing: -0.014em;
+  color: var(--ink);
+}
+
+/* The heading takes focus when a reader returns to the full list. */
+.oc-results-title:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+
+
+
+
+/* A summary row: every figure, none of the prose. */
+
+
+/* What the two non-judged columns mean, under the table they belong to. */
+.oc-population-note {
+  margin: 14px 0 0;
+  max-width: 96ch;
+  font-size: var(--t-meta);
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+
+.oc-population-note strong {
+  font-weight: var(--w-medium);
+  color: var(--ink-muted);
+}
+
+/* -------------------------------------------------------- related check --- */
+
+/* It stays on this page now, so it is a button rather than a link. */
+
+
+/* The check table scrolls inside itself, at every width. */
+.oc-table-scroll {
+  overflow-x: auto;
+}
+
+
+/* ==========================================================================
+   LEAD LIFECYCLE — ONE INTRODUCTION, ONE PATH
+   ========================================================================== */
+
+/* The Salesforce-model qualification, secondary to the claim it qualifies. */
+
+.oc-journey-head {
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.oc-journey-hint {
+  font-size: var(--t-small);
+  color: var(--ink-muted);
+}
+
+/* ---------------------------------------------------------- the path ----- */
+
+/*
+ * Six steps read as one route rather than six buttons.
+ *
+ * The connector is a chevron drawn in the gap between adjacent steps, on the
+ * step itself so no non-tab element enters the tablist. It is decorative and
+ * hidden from assistive technology: the order is already the reading order,
+ * and the milestone a Lead actually reached is a matter for the assessment
+ * below, never for this strip.
+ */
+.oc-stages.is-path {
+  gap: 26px 22px;
+  align-items: stretch;
+}
+
+.oc-stages.is-path .oc-stage {
+  position: relative;
+}
+
+.oc-stages.is-path .oc-stage:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  right: -16px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-top: 1.5px solid var(--border-strong);
+  border-right: 1.5px solid var(--border-strong);
+  transform: translateY(-50%) rotate(45deg);
+  pointer-events: none;
+}
+
+/* The selected step is the loudest thing in the strip. */
+.oc-stages.is-path .oc-stage.is-selected {
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+/* ------------------------------------------------------- assessed by ----- */
+
+.oc-related-name {
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+
+/* ==========================================================================
+   MILESTONE STATES — FOUR, NOT TWO
+   Passed, needs attention, unable to determine, and not assessed. The fourth
+   draws nothing: a milestone NorthstarIQ never assessed must not be given a
+   reassuring mark it has not earned. Every state is also named in text, so
+   none of them is carried by colour alone.
+   ========================================================================== */
+
+.oc-stage.mark-passed .oc-stage-mark {
+  background: var(--ok);
+  border-color: var(--ok);
+}
+
+.oc-stage.mark-attention .oc-stage-mark {
+  background: var(--high);
+  border-color: var(--high);
+}
+
+/*
+ * Neutral, and deliberately not a warning colour. The evidence cannot support
+ * either conclusion; that is not a failure and must not read as one.
+ */
+.oc-stage.mark-more-information .oc-stage-mark {
+  background: transparent;
+  border: 1.5px solid var(--ink-faint);
+}
+
+.oc-stage.is-selected.mark-more-information .oc-stage-mark {
+  border-color: var(--on-navy-muted);
+}
+
+.oc-stage.is-selected.mark-passed .oc-stage-mark,
+.oc-stage.is-selected.mark-attention .oc-stage-mark {
+  box-shadow: 0 0 0 1.5px var(--navy);
+}
+
+/* ----------------------------------------------------------- the legend --- */
+
+.oc-legend-item.mark-passed .oc-legend-mark {
+  background: var(--ok);
+}
+
+.oc-legend-item.mark-attention .oc-legend-mark {
+  background: var(--high);
+}
+
+.oc-legend-item.mark-more-information .oc-legend-mark {
+  border: 1.5px solid var(--ink-faint);
+}
+
+/* Nothing drawn, but the space is kept so the four labels stay in a row. */
+.oc-legend-item.mark-none .oc-legend-mark {
+  background: none;
+  border: 0;
+}
+
+/* ==========================================================================
+   LIFECYCLE ASSESSMENT — SECTIONS
+   What the selected milestone found, and what the control that judges the
+   moves between milestones found, are two different statements. They are
+   labelled rather than run together.
+   ========================================================================== */
+
+
+
+
+
+/* The first row under a group label needs no rule above it. */
+
+
+/* The section head holds one heading now that the lede is gone. */
+.oc-results-head {
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+
+/*
+ * A milestone no assessment corresponds to says exactly that. Nothing is
+ * borrowed from a neighbouring milestone to fill the table.
+ */
+.oc-results-empty {
+  margin: 0;
+  padding: 14px 0 4px;
+  font-size: var(--t-small);
+  color: var(--ink-faint);
+}
+
+
+/* The population of the shown control, directly beneath its figures. */
+.oc-population-note {
+  margin: 14px 0 4px;
+  max-width: 92ch;
+  font-size: var(--t-meta);
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+
+
+/* ==========================================================================
+   DASHBOARD
+   One route, two states. Built from the tokens already defined at the top of
+   this file - no new palette, no new type sizes, no new dependency.
+   ========================================================================== */
+
+.db-eyebrow {
+  margin: 0 0 6px;
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+/* ----------------------------------------------------------------- head --- */
+
+.db-head {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.db-head-title {
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+
+/*
+ * Both approved Dashboard references set the page title a step above the
+ * shared `h1` size. Raised here rather than on the global `h1`, which sets the
+ * title on every other route.
+ */
+.db-head-title h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.db-head-title .lede {
+  margin: 6px 0 0;
+  font-size: var(--t-small);
+  color: var(--ink-faint);
+  max-width: 60ch;
+}
+
+.db-head-aside {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-left: auto;
+}
+
+.db-head-meta {
+  margin: 0;
+  text-align: right;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.db-head-meta-label {
+  display: block;
+}
+
+.db-head-meta-value {
+  display: block;
+  color: var(--ink-muted);
+  font-weight: var(--w-medium);
+}
+
+/*
+ * The Dashboard actions are larger than the shared `.primary` control.
+ *
+ * Both approved references draw a substantially taller, roomier button than
+ * the default used on the data-dense routes. Overridden here, on the three
+ * Dashboard actions, rather than on `.primary` itself - that class sets every
+ * button on Assessment, Findings and Integrations too.
+ */
+.db-run,
+.db-hero-run,
+.as-head-run,
+.as-next-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 22px;
+  border-radius: var(--radius);
+  font-size: var(--t-body);
+  white-space: nowrap;
+}
+
+.db-run-icon {
+  width: 15px;
+  height: 15px;
+}
+
+/* ================================================== state 1 - the first run */
+
+/*
+ * Three columns, generously proportioned, as the approved reference composes
+ * them: the illustration disc, the copy and action, then the trust column
+ * behind a rule. The card is the tallest object on the page by a clear margin
+ * and is meant to be - it is the whole first-run instruction.
+ */
+/*
+ * Proportional columns, not fixed ones. Fixed widths took every pixel lost at
+ * a narrower viewport out of the middle column, which starved the headline
+ * into four lines. These ratios hold the reference's balance - roughly
+ * 0.7 : 1 : 1 - at any width the hero stays in three columns.
+ */
+.db-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.72fr) minmax(0, 1.05fr) minmax(0, 1.02fr);
+  align-items: center;
+  gap: 34px;
+  padding: 40px 34px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 20px;
+}
+
+.db-hero-art {
+  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* A disc, not a panel: the reference sets the artwork in a pale circle. */
+.db-hero-disc {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  width: 12.5rem;
+  height: 12.5rem;
+  border-radius: 50%;
+  background: var(--surface-muted);
+  overflow: hidden;
+}
+
+.db-hero-summit {
+  width: 100%;
+  height: 80%;
+}
+
+/* The reference sets the eyebrow in the accent blue, not the muted grey. */
+.db-hero .db-eyebrow {
+  margin-bottom: 10px;
+  color: var(--accent);
+}
+
+/*
+ * The dominant object on the page. Larger than any other heading in the
+ * application, and deliberately allowed only here: the first-run hero is a
+ * single instruction, and the reference gives it the whole hierarchy.
+ */
+.db-hero-main h2 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: var(--w-bold);
+  line-height: 1.22;
+  letter-spacing: -0.02em;
+  max-width: 24ch;
+}
+
+.db-hero-lede {
+  margin: 14px 0 26px;
+  max-width: 44ch;
+  font-size: var(--t-body);
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+.db-hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+}
+
+.db-hero-how {
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.db-hero-how:hover {
+  text-decoration: underline;
+}
+
+/* Three assurances, each a claim the architecture actually supports. */
+.db-assurances {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 38px;
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.db-assurances li {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+}
+
+.db-assurance-icon {
+  flex: none;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--surface-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+/*
+ * One tint per assurance, as the reference colours them. Decorative only -
+ * every assurance states its meaning in words beside the mark.
+ */
+.db-assurance-icon.tone-ok,
+.db-band-icon.tone-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.db-assurance-icon.tone-blue,
+.db-band-icon.tone-blue {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.db-assurance-icon.tone-violet,
+.db-band-icon.tone-violet {
+  background: #ece9fb;
+  color: #5b46b8;
+}
+
+.db-band-icon.tone-amber {
+  background: var(--medium-soft);
+  color: var(--medium);
+}
+
+.db-assurance-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.db-assurances strong {
+  display: block;
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+  margin-bottom: 4px;
+}
+
+.db-assurances span span,
+.db-assurances li > span:last-child {
+  font-size: var(--t-small);
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+
+/* ------------------------------------------------------- what it covers --- */
+
+.db-scope {
+  padding: 26px 28px 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.db-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+/* The reference states the read-only guarantee again, here, in green. */
+
+
+
+.db-section-head h2 {
+  margin: 0;
+  font-size: 1.1875rem;
+  font-weight: var(--w-bold);
+  letter-spacing: -0.014em;
+}
+
+/*
+ * The count sits beside the heading, in the accent, as the reference places
+ * it. It is not a link and is not styled as one: it carries no underline, no
+ * hover and no affordance, and it reads as part of the heading cluster rather
+ * than as a control at the far edge of the row.
+ *
+ * The reference also puts a green read-only banner at the right of this row.
+ * That message is stated once, in the hero, and is deliberately not repeated
+ * here - so this row is the heading cluster alone.
+ */
+.db-section-meta {
+  margin: 0;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/*
+ * One bordered container, six cells divided by rules - the reference draws the
+ * scope as a single object rather than as six separate cards.
+ */
+.db-scope-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.db-scope-grid li {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  column-gap: 15px;
+  row-gap: 5px;
+  /*
+   * Aligned at the top, like the summary band above.
+   *
+   * Every cell stretches to the height of the tallest one in its row, and with
+   * two `auto` rows the default distributes that spare height BETWEEN them -
+   * so a cell whose question runs to two lines pushed its question further
+   * down than a neighbour whose question runs to four. Three questions on one
+   * row started at three different heights. The reference aligns them.
+   */
+  align-content: start;
+  padding: 22px 20px;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.db-scope-grid li:nth-child(3n) {
+  border-right: 0;
+}
+
+.db-scope-grid li:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.db-scope-grid .db-area-icon {
+  width: 42px;
+  height: 42px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent-soft);
+}
+
+.db-scope-grid .db-area-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+/*
+ * One soft tint per area, as the reference colours the scope cells.
+ *
+ * DECORATIVE. Each cell names its area in words directly beside the mark, so
+ * nothing is carried by colour alone; the tints exist to keep six cells from
+ * reading as one undifferentiated block. Scoped to the first-run grid - in the
+ * completed state the area marks report real outcomes, and a decorative tint
+ * there would compete with them.
+ */
+.db-scope-grid .db-area-icon.tone-blue {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.db-scope-grid .db-area-icon.tone-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.db-scope-grid .db-area-icon.tone-amber {
+  background: var(--medium-soft);
+  color: var(--medium);
+}
+
+.db-scope-grid .db-area-icon.tone-red {
+  background: var(--high-soft);
+  color: var(--high);
+}
+
+.db-scope-grid .db-area-icon.tone-violet {
+  background: #ece9fb;
+  color: #5b46b8;
+}
+
+.db-scope-grid .db-area-icon.tone-indigo {
+  background: #e6e9fa;
+  color: #3f4bb0;
+}
+
+.db-area-icon {
+  grid-row: span 2;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.db-area-icon svg {
+  width: 16px;
+  height: 16px;
+}
+
+.db-scope-name {
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.db-scope-question {
+  font-size: var(--t-small);
+  line-height: 1.55;
+  color: var(--ink-faint);
+}
+
+.db-footnote {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 20px 0 0;
+  padding: 18px 22px;
+  background: var(--accent-soft);
+  border: 1px solid #cddffa;
+  border-radius: var(--radius);
+  max-width: none;
+  font-size: var(--t-small);
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+/*
+ * A filled disc, as the reference draws it. The glyph already carries an outer
+ * circle, so it is filled and its strokes reversed to white rather than being
+ * set inside a second background circle - no new icon, no new asset.
+ */
+.db-footnote-icon {
+  flex: none;
+  width: 26px;
+  height: 26px;
+}
+
+.db-footnote-icon circle {
+  fill: var(--blue);
+  stroke: var(--blue);
+}
+
+.db-footnote-icon path {
+  stroke: #fff;
+}
+
+/* ==========================================================================
+   ASSESSMENT — page header
+   Same structure as the Dashboard header - identity and lede on the left, the
+   run time and the one action on the right - because both references draw it
+   that way. Kept as its own rules rather than shared ones so a change to
+   either page cannot silently move the other.
+   ========================================================================== */
+
+.as-head {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.as-head-title {
+  flex: 1 1 22rem;
+  min-width: 0;
+}
+
+.as-head-title h1 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.as-head-title .lede {
+  margin: 6px 0 0;
+  font-size: var(--t-small);
+  color: var(--ink-faint);
+  max-width: 60ch;
+}
+
+.as-head-aside {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-left: auto;
+}
+
+.as-head-meta {
+  margin: 0;
+  text-align: right;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.as-head-meta-label {
+  display: block;
+}
+
+.as-head-meta-value {
+  display: block;
+  color: var(--ink-muted);
+  font-weight: var(--w-medium);
+}
+
+.as-run-icon {
+  width: 15px;
+  height: 15px;
+}
+
+.as-eyebrow {
+  margin: 0 0 6px;
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* ==========================================================================
+   ASSESSMENT — the completed run
+   Reproduced from `design-references/Assessment Page.png`. These rules moved
+   here from the retired completed-Dashboard state, unchanged except for their
+   prefix: the Dashboard keeps one architecture now, and the richer evaluation
+   experience belongs to Assessment.
+   ========================================================================== */
+
+.as-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+  gap: 32px;
+  padding: 26px 28px 28px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 16px;
+}
+
+/*
+ * The reference sets the completion beside an illustration. It is the existing
+ * assessment glyph on a pale disc with the outcome badge on its corner - the
+ * repository's own icons, no asset and no package.
+ */
+.as-summary-main {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.as-summary-art {
+  position: relative;
+  flex: none;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: var(--surface-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.as-summary-art > svg {
+  width: 32px;
+  height: 32px;
+}
+
+.as-summary-badge {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ok);
+}
+
+.as-summary-badge svg {
+  width: 20px;
+  height: 20px;
+}
+
+.as-summary-main h2 {
+  margin: 0 0 6px;
+  font-size: 1.1875rem;
+  font-weight: var(--w-bold);
+  letter-spacing: -0.014em;
+}
+
+.as-summary-main p {
+  margin: 0;
+  font-size: var(--t-small);
+  line-height: 1.6;
+  color: var(--ink-muted);
+  max-width: 46ch;
+}
+
+.as-summary-when {
+  margin-top: 10px !important;
+  font-size: var(--t-meta) !important;
+  color: var(--ink-faint) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+.as-summary-readonly {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+  margin-top: 10px !important;
+  font-size: var(--t-meta) !important;
+  color: var(--ink-faint) !important;
+}
+
+.as-tag-ok {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ok-soft);
+  color: var(--ok);
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+}
+
+/*
+ * The four figures. Counts of findings and areas - never a score.
+ *
+ * Four across at the width the reference was drawn at, two-by-two below it.
+ * An auto-fit track decided the column count from the widest label rather than
+ * from the space available, which put three figures in a row and the fourth
+ * alone underneath.
+ */
+.as-stats {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 0;
+  row-gap: 22px;
+  border-left: 1px solid var(--border);
+}
+
+@media (min-width: 1400px) {
+  .as-stats {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    row-gap: 0;
+  }
+}
+
+/*
+ * One figure: a tinted mark, the count, what it counts, and the split beneath.
+ *
+ * The tint is decorative - every figure states what it is in words directly
+ * under the number, so none of these four is carried by colour.
+ */
+.as-stat {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  column-gap: 14px;
+  align-content: start;
+  padding: 2px 20px;
+  border-right: 1px solid var(--border);
+}
+
+.as-stat:last-child {
+  border-right: 0;
+}
+
+.as-stat dt {
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.as-stat dd {
+  margin: 0 0 2px;
+  font-size: 1.75rem;
+  font-weight: var(--w-bold);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.as-stat-icon {
+  grid-row: span 3;
+  align-self: start;
+  margin-top: 2px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.as-stat-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.as-stat-icon.tone-red {
+  background: var(--high-soft);
+  color: var(--high);
+}
+
+.as-stat-icon.tone-amber {
+  background: var(--medium-soft);
+  color: var(--medium);
+}
+
+.as-stat-icon.tone-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.as-stat-icon.tone-violet {
+  background: #ece9fb;
+  color: #5b46b8;
+}
+
+.as-stat-split {
+  margin: 8px 0 0;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.as-sev {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.as-sev::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+.as-sev.sev-High::before {
+  background: var(--high);
+}
+
+.as-sev.sev-Medium::before {
+  background: var(--medium);
+}
+
+/* --------------------------------------------------------- orientation --- */
+
+.as-orient {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+  padding: 13px 20px;
+  background: var(--accent-soft);
+  border: 1px solid #cddffa;
+  border-radius: var(--radius);
+  font-size: var(--t-meta);
+  line-height: 1.6;
+  color: var(--ink-muted);
+}
+
+.as-orient-go {
+  margin-left: auto;
+  flex: none;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- grid --- */
+
+/*
+ * Two columns, as the approved reference lays them out: the wide panel carries
+ * the lifecycle and then the areas, the narrow one carries the priorities and
+ * then the connection. An auto-fit grid put three panels in a row and squeezed
+ * the six milestones into a strip too narrow to read.
+ */
+.as-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: stretch;
+}
+
+/*
+ * Two panels of equal weight. The lifecycle is drawn in full above rather than
+ * as a panel here, and the areas take the full width beneath it, so what
+ * remains for this row is the priorities beside the connection.
+ */
+.as-areas {
+  margin-bottom: 16px;
+}
+
+.as-panel {
+  display: flex;
+  flex-direction: column;
+  padding: 20px 22px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.as-panel-head {
+  margin-bottom: 16px;
+}
+
+.as-panel-head h2 {
+  margin: 0;
+  font-size: var(--t-lede);
+  font-weight: var(--w-bold);
+  letter-spacing: -0.014em;
+}
+
+.as-panel-head p {
+  margin: 4px 0 0;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+}
+
+.as-panel-foot {
+  margin: auto 0 0;
+  padding-top: 14px;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+}
+
+.as-empty {
+  margin: 0;
+  font-size: var(--t-small);
+  color: var(--ink-faint);
+}
+
+/* ----------------------------------------------------------- lifecycle --- */
+
+/*
+ * The compact milestone strip that lived here is gone with the completed
+ * Dashboard that carried it. Assessment draws the governed lifecycle in full -
+ * the `.oc-stages.is-path` rules above - so an overview strip plus the detail
+ * would have been the same six milestones twice on one page.
+ */
+
+/* ---------------------------------------------------------- priorities --- */
+
+.as-priority-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.as-priority-list li + li {
+  border-top: 1px solid var(--surface-muted);
+}
+
+.as-priority-list a {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 0;
+  text-decoration: none;
+}
+
+.as-priority-list a:hover .as-priority-title {
+  color: var(--accent);
+}
+
+.as-priority-list a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+
+.as-priority-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.as-priority-title {
+  display: block;
+  font-size: var(--t-ui);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.as-priority-area {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+}
+
+.as-sev-chip {
+  flex: none;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: var(--t-label);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border: 1px solid var(--border);
+  color: var(--ink-muted);
+  background: var(--surface);
+}
+
+.as-sev-chip.sev-High {
+  border-color: #f2cbc7;
+  background: var(--high-soft);
+  color: var(--high);
+}
+
+.as-sev-chip.sev-Medium {
+  border-color: #f3d9bd;
+  background: var(--medium-soft);
+  color: var(--medium);
+}
+
+/* --------------------------------------------------------------- areas --- */
+
+/*
+ * All six areas in one row, as the reference draws them. An auto-fit track
+ * broke them into two rows at this width, which read as two groups rather than
+ * as the one set of areas the assessment covers.
+ */
+.as-area-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 1180px) {
+  .as-area-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .as-area-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.as-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 5px;
+  padding: 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+/*
+ * A tinted disc, as the reference draws each area. Decorative only - the card
+ * names the area and states its outcome in words directly beneath.
+ */
+.as-area-icon {
+  width: 40px;
+  height: 40px;
+  margin-bottom: 5px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+  background: var(--surface-muted);
+}
+
+.as-area-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.as-area-icon.tone-blue {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.as-area-icon.tone-ok {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+
+.as-area-icon.tone-amber {
+  background: var(--medium-soft);
+  color: var(--medium);
+}
+
+.as-area-icon.tone-red {
+  background: var(--high-soft);
+  color: var(--high);
+}
+
+.as-area-icon.tone-violet {
+  background: #ece9fb;
+  color: #5b46b8;
+}
+
+.as-area-icon.tone-indigo {
+  background: #e6e9fa;
+  color: #3f4bb0;
+}
+
+/* The severity mark on a priority row. The chip beside it carries the words. */
+.as-priority-mark {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-muted);
+  color: var(--ink-faint);
+}
+
+.as-priority-mark svg {
+  width: 17px;
+  height: 17px;
+}
+
+.as-priority-mark.sev-High {
+  background: var(--high-soft);
+  color: var(--high);
+}
+
+.as-priority-mark.sev-Medium {
+  background: var(--medium-soft);
+  color: var(--medium);
+}
+
+.as-area-name {
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.as-area-count {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.as-area-state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--t-label);
+  color: var(--ink-faint);
+}
+
+.as-area-mark {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ink-faint);
+}
+
+.as-area.state-attention .as-area-mark {
+  background: var(--high);
+}
+
+.as-area.state-clear .as-area-mark {
+  background: var(--ok);
+}
+
+.as-area.state-undetermined .as-area-mark {
+  background: transparent;
+  border: 1.5px solid var(--ink-faint);
+}
+
+/* ------------------------------------------------------------ snapshot --- */
+
+.as-snapshot-list {
+  margin: 0;
+}
+
+.as-snapshot-list > div {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--surface-muted);
+}
+
+.as-snapshot-list dt {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+}
+
+.as-snapshot-list dd {
+  margin: 0 0 0 auto;
+  text-align: right;
+  font-size: var(--t-meta);
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.as-snapshot-ok {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--ok) !important;
+}
+
+.as-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+/* --------------------------------------------------- recommended next step */
+
+/*
+ * Deterministic, and said to be. The sentence is chosen by the highest
+ * severity present in the result; nothing is inferred and nothing is ranked
+ * here that the findings queue has not already ranked.
+ */
+.as-next {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 20px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-lg);
+}
+
+.as-next-headline {
+  margin: 0;
+  font-size: var(--t-ui);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.as-next-detail {
+  margin: 5px 0 0;
+  max-width: 84ch;
+  font-size: var(--t-meta);
+  line-height: 1.6;
+  color: var(--ink-faint);
+}
+
+.as-next-go {
+  margin-left: auto;
+  flex: none;
+  text-decoration: none;
+}
+
+/* ==========================================================================
+   SIDEBAR — findings badge and system status
+   ========================================================================== */
+
+.nav-count {
+  margin-left: auto;
+  min-width: 20px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--high);
+  color: var(--on-navy);
+  font-size: var(--t-label);
+  font-weight: var(--w-bold);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ------------------------------------------------------------- narrower --- */
+
+@media (max-width: 1180px) {
+  .db-hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .db-assurances {
+    padding-left: 0;
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 20px;
+  }
+
+  .as-summary {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .as-stats {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 16px;
+  }
+
+  .as-stat {
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 1180px) {
+  .as-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .as-stages {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  /* A connector at the end of a wrapped row points at nothing. */
+  .as-stage:nth-child(3n)::after {
+    display: none;
+  }
+
+  .db-head-aside {
+    margin-left: 0;
+  }
+
+  .as-next-go,
+  .as-orient-go {
+    margin-left: 0;
+  }
+}
+
+
+/* The first-run scope band. Three constants and one honest absence. */
+/*
+ * THREE ITEMS, THREE COLUMNS - not four with a gap where one was removed.
+ *
+ * The reference shows four metrics; the fourth restated the read-only
+ * guarantee, which the hero already makes. The grid is recomputed for three so
+ * the row divides evenly and no space is reserved for a metric that is not
+ * there.
+ */
+.db-scope-band {
+  margin: 0 0 20px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  padding: 28px 8px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.db-scope-band > div {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr);
+  column-gap: 18px;
+  /*
+   * Aligned at the top, not centred. The third figure's line can differ in
+   * length once a run has completed, and centring each column independently
+   * let the three numbers sit at three different heights.
+   */
+  align-content: start;
+  padding: 0 28px;
+  border-right: 1px solid var(--border);
+}
+
+.db-band-icon {
+  grid-row: span 3;
+  align-self: center;
+  width: 54px;
+  height: 54px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.db-band-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.db-scope-band > div:last-child {
+  border-right: 0;
+}
+
+.db-scope-band dd {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: var(--w-bold);
+  line-height: 1.1;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.db-scope-band dd.db-none {
+  color: var(--ink-faint);
+}
+
+
+.db-scope-band dt {
+  margin-top: 5px;
+  font-size: var(--t-body);
+  font-weight: var(--w-medium);
+  color: var(--ink);
+}
+
+.db-scope-band p {
+  margin: 5px 0 0;
+  font-size: var(--t-small);
+  line-height: 1.5;
+  color: var(--ink-faint);
+}
+
+
+/* The scope band stacks before the six cells do. */
+@media (max-width: 1180px) {
+  .db-scope-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .db-scope-grid li:nth-child(3n) {
+    border-right: 1px solid var(--border);
+  }
+
+  .db-scope-grid li:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .db-scope-grid li:nth-last-child(-n + 3) {
+    border-bottom: 1px solid var(--border);
+  }
+
+  .db-scope-grid li:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .db-scope-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .db-scope-grid li {
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--border) !important;
+  }
+
+  .db-scope-grid li:last-child {
+    border-bottom: 0 !important;
+  }
+}
+
+
+@media (max-width: 1180px) {
+  .db-scope-band {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 20px;
+  }
+
+  .db-scope-band > div:nth-child(2n) {
+    border-right: 0;
+  }
+}
+
+@media (max-width: 700px) {
+  .db-scope-band {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .db-scope-band > div {
+    border-right: 0;
+  }
+}
+
+
+/* ==========================================================================
+   HOMEPAGE — SALESFORCE CONNECTION
+   Moved off the sidebar, deliberately quiet: one row between the coverage
+   section and the closing note, not a card competing with either. The state
+   itself is the existing `ConnectionPill`, given the status this page already
+   receives - the dot never carries the meaning alone.
+   ========================================================================== */
+
+.db-connection {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+  padding: 18px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.db-connection-main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.db-connection .db-eyebrow {
+  margin: 0;
+}
+
+.db-connection-go {
+  margin-left: auto;
+  flex: none;
+  font-size: var(--t-small);
+  font-weight: var(--w-medium);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .db-scope-band {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .db-connection-go {
+    margin-left: 0;
+  }
 }

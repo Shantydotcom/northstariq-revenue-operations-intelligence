@@ -197,6 +197,24 @@ export function CheckCircleIcon({ className }: IconProps) {
 }
 
 /** Hollow ring. Used where the connection is not healthy, so shape differs. */
+/**
+ * The mark for an outcome nothing could settle.
+ *
+ * Drawn with the same `Glyph` wrapper as every other icon in this file - no
+ * package, no asset. It exists because "Unable to determine" is a first-class
+ * assessment outcome and reusing the alert glyph for it would have said the
+ * same thing about two different states.
+ */
+export function HelpCircleIcon({ className }: IconProps) {
+  return (
+    <Glyph className={className}>
+      <circle cx="10" cy="10" r="7.6" />
+      <path d="M7.9 7.8a2.15 2.15 0 1 1 2.9 2.02c-.5.19-.8.66-.8 1.19v.3" />
+      <path d="M10 14.2h.01" />
+    </Glyph>
+  );
+}
+
 export function AlertCircleIcon({ className }: IconProps) {
   return (
     <Glyph className={className}>

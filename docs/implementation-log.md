@@ -3097,6 +3097,187 @@ outstanding**. `NIQ_Rule_Configuration` is genuinely still unassigned and is des
 
 ---
 
+### 2026-08-31 — Dashboard and Assessment: one page each, and a route that stops changing identity
+
+Requirement: no new `BR-##`. This is presentation and route architecture over capabilities already
+built and already recorded above; no control, population, calculation or Salesforce component was
+added or altered by it.
+
+**What changed, in the application only.** The Dashboard became the application homepage and now
+holds **one architecture at all times**. It previously branched: before an assessment it showed a
+first-run page, and after one it replaced itself with a different completed-assessment page. That
+two-state model is retired. Completing a run now changes only what the same page can truthfully
+state — the last-assessed time, the action label, and the one summary figure that counts areas
+raising findings.
+
+The richer post-assessment experience moved to `/assessment`, which is a route in its own right for
+the first time: completion summary, the governed lifecycle in full, the Revenue Operations areas,
+the top priorities, the connection snapshot and the recommended next step. Findings gained an area
+index and a list of controls that ran without raising anything, so the page accounts for the whole
+suite rather than only its failures. The shell dropped its status header, self-hosts Inter through
+`next/font`, and the rail was restructured to match the routes that now exist.
+
+Supporting source: `assessment-store` holds the one completed run so both routes read the same
+result; `dashboard`, `assessment-view` and `lifecycle-journey` derive what each surface shows;
+`record-url` was extracted so the browser and the `server-only` Salesforce module share one rule.
+`RecordRef` gained `context` and `state`, and `ControlSummary` now carries the `exclusionBreakdown`
+each detector had already been computing — so a control that reached no verdict can say *which*
+evidence was missing rather than only that it was.
+
+**Nothing was re-decided.** Every figure on both pages is counted from the assessment result the
+engine already produced. No population is recomputed, no severity reassigned, no priority ranked
+here, and **no score is displayed** — the engine still computes one internally and the interface
+shows none, as `CLAUDE.md` §10 requires.
+
+**Status: Implemented.** It exists in source control. It is **not deployed** — there is still no
+hosting project, no environment configuration and no URL — and this entry claims nothing about
+deployed behaviour.
+
+Validation executed on 2026-08-31, in this working tree, with the results as recorded:
+
+- `npx tsc --noEmit` — clean, exit 0.
+- `npm test` — **264 of 264 passing**, over fixtures, with no network and no org. Sixty-three of
+  those are new with this work, covering the Dashboard derivations, the Assessment lifecycle view
+  and the display-name contract.
+- `scripts/powershell/Test-RepositoryStructure.ps1` — 50 passed, 0 warnings, 0 failed, exit 0.
+- Route health against the local development server — `/`, `/assessment`, `/findings` and
+  `/integrations` each returned HTTP 200.
+- The homepage was reconciled against its approved design reference by rendering and comparing, not
+  by reading source. One material defect was found and corrected: within a row of the coverage grid,
+  the six cells stretch to the tallest, and the default `align-content` distributed that spare
+  height *between* each cell's two rows, so three questions on one row began at three different
+  heights — measured at 190 / 200 / 210 and 354 / 364 / 344 before, and identical within each row
+  after.
+
+**What this validation does not establish.** The suite runs against fixtures, so it proves the
+derivations and the presentation contract, not behaviour against the designed ~190-record dataset,
+which still does not exist. HTTP 200 from a development server establishes that each route renders,
+not that any Salesforce control behaves correctly. **No Salesforce control was exercised by any of
+this**, and no Salesforce metadata, record or configuration was touched. No dependency was added.
+
+⚠️ **Provenance of the design evidence.** The tracked design-authority manifest at
+`.claude/design-authority.md` did not exist for most of this work. It was created later, as part of
+a separate governance increment, and it governed **only the final homepage reconciliation described
+above**. Earlier visual passes in this increment were performed against the reference images
+directly, before that manifest existed. This entry does not claim the manifest governed them.
+
+**Not committed at the time of writing.** This entry records work that is complete and validated in
+the working tree; the commit hash is therefore absent rather than invented, and will be recorded
+when the change is committed.
+
+---
+
+### 2026-08-31 — Repository validator: a gate that could not be green was a gate nobody read
+
+Requirement: no `BR-##`. Repository tooling.
+
+**Why it needed repair.** `Test-RepositoryStructure.ps1` is the repository's only executable
+governance control, and `scripts/README.md` instructs that it be run before every commit. It had
+been failing two of its checks continuously, and **neither failure could be cleared by any change to
+the repository**.
+
+**The false positives were machine-local Salesforce CLI state.** The security check tested whether
+`.sf/` or `.sfdx/` were *present on disk*. `sf org login` writes `.sf/` into the working directory,
+so the check could only pass while the org was unauthenticated — it forbade the project's own
+critical path. Separately, the deferred-technology scope scan read the CLI's metadata cache, which
+names Data Cloud fields because Salesforce has them; that is a fact about the platform, not a scope
+decision by this project. A control that is permanently red teaches everyone to skip it, which is
+worse than no control.
+
+**The repair drew the line the file had blurred: durable invariants are asserted, mutable state is
+reported.** The security check now asks whether an auth artifact is **visible to git** rather than
+present on disk — the same standard the adjacent `.env` check already applied and had reasoned out
+in a comment. The scope scan excludes local CLI tooling state, kept deliberately separate from the
+credential-content scan so that a cached auth URL would still be found. Four assertions that encoded
+a moment rather than a rule were converted to reported facts: the approved-Flow list, the assertion
+that no dataset had been generated, and two required-artifact dependencies. A section was added that
+states whether continuous integration actually exists, because the previous check certified the
+*shape* of CI while an empty directory satisfied it. The Apex and custom-UI boundary was **kept as a
+failing assertion** — that is a durable architectural commitment, not a phase.
+
+**Validation executed.** Before the repair: **50 passed · 0 warnings · 2 failed**, exit 1. After:
+**50 passed · 0 warnings · 0 failed**, exit 0. Two assertions were removed and two failing ones
+became passing by correcting their test.
+
+**The security control was verified to still fail in the direction that matters**, rather than
+merely made green: `git check-ignore` was run against each path, confirming that an ignored auth
+artifact passes while a git-visible one would be reported. Three further controls cover the same
+risk unchanged — the credential-content scan still reads those paths, `.gitignore` coverage is still
+asserted, and no auth file is tracked.
+
+**No application or Salesforce behaviour was changed.** This touched one PowerShell script. No
+application test or type check was run, because neither could produce evidence about it.
+
+---
+
+### 2026-08-31 — An AI engineering operating model, and the first short prompt that tested it
+
+Requirement: no `BR-##`. Engineering governance, and deliberate portfolio evidence of how
+AI-assisted work on this repository is directed.
+
+**The problem it addresses.** Governance was being re-stated in each task prompt — approval gates,
+honesty rules, scope discipline, git safety, the visual-comparison procedure — while the repository's
+own documents carried mutable facts that had gone stale. A prior read-only audit established that
+the repository had strong principles and almost no mechanism, and that its declared source of truth
+had fallen behind the source tree.
+
+**Four layers, each owning one thing.** The **universal** standard at `~/.claude/CLAUDE.md` holds
+project-independent engineering behaviour and lives outside this repository. The **repository**
+`CLAUDE.md` was rewritten to hold only what must be known *because the work is NorthstarIQ*,
+inheriting the universal layer rather than repeating it. **Four reusable procedures** under
+`.claude/skills/` capture the workflows that were being re-typed: context discovery before a
+consequential change, visual fidelity against approved design, read-only Salesforce inspection, and
+pre-commit evidence review. The **task prompt** then supplies only objective, scope, acceptance
+criteria and stop point.
+
+**A tracked design-authority manifest.** `.claude/design-authority.md` records which local reference
+image governs which route, its checksum, what it governs, and — the part that earns its keep — the
+elements inside each approved image that are historical and govern nothing. The images themselves
+stay git-ignored; the mapping is version-controlled, so it survives a clone that has no artwork.
+This exists because a reference had previously been renamed and its page identity changed, and
+filename alone had twice been treated as authority.
+
+**Governance is proportional to consequence.** Four risk tiers scale context, evidence, recovery and
+approval requirements from read-only inspection up to external and destructive work. Risk
+classification and approval policy are kept distinct: an action can be technically low-risk and
+still gated. Read-only inspection — including Salesforce inspection through existing least-privilege
+access — proceeds without further authorisation.
+
+**Protected boundaries were narrowed in scope, not weakened.** Explicit approval remains required
+before Salesforce authentication, deployment, metadata or record mutation, data loading, permission
+or sharing changes, destructive operations, dependency changes, environment deployment, **commit**,
+and **push** — with commit and push as separate approvals, neither implied by the other. The old
+numeric complexity envelope was replaced by business-justified complexity, and the fixed
+implementation ladder by requirement-driven design; **no Apex was created**.
+
+**Status: Implemented.** The instruction layers, the manifest and the four procedures exist in
+source control.
+
+**Validated by one executed acceptance test.** A deliberately short prompt asked for the Homepage to
+be compared against its approved design authority and corrected, naming only the outcome, the
+non-goals and the stop point. The model supplied the rest: the manifest was read before the image,
+its checksum verified against the recorded value, its known deviations read before comparison, a
+baseline captured, blast radius checked, one bounded change made, the result verified by rendering
+and measurement, validation selected by risk rather than by directory, and the work stopped before
+commit. **Five differences from the approved screenshot were resolved without stopping** — the
+situation that had previously produced two blocked reports. One material defect was found and
+corrected. The repository validator returned 50 passed, 0 warnings, 0 failed.
+
+**What that test does not establish.** It exercised one procedure on one bounded task. The Salesforce
+inspection and context discovery procedures have not yet been exercised end to end, and no
+conclusion is drawn here about how the model behaves on consequential business-behaviour work.
+
+⚠️ **Provenance.** This operating model was created **after** most of the application work recorded
+in the preceding entries, and it governed none of it. The one exception is stated in the
+Dashboard/Assessment entry above: the design-authority manifest governed the final homepage
+reconciliation only. Earlier increments were directed by the task prompts preserved under
+`prompts/`, and nothing here should be read as retroactive governance of them.
+
+**Not committed at the time of writing**; the commit hash will be recorded when the change is
+committed.
+
+---
+
 ## Implementation Status
 
 **Increments 1-4 are deployed, runtime-validated, and human-accepted.** Increments 3 and 4 were
@@ -3139,7 +3320,7 @@ folded into rows about org metadata.
 
 | Area | Status |
 |---|---|
-| Next.js application under `web/` | ✅ **IMPLEMENTED** — 4 pages, 3 API routes, in source control |
+| Next.js application under `web/` | ✅ **IMPLEMENTED** — in source control. Dashboard, Assessment, Findings, Finding Detail and Integrations, over server-side API routes. Enumerate `web/app` for the current route set rather than quoting a count from here. |
 | Assessment checks + scoring | ✅ **VALIDATED against fixtures** — 166/166 unit tests, no network, no org. **Assessment Model v2 (2026-08-28): 6 areas, 11 scored controls, overall 60.** A control that evaluates no record is **Not Scored**, never 100. ⚠️ v1's overall 62 is not comparable: area weighting and scoring eligibility both changed. |
 | Opportunity Conversion Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — live read-only run: **3 evaluated, 3 failing**, one finding. Compares `Lead.Status` against the platform’s `IsConverted`; `ConvertedOpportunityId` is never required, because Salesforce permits conversion without an Opportunity. Truth-synced 2026-08-27: its preventive half **is** built — `Lifecycle_Transition__mdt` + `Lead_Inbound_Before_Save`, verified against native Lead Conversion — but governs new transitions only. ✅ **SCORED since Model v2 (2026-08-28)**. |
 | Lifecycle taxonomy — `Lead.Status` + `Lifecycle_Transition__mdt` | ✅ **DEPLOYED and VALIDATED (2026-08-27)** — 7 status values, 10 transition records. |
