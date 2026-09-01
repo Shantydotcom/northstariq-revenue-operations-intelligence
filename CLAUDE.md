@@ -506,3 +506,86 @@ NorthstarIQ is a portfolio MVP, not a production SaaS platform. This section add
 infrastructure**. It authorises no environment-management platform, release orchestration, CI/CD
 system, paid deployment architecture or dependency, and the intended model stays local development →
 GitHub → Vercel Hobby, with the controlled Developer Edition org, unless that is explicitly changed.
+
+## Build Progress vs. Documentation Reconciliation
+
+Functional progress takes priority over documentation polish.
+
+Documentation must remain sufficiently accurate to support safe implementation, validation, evidence integrity, and truthful portfolio claims. However, documentation reconciliation must not become an open-ended prerequisite to continuing the build.
+
+### Materiality test
+
+When documentation drift, inconsistency, or missing documentation is discovered during a task, first determine whether it is **material to the current build**.
+
+Fix it immediately only when leaving it unresolved could:
+
+* cause implementation against incorrect or stale requirements;
+* create ambiguity about the current source of truth;
+* affect Salesforce safety, permissions, mutations, rollback, or environment targeting;
+* invalidate or materially weaken test/validation results;
+* misrepresent implemented versus candidate behavior;
+* misrepresent evidence provenance;
+* create a materially false portfolio claim;
+* block the current task or the next approved build step.
+
+If none of those conditions apply, treat the issue as **non-blocking documentation drift**.
+
+### Non-blocking documentation drift
+
+For non-blocking drift:
+
+1. Report it concisely.
+2. Do not fix it unless the current task explicitly authorizes that documentation work.
+3. Do not recommend stopping the build solely to reconcile it.
+4. Do not recursively audit adjacent documentation for similar issues.
+5. Do not generate additional cleanup tasks merely because related documentation could also be improved.
+6. Preserve it as a future cleanup candidate if appropriate.
+7. Continue toward the approved functional objective.
+
+### Diminishing-returns stop rule
+
+Documentation reconciliation has reached diminishing returns when the next documentation change would improve completeness, consistency, wording, organization, or historical neatness but would not materially improve:
+
+* build correctness;
+* Salesforce safety;
+* runtime behavior;
+* validation confidence;
+* evidence integrity;
+* evaluator comprehension of a material capability; or
+* the ability to execute the next approved build step safely.
+
+At that point:
+
+**STOP documentation reconciliation and return to the functional build.**
+
+Do not turn a bounded implementation task into a repository-wide documentation audit.
+
+### Discovery during validation
+
+Finding unrelated documentation drift while validating an implementation does not expand the task scope.
+
+The default response is:
+
+> Non-blocking documentation drift identified and deferred. It does not affect the current implementation, validation, safety, or evidence claim.
+
+Continue the approved task unless the materiality test above is met.
+
+### Commit boundaries
+
+Do not create additional documentation-only commits merely to achieve perfect documentation consistency.
+
+Documentation changes may be grouped into a logical implementation commit when they directly document that implementation and have been reviewed.
+
+Independent documentation cleanup should receive its own task only when its value justifies interrupting functional development.
+
+### Priority order
+
+Unless the user explicitly changes priorities, prefer:
+
+**build → validate → preserve evidence → document material facts → continue building**
+
+over:
+
+**build → document → reconcile documentation → audit documentation → reconcile more documentation → resume building**
+
+The goal is accurate, defensible documentation supporting a working NorthstarIQ MVP — not documentation perfection.
