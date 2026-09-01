@@ -10,11 +10,29 @@
       1. Required directory structure
       2. Required root files
       3. Salesforce DX foundation validity
-      4. Secret / credential / auth-artifact scan
+      4. Secret / credential / auth-artifact exposure
       5. Deferred-technology scope leakage (Data Cloud / Agentforce)
-      6. Phase-appropriate emptiness (no premature business metadata or data)
+      6. Durable scope boundaries, and current-inventory reporting
       7. Ignore-file coverage
-      8. Git repository state
+      8. Documentation integrity
+      9. Git repository state
+     10. Automation state (reported, not asserted)
+
+    WHAT THIS SCRIPT ASSERTS, AND WHAT IT ONLY REPORTS.
+
+    It asserts durable invariants and intentional scope boundaries: the
+    repository skeleton, the DX foundation, that nothing which authenticates is
+    visible to git, that deferred technology never appears as active
+    architecture, that Apex and custom UI stay out of the MVP, that no two
+    active qualification policies contend for one stage, and that documentation
+    links resolve.
+
+    It REPORTS - without a verdict - anything that is a fact about a moment:
+    the Flow inventory, the synthetic dataset, metadata counts, and whether CI
+    exists. Those are current state, and the authority on whether the current
+    state is correct is the implementation log and a human, not this script.
+    Assertions of that kind had gone stale here before, and a stale assertion
+    fails honest work while passing nothing useful.
 
     This script MODIFIES NOTHING. It does not touch Salesforce, does not
     authenticate, and does not perform any git write operation.
@@ -66,6 +84,18 @@ $script:Failures = @()
 # code and makes the run take minutes instead of seconds.
 $script:GeneratedPaths = '\\(\.git|node_modules|\.next|\.vercel|__pycache__)\\'
 
+# Machine-local Salesforce CLI state: the auth store the CLI writes at
+# `sf org login`, and the metadata cache it builds for SOQL completion. Both are
+# git-ignored, neither is authored here, and the second is vendor-supplied
+# standard-object metadata that describes Salesforce - not NorthstarIQ.
+#
+# DELIBERATELY SEPARATE FROM $GeneratedPaths, which the credential scans use.
+# This exclusion is applied ONLY where the question is "what does this
+# repository say about itself" - the architecture-scope scan. The credential
+# content scan keeps reading these paths, because an auth URL cached by the CLI
+# is exactly the thing worth finding.
+$script:LocalToolingPaths = '\\(\.sf|\.sfdx)\\'
+
 function Write-Section {
     param([string] $Title)
     if (-not $Quiet) {
@@ -116,6 +146,18 @@ if (-not $Quiet) {
 # ---------------------------------------------------------------------------
 Write-Section "1. Directory Structure"
 
+# The durable skeleton. Each entry is a place the repository's own conventions
+# say work belongs, not a record of what happens to exist today.
+#
+# `.github\workflows` was removed: the directory holds only a .gitkeep, so
+# asserting it exists validated the SHAPE of continuous integration while
+# certifying nothing about whether any check actually runs. Section 10 reports
+# the real answer instead.
+#
+# `prompts\claude-code` was narrowed to `prompts`. That directory is durable
+# portfolio evidence - it holds the record of how this work was directed - but
+# the sub-directory for one superseded prompt is not a repository-health
+# dependency.
 $requiredDirs = @(
     'config', 'manifest', 'force-app\main\default',
     'data\sample', 'data\expected',
@@ -123,8 +165,7 @@ $requiredDirs = @(
     'scripts\python', 'scripts\powershell', 'scripts\soql',
     'tests\scenarios', 'tests\results',
     'docs',
-    'prompts\claude-code',
-    '.github\workflows',
+    'prompts',
     'web\app', 'web\lib', 'web\components', 'web\test'
 )
 
@@ -158,7 +199,11 @@ $requiredFiles = @(
     'docs\business-case.md', 'docs\requirements.md', 'docs\architecture.md',
     'docs\data-model.md', 'docs\metric-dictionary.md', 'docs\security-model.md',
     'docs\testing-strategy.md', 'docs\assumptions.md', 'docs\implementation-log.md',
-    'prompts\claude-code\phase-0-master-prompt.md',
+    # `prompts\README.md`, not the Phase 0 prompt it indexes. The README states
+    # why preserved direction is evidence and is durable; the prompt itself is
+    # marked superseded, and a superseded artifact should be free to be retired
+    # without failing repository validation.
+    'prompts\README.md',
     'web\package.json', 'web\.env.example', 'web\README.md'
 )
 
@@ -213,15 +258,41 @@ if (Test-Path $sfdxPath) {
 # ---------------------------------------------------------------------------
 Write-Section "4. Security Scan"
 
-# 4a. Forbidden paths present on disk
+# 4a. Auth artifacts that git can actually see.
+#
+#     THE QUESTION IS EXPOSURE, NOT PRESENCE. `sf org login` writes .sf/ into
+#     the working directory - that is the documented way to authenticate, so an
+#     authenticated machine is the normal state, not a violation. Testing for
+#     presence alone made this check impossible to satisfy while the org was
+#     connected, which is to say permanently red for the whole implementation
+#     phase. A control that cannot be green is a control everyone learns to
+#     skip.
+#
+#     The governing rule in .gitignore is that nothing which authenticates may
+#     ever be COMMITTED. So the standard applied here is the same one 4a-ii
+#     already applies to .env: fail when git can see the artifact. A path whose
+#     ignored status cannot be proven counts as visible, not as safe.
+#
+#     This is a narrowing of scope, not of protection. Three other controls
+#     remain: 4c scans these same paths for credential-shaped content, 7 asserts
+#     .gitignore still covers the patterns that make them invisible, and 9
+#     asserts none is tracked by git.
 $authPaths = @('.sf', '.sfdx', '.env', 'server.key', 'alias.json', 'key.json')
 $foundAuth = @()
 foreach ($p in $authPaths) {
-    if (Test-Path (Join-Path $RepoRoot $p)) { $foundAuth += $p }
+    if (-not (Test-Path (Join-Path $RepoRoot $p))) { continue }
+    $isIgnored = $false
+    try {
+        & git -C $RepoRoot check-ignore -q -- $p
+        $isIgnored = ($LASTEXITCODE -eq 0)
+    } catch {
+        $isIgnored = $false
+    }
+    if (-not $isIgnored) { $foundAuth += $p }
 }
-Assert-That -Name "No Salesforce auth / secret artifacts on disk" `
+Assert-That -Name "No Salesforce auth / secret artifact is visible to git" `
             -Condition ($foundAuth.Count -eq 0) `
-            -Detail ("Found: " + ($foundAuth -join ', '))
+            -Detail ("Visible to git: " + ($foundAuth -join ', '))
 
 # 4a-ii. The web application reads Salesforce credentials from environment
 #        variables, so a stray .env can now appear below the root as well as at
@@ -310,8 +381,16 @@ $exclusionFraming = 'future expansion|outside the scope|out of scope|intentional
                     'excluded|exclusion|not part of|no directories|scope leakage|must not|' +
                     'do not implement|reserved for a future'
 
+# The scan asks what THIS REPOSITORY says about its own architecture, so it
+# reads authored content only. The Salesforce CLI's local metadata cache
+# describes standard Salesforce objects - it names Data Cloud fields because
+# Salesforce has them, which is a fact about the platform and not a scope
+# decision by this project. Reading it produced a permanent failure that no
+# repository change could clear.
+$scopeScanFiles = $scanFiles | Where-Object { $_.FullName -notmatch $script:LocalToolingPaths }
+
 $scopeHits = @()
-foreach ($file in $scanFiles) {
+foreach ($file in $scopeScanFiles) {
     if ($file.Extension -notin @('.md', '.d2', '.json', '.xml', '.ps1', '.py', '.yml', '.yaml')) { continue }
     $content = $null
     try { $content = Get-Content $file.FullName -Raw -ErrorAction Stop } catch { continue }
@@ -339,8 +418,15 @@ $metadataFiles = Get-ChildItem (Join-Path $RepoRoot 'force-app') -Recurse -File 
                  Where-Object { $_.Name -ne '.gitkeep' }
 Write-Host ("  [INFO] Metadata files in force-app/: {0}" -f $metadataFiles.Count) -ForegroundColor DarkGray
 
-# Apex remains at zero except the SLA business-hours seam, which belongs to a later
-# increment. Nothing has authorised Apex, triggers, or UI components yet.
+# A DURABLE SCOPE BOUNDARY, not a phase marker.
+#
+# The Apex target is zero, and custom UI components are out of the MVP: the
+# thesis is that a strong administrator can build and maintain this
+# declaratively. That is an architectural commitment rather than a stage the
+# project passes through, so this stays a failure rather than becoming a
+# warning. If a requirement ever genuinely needs Apex, the justification is
+# recorded in the implementation log before the class is written - and this
+# check is then the thing that makes the exception visible and deliberate.
 $behaviourDirs = @('classes', 'triggers', 'aura', 'lwc')
 $premature = @()
 foreach ($d in $behaviourDirs) {
@@ -352,21 +438,27 @@ foreach ($d in $behaviourDirs) {
         if ($n -gt 0) { $premature += "$d ($n file(s))" }
     }
 }
-Assert-That -Name "No Apex, triggers, or UI components yet" `
+Assert-That -Name "No Apex, triggers, or custom UI components" `
             -Condition ($premature.Count -eq 0) `
             -Detail ($premature -join ', ')
 
-# Flows are approved one increment at a time. The complexity budget is 3-5 total;
-# anything beyond the approved set means a later increment leaked into this one.
-$approvedFlows = @('Lead_Inbound_Before_Save')
+# THE FLOW INVENTORY IS REPORTED, NOT ASSERTED.
+#
+# This held a hard-coded list of one approved Flow. That is a fact about a
+# moment, not an invariant: the documented envelope allows several, so the
+# second legitimately approved Flow would have been reported as a governance
+# violation by a check that had simply gone stale. Which Flows are approved is
+# recorded per increment in the implementation log, which is the authority on
+# implementation history - this script has no way to know it and should not
+# pretend to.
+#
+# What survives is the observation. The count is stated so a reviewer can
+# compare it against the log, and any growth is visible in the diff of this
+# run rather than hidden.
 $flowFiles = @(Get-ChildItem (Join-Path $RepoRoot 'force-app') -Recurse -File -Force -ErrorAction SilentlyContinue |
                Where-Object { $_.Name -like '*.flow-meta.xml' })
-$unapprovedFlows = @($flowFiles | Where-Object { $approvedFlows -notcontains ($_.Name -replace '\.flow-meta\.xml$', '') } |
-                     ForEach-Object { $_.Name })
-Assert-That -Name "Only approved Flows present" `
-            -Condition ($unapprovedFlows.Count -eq 0) `
-            -Detail ("Unapproved: " + ($unapprovedFlows -join ', '))
-Write-Host ("  [INFO] Flows in source: {0}" -f $flowFiles.Count) -ForegroundColor DarkGray
+Write-Host ("  [INFO] Flows in source: {0} ({1})" -f $flowFiles.Count,
+            (($flowFiles | ForEach-Object { $_.Name -replace '\.flow-meta\.xml$', '' }) -join ', ')) -ForegroundColor DarkGray
 
 # Each governed stage gate selects its policy by the stage being entered and takes the
 # first record. Salesforce cannot enforce "at most one active policy per stage" on
@@ -393,11 +485,20 @@ Assert-That -Name "At most one active qualification policy per governed stage" `
             -Detail ($ambiguous -join ', ')
 Write-Host ("  [INFO] Stage policy records: {0} ({1} active)" -f $policyFiles.Count, (($activeByStage.Values | Measure-Object -Sum).Sum)) -ForegroundColor DarkGray
 
-$dataFiles = Get-ChildItem (Join-Path $RepoRoot 'data') -Recurse -File -Force -ErrorAction SilentlyContinue |
-             Where-Object { $_.Name -ne '.gitkeep' -and $_.Name -ne 'README.md' }
-Assert-That -Name "No synthetic dataset generated yet" `
-            -Condition ($dataFiles.Count -eq 0) `
-            -Detail ("Found $($dataFiles.Count) file(s)")
+# THE DATASET IS REPORTED, NOT ASSERTED ABSENT.
+#
+# This asserted that `data/` was empty. Generating the designed synthetic
+# dataset is the project's own documented next step, so the check was written
+# to fail the moment the plan succeeded - a governance control that punishes
+# intended progress. Whether the dataset exists is current state, discoverable
+# from the tree; whether it is correct is a testing question this script cannot
+# answer.
+#
+# What is durable is that committed data must be synthetic, which the ignore
+# rules and the data governance rules already carry.
+$dataFiles = @(Get-ChildItem (Join-Path $RepoRoot 'data') -Recurse -File -Force -ErrorAction SilentlyContinue |
+               Where-Object { $_.Name -ne '.gitkeep' -and $_.Name -ne 'README.md' })
+Write-Host ("  [INFO] Synthetic dataset files under data/: {0}" -f $dataFiles.Count) -ForegroundColor DarkGray
 
 $pbixFiles = Get-ChildItem $RepoRoot -Recurse -File -Force -ErrorAction SilentlyContinue |
              Where-Object { $_.FullName -notmatch $script:GeneratedPaths } |
@@ -575,6 +676,33 @@ if ($gitAvailable) {
                     -Detail "origin = $originUrl"
     }
     finally { Pop-Location }
+}
+
+# ---------------------------------------------------------------------------
+# 10. Automation state
+# ---------------------------------------------------------------------------
+Write-Section "10. Automation State"
+
+# STATED, NOT ASSERTED. Section 1 used to require `.github\workflows` to exist,
+# which it does - holding a single .gitkeep. That certified the shape of
+# continuous integration while saying nothing about whether any check runs, and
+# a governance control that can be satisfied by an empty directory is worse
+# than no control, because it reads as coverage.
+#
+# There is no requirement that this project have CI. What there is a
+# requirement for is that nobody be able to mistake its absence for its
+# presence, so the fact is reported plainly and carries no verdict.
+$workflowDir = Join-Path $RepoRoot '.github\workflows'
+$workflowFiles = @()
+if (Test-Path $workflowDir) {
+    $workflowFiles = @(Get-ChildItem $workflowDir -File -Force -ErrorAction SilentlyContinue |
+                       Where-Object { $_.Extension -in @('.yml', '.yaml') })
+}
+if ($workflowFiles.Count -eq 0) {
+    Write-Host "  [INFO] No CI workflows defined. Validation is manual: run this script, plus 'npm test' and 'npx tsc --noEmit' in web/, before requesting a commit." -ForegroundColor DarkGray
+} else {
+    Write-Host ("  [INFO] CI workflows defined: {0} ({1})" -f $workflowFiles.Count,
+                (($workflowFiles | Select-Object -ExpandProperty Name) -join ', ')) -ForegroundColor DarkGray
 }
 
 # ---------------------------------------------------------------------------
