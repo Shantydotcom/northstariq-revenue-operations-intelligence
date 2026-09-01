@@ -276,6 +276,25 @@ next-env.d.ts
 .impeccable/
 
 # -----------------------------------------------------------------------------
+# AI engineering operating model
+# `.claude/` is DELIBERATELY TRACKED. It holds the operating model that governs
+# AI-assisted work on this repository - the design-authority map and, later, the
+# reusable skills - and that is itself portfolio evidence: it shows how the work
+# was directed, not just what it produced. Ignoring the directory would hide the
+# governance while keeping the output.
+#
+# Only machine-local state is excluded. `settings.local.json` is the per-machine
+# Claude Code configuration; it is personal to one developer and belongs to no
+# reviewer.
+#
+# The `*.local.*` rule above already happens to match it. That is incidental -
+# it was written for a different purpose and would stop protecting this file the
+# moment it was narrowed. The rule below states the intent explicitly so the
+# protection survives a change to an unrelated pattern.
+# -----------------------------------------------------------------------------
+.claude/settings.local.json
+
+# -----------------------------------------------------------------------------
 # Local design reference material
 # The visual mockups the assessment UI was built against - roughly 5 MB of PNG
 # kept on disk so the design intent stays available while working, and out of
