@@ -187,7 +187,7 @@
         <locationX>842</locationX>
         <locationY>1754</locationY>
         <assignmentItems><assignToReference>$Record.Exception_Type__c</assignToReference><operator>Assign</operator><value><stringValue>Missing Geography</stringValue></value></assignmentItems>
-        <connector><targetReference>decRoutingEligible</targetReference></connector>
+        <connector><targetReference>decLifecycleGate</targetReference></connector>
     </assignments>
         <assignments>
         <description>A state-specific rule matched. Captured separately from country defaults so specificity - not record order - decides the winner.</description>
@@ -219,7 +219,7 @@
         <assignmentItems><assignToReference>varTerritory</assignToReference><operator>Assign</operator><value><elementReference>varTerritorySpecific</elementReference></value></assignmentItems>
         <assignmentItems><assignToReference>varQueueName</assignToReference><operator>Assign</operator><value><elementReference>varQueueSpecific</elementReference></value></assignmentItems>
         <assignmentItems><assignToReference>varTerritoryMatched</assignToReference><operator>Assign</operator><value><booleanValue>true</booleanValue></value></assignmentItems>
-        <connector><targetReference>decRoutingEligible</targetReference></connector>
+        <connector><targetReference>decLifecycleGate</targetReference></connector>
     </assignments>
     <assignments>
         <description>BR-06. No state-specific rule matched; the country default applies.</description>
@@ -231,7 +231,7 @@
         <assignmentItems><assignToReference>varTerritory</assignToReference><operator>Assign</operator><value><elementReference>varTerritoryDefault</elementReference></value></assignmentItems>
         <assignmentItems><assignToReference>varQueueName</assignToReference><operator>Assign</operator><value><elementReference>varQueueDefault</elementReference></value></assignmentItems>
         <assignmentItems><assignToReference>varTerritoryMatched</assignToReference><operator>Assign</operator><value><booleanValue>true</booleanValue></value></assignmentItems>
-        <connector><targetReference>decRoutingEligible</targetReference></connector>
+        <connector><targetReference>decLifecycleGate</targetReference></connector>
     </assignments>
     <assignments>
         <description>BR-06/BR-13. Country present but covered by no active rule.</description>
@@ -240,7 +240,7 @@
         <locationX>314</locationX>
         <locationY>2186</locationY>
         <assignmentItems><assignToReference>$Record.Exception_Type__c</assignToReference><operator>Assign</operator><value><stringValue>Unsupported Geography</stringValue></value></assignmentItems>
-        <connector><targetReference>decRoutingEligible</targetReference></connector>
+        <connector><targetReference>decLifecycleGate</targetReference></connector>
     </assignments>
     <assignments>
         <description>AUTOMATION-AUTHORITY BOUNDARY. Outside the governed intake path, ownership is preserved exactly as supplied or defaulted. This is NOT a routing exception - the Lead is not moved to the exception queue.</description>
@@ -346,7 +346,7 @@
             </value>
         </assignmentItems>
         <connector>
-            <targetReference>asgnNormalizedDomain</targetReference>
+            <targetReference>decRoutingEligible</targetReference>
         </connector>
     </assignments>
     <assignments>
@@ -428,7 +428,7 @@
             </value>
         </assignmentItems>
         <connector>
-            <targetReference>asgnNormalizedDomain</targetReference>
+            <targetReference>decRoutingEligible</targetReference>
         </connector>
     </assignments>
     <customErrors>
@@ -837,7 +837,7 @@
         <locationX>1106</locationX>
         <locationY>0</locationY>
         <defaultConnector>
-            <targetReference>asgnNormalizedDomain</targetReference>
+            <targetReference>decRoutingEligible</targetReference>
         </defaultConnector>
         <defaultConnectorLabel>No lifecycle change</defaultConnectorLabel>
         <rules>
@@ -1826,7 +1826,7 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
         <locationX>50</locationX>
         <locationY>0</locationY>
         <connector>
-            <targetReference>decLifecycleGate</targetReference>
+            <targetReference>asgnNormalizedDomain</targetReference>
         </connector>
         <filterFormula>OR(
   ISNEW(),
