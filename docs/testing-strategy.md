@@ -13,7 +13,7 @@
 **Executed, with results recorded in [`implementation-log.md`](implementation-log.md):** Increment 2
 fixtures (8/8) · Increment 3 routing (9/9) · Seller negative-security and `BR-08` regression (6/6) ·
 Increment 4 SLA (15/15, including 8 negative and guardrail tests) · web application unit tests
-(50/50 when §2h was executed; the suite has grown with each increment since and passes in full — fixtures only, no network, no org) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run) · Assessment Model v2 scoring activation (§2q, 8 model scenarios + a live read-only run) · the Finding Detail investigation trail (15 presentation-contract scenarios + a browser review) · **controlled lifecycle validation against live Salesforce records (§2r, four fixtures, four preventive rejections, native conversion, five assessment checkpoints)** · **F-7 same-transaction sequencing (§2s, two directional cases, one rejected and one accepted)**.
+(50/50 when §2h was executed; the suite has grown with each increment since and passes in full — fixtures only, no network, no org) · the connected read path (§2g) · Segment Assignment Consistency (§2h) · lifecycle transition enforcement and native Lead conversion (§2i, 11/11) · MQL qualification enforcement (§2j, 10/10) · MQL policy reconciliation (§2k, 11/11) · Sales acceptance enforcement (§2l, 9/9) · SQL qualification enforcement (§2m, 11/11) · MQL Qualification Integrity (§2n, 22 fixture scenarios + a live read-only run) · Lifecycle Progression Integrity (§2o, 28 fixture scenarios + a live read-only run) · Sales Acceptance / SQL Integrity (§2p, 37 fixture scenarios + a live read-only run) · Assessment Model v2 scoring activation (§2q, 8 model scenarios + a live read-only run) · the Finding Detail investigation trail (15 presentation-contract scenarios + a browser review) · **controlled lifecycle validation against live Salesforce records (§2r, four fixtures, four preventive rejections, native conversion, five assessment checkpoints)** · **F-7 same-transaction sequencing (§2s, two directional cases, one rejected and one accepted)** · **F-7 remediation deployed and revalidated, plus a detector correction (§2t, nine runtime cases and a bounded bulk check)**.
 
 **Not executed:** every scenario in §2 against the **designed ~190-record dataset**, which has not
 been generated. The results above came from purpose-built fixtures and from records the org already
@@ -1381,11 +1381,100 @@ No Flow, Custom Metadata or application change was made, and no remediation desi
 **Any remediation must be revalidated by rerunning both directions**, unchanged. A fix that corrects
 one direction and not the other has not closed this defect.
 
+> That revalidation was subsequently executed against the deployed remediation — see §2t.
+
 ### What this does not establish
 
 **Not all Flow sequencing**, and **not every MQL transition combination** — two same-save cases were
 exercised against one qualification requirement. Other same-transaction interactions between derived
 fields and lifecycle gates remain untested.
+
+---
+
+## 2t. F-7 remediation deployed and revalidated, and a detector correction — executed 2026-09-01
+
+**Two changes at two different layers, deliberately kept apart.** A **preventive** Salesforce Flow
+change was deployed and revalidated; a **detective** NorthstarIQ change was then made in response to
+a false positive the revalidation surfaced. They are separate work with separate evidence, and
+neither validates the other.
+
+### Part 1 — the preventive remediation, deployed and revalidated
+
+The sequencing correction designed against §2s was deployed as a single component,
+`Flow:Lead_Inbound_Before_Save`. A check-only run preceded it (1/1 component, 0 errors, 0 warnings).
+The deployment created **version 13** and activated it; version 12 became Obsolete and remains the
+identifiable rollback target. The deployed metadata was re-retrieved and compared structurally to the
+approved source: **149 elements including connectors, zero differences**, entry point corrected.
+
+> **A successful deployment is not runtime evidence.** Activation was verified independently of the
+> deployment result, and every case below was settled by re-querying Salesforce.
+
+| Case | Expected | Actual | Result |
+|---|---|---|:--:|
+| **F7-R-A** — `SMB → Mid-Market` + MQL, one save | Accepted; Mid-Market; bases agree | Accepted; `MQL`; Segment `Mid-Market`; Segment basis `250 -> Mid-Market`; MQL basis cites *Mid-Market segment eligible* | **PASS** |
+| **F7-R-B** — `Mid-Market → SMB` + MQL, one save | Rejected; full rollback | Rejected on *segment eligible for qualification*; post-attempt re-query **identical** to pre-state; no MQL basis; no MQL history row | **PASS** |
+| Regression — eligible, no size change | Accepted | Accepted, basis written | **PASS** |
+| Regression — ineligible, no size change | Rejected | Rejected, record unchanged | **PASS** |
+| Regression — company-size-only update | Segment recalculates, no lifecycle change | `Mid-Market → SMB`; **Status unchanged**; stage stamp unchanged; no MQL basis | **PASS** |
+| Regression — transition / SAL / SQL gates | All reject | `Open → SQL` refused; SAL without acceptance refused, then accepted once supplied; SQL without need/next-step refused | **PASS** |
+| **Territory same-save** | Gate uses the newly resolved Territory | Pre `Territory = null`; one save resolved it and granted MQL; basis cites *territory NA-West resolved* | **PASS** |
+| **Match Status same-save** | Gate uses the newly resolved Match Status | Pre `Match_Status = Review`; one save resolved it to `No Match` and granted MQL; basis cites *account match No Match* | **PASS** |
+| **Bounded bulk** | Correct per-record outcomes at batch volume | 8 Leads, one mixed transaction: 4 accepted with agreeing bases, 4 rejected and rolled back. **8/8 as expected.** SOQL **8 of 100**, no limit exception | **PASS** |
+
+**Evidence classification, which must not be collapsed.** The **Segment** stale evaluation was
+runtime-confirmed *before* remediation (§2s). **Territory** and **Match Status** were only ever
+**source-derived exposures** — no pre-remediation runtime failure was ever observed for either, and
+none is claimed. Their cases above are **post-remediation validations of correct behaviour**, not
+evidence of a defect previously seen at runtime. Version 12 is now Obsolete, so that experiment
+cannot be run retrospectively and will not be invented.
+
+### Part 2 — the detective correction, and why it is not part of the above
+
+The revalidation surfaced a **false positive** from the independent `lifecycle-progression` control
+on a controlled fixture that had undergone exactly one insert and no successful transition. Its
+stage stamp was **1 second before** its `CreatedDate`, and contradiction path B reported *"its
+current stage was entered before the Lead itself was created."*
+
+Read-only triage established the cause. `Lifecycle_Stage_Entered__c` is written by the before-save
+Flow from `$Flow.CurrentDateTime`, captured **before** Salesforce stamps `CreatedDate` at commit — so
+on the create path the stamp sits at, or a moment before, `CreatedDate` **by construction**. Path B
+compared at full precision, so a second boundary crossed inside one transaction read as a lifecycle
+violation. The intended rule is a **calendar-day** claim, which is what the control's own long-standing
+tests assert, and which path D already handles this way for the same class of precision mismatch.
+
+**The correction is detective-only.** Path B now compares using the existing `day()` normalization.
+**No Flow, Custom Metadata, lifecycle definition or preventive behaviour was changed** — the Flow is
+behaving exactly as documented, and was not modified to make a detector pass.
+
+| Validation | Result |
+|---|---|
+| Targeted `lifecycle-progression` tests | **29 pass / 0 fail** (28 before; one added) |
+| Full application test suite | **265 pass / 0 fail** |
+| TypeScript `tsc --noEmit` | **PASS** |
+| Production build `next build` | **PASS** — 12 routes, no warnings |
+| Same-day boundary (new test) | stamp a moment before creation on the same day → **no contradiction** |
+| Historical impossibility (existing test, preserved) | stamp a **day** earlier → **still a contradiction** |
+| Negative control against the real detector | the affected fixture's own values with the stamp moved back one day → **still a contradiction** |
+| Read-only reassessment, same unchanged record | false path-B contradiction **gone**; record's Salesforce data unchanged |
+
+**Exactly one runtime determination changed.** `lifecycle-progression` moved from 2 failing to 1;
+population, unmeasurable and not-evaluated counts were unchanged, and every other control returned
+identical figures. The remaining failure is the unrelated §2r evidence-removal fixture, still
+correctly failing.
+
+### What these results do not establish
+
+**Not the designed ~190-record dataset**, and **not scale** — bounded fixture volume as everywhere else here.
+
+**Not all Flow sequencing**, and **not every MQL transition combination.**
+
+**Not that path B was ever wrong before this run.** Whether the earlier ordering could have produced
+the same artifact was not tested and **cannot now be tested**, since version 12 is Obsolete.
+Attribution of the false positive to the sequencing change remains **indeterminate**, and is recorded
+as such rather than resolved by assumption.
+
+**Not that the corrected detector was used during the F-7 validation above.** It was not. Part 1 ran
+against the previous detector implementation; Part 2 changed it afterwards.
 
 ---
 

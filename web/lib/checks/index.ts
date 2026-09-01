@@ -1440,8 +1440,18 @@ export function lifecycleProgressionIntegrity(
       }
     }
 
-    /* -- B. stage entry recorded before the Lead existed -------------------- */
-    if (l.Lifecycle_Stage_Entered__c !== null && l.Lifecycle_Stage_Entered__c < l.CreatedDate) {
+    /* -- B. stage entry recorded before the Lead existed --------------------
+     * Compared at DAY precision, for the same reason as D below. The stamp is
+     * written by the before-save Flow from $Flow.CurrentDateTime, which is
+     * captured before Salesforce stamps CreatedDate at commit - so on the
+     * create path the stamp sits at, or a moment before, CreatedDate by
+     * construction. A sub-day difference is transaction timing, not a claim
+     * that the stage predates the record; only a whole-day difference is.
+     */
+    if (
+      l.Lifecycle_Stage_Entered__c !== null &&
+      day(l.Lifecycle_Stage_Entered__c) < day(l.CreatedDate)
+    ) {
       contradictions.push('its current stage was entered before the Lead itself was created');
     }
 

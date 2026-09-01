@@ -3401,7 +3401,7 @@ detector was changed.
 | **F-4** | `CONFIRMED PRODUCT DEFECT — EXPLANATION / PROVENANCE`. The Unable to Determine **classification was correct**, but the explanation asserted that records created during this validation "predate the evidence foundation" — provenance NorthstarIQ did not possess. Required behaviour: where NorthstarIQ holds no evidence that a record predates the evidence architecture, state that the required qualification evidence is *unavailable* and the claim cannot be determined; reserve the "predates the qualification-evidence architecture" explanation for records where actual provenance supports it. **Remediation approved in principle. Not fixed here.** |
 | **F-5** | `CONFIRMED PRODUCT DEFECT — CONTEXTUAL EXPLANATION`. The same explanation does not distinguish a Lead **currently at** MQL from one that has **progressed beyond** it. A Lead at MQL should be told the evidence required for its *current* MQL claim is unavailable; a Lead beyond MQL should be told it progressed beyond MQL but the evidence supporting that earlier stage is unavailable. Final UI wording may be refined during remediation; **the semantic distinction must survive it. Not fixed here.** |
 | **F-6** | `CONFIRMED PRODUCT DEFECT — COSMETIC`. Qualification failure text carries an unnecessary trailing separator. Remediation should remove it **without changing the underlying qualification logic or error semantics. Not fixed here.** |
-| **F-7** | `CONFIRMED RUNTIME DEFECT — STALE SEGMENT EVALUATION`. **Superseded 2026-09-01 by executed evidence** — this was first recorded as an unvalidated source-derived observation, and the targeted two-case experiment then confirmed it in both directions. When a qualification-relevant company-size input and a Status change arrive in the same save, the MQL gate evaluates the **previously stored** `Segment__c`: a Lead the same transaction makes eligible is refused (**false negative**), and a Lead the same transaction makes ineligible is granted MQL and **persists as `MQL` + `SMB`** (**false positive** — the material defect). The Flow wrote both contradicting basis strings in one transaction. **Confirmed, not remediated**; no remediation design has been chosen, and any fix must be revalidated by rerunning both directions. See the 2026-09-01 F-7 entry below and [`testing-strategy.md`](testing-strategy.md) §2s. |
+| **F-7** | `IMPLEMENTED — DEPLOYED — RUNTIME VALIDATED`. **Superseded 2026-09-01 by the deployed remediation** — previously `CONFIRMED RUNTIME DEFECT — STALE SEGMENT EVALUATION`, itself superseding an unvalidated source-derived observation. The defect was that a same-save company-size change plus Status change let the MQL gate read the **previously stored** `Segment__c`, refusing a Lead the transaction made eligible (**false negative**) and granting MQL to one it made ineligible, persisting `MQL` + `SMB` (**false positive**). Remediated by relocating the lifecycle gate behind the enrichment chain — connector-only, deployed as Flow **version 13**, with version 12 retained as the rollback target. **All nine controlled runtime cases passed.** ⚠️ Segment stale evaluation was runtime-confirmed pre-remediation; **Territory and Match Status were only ever source-derived exposures** and their cases are post-remediation validations, not evidence of a previously observed runtime failure. See the 2026-09-01 remediation entry below and [`testing-strategy.md`](testing-strategy.md) §2t. |
 | **F-8** | `CONTROL-BOUNDARY OBSERVATION — DEPENDENT ON F-1`. A Lead created directly at MQL without qualification evidence was reported Passed by `lifecycle-progression` and Unable to Determine by `mql-integrity`. **`lifecycle-progression` is not defective for declining to duplicate the MQL qualification control** — the two controls evaluate different invariants. What the correct progression behaviour *should* be for advanced-stage creation depends on the unresolved Advanced Lifecycle Entry rule. **No change until `OD-06` is decided.** |
 
 **What these findings have in common.** F-1, F-2 and F-3 are all cases where the preventive
@@ -3519,6 +3519,98 @@ deleted. Cleanup requires separate approval after remediation and revalidation.
 **What this does not establish.** Not all Flow sequencing, and not every MQL transition combination
 — two same-save cases against one qualification requirement. Evidence in
 [`testing-strategy.md`](testing-strategy.md) §2s.
+
+**Not committed at the time of writing**; the commit hash will be recorded when the change is
+committed.
+
+---
+
+### 2026-09-01 — F-7 remediated in the org, and a detector correction it surfaced
+
+Requirement: `BR-17`, `PD-14`.
+Metadata: `Flow:Lead_Inbound_Before_Save` **deployed** — eight connector retargets, version 13 created
+and activated. No Custom Metadata, field, object, Record Type, subflow or Apex change.
+Application: `lifecycle-progression` contradiction path B corrected. No other assessment change.
+Validation: nine controlled runtime cases against the deployed Flow, plus the application test suite,
+type check and production build for the detector change.
+
+**Two changes at two layers, and the distinction is the point.** The Flow change is **preventive**
+and was deployed to Salesforce. The detector change is **detective** and lives only in `web/`. They
+were made in that order, for different reasons, and neither validates the other.
+
+#### The preventive remediation
+
+The sequencing correction relocates the lifecycle gate so the enrichment chain that derives its
+inputs — segmentation, account matching, Strategic designation, territory — completes first. It is
+**connector-only**: 149 non-connector elements were unchanged, and the deployed metadata was
+re-retrieved and compared to the approved source at **zero differences including connectors**.
+Version 12 became Obsolete and stays the identifiable rollback target.
+
+> **Deployment success was never treated as proof of correctness.** Activation was verified
+> separately, and every case below was settled by re-querying Salesforce rather than by reading a
+> deployment result.
+
+**All nine controlled cases passed.** The two primary proofs invert the pre-remediation outcomes:
+the same-save `SMB → Mid-Market` transition that was previously refused is now **accepted** with
+Segment basis and MQL basis in agreement, and the same-save `Mid-Market → SMB` transition that
+previously persisted an `MQL` + `SMB` contradiction is now **refused with a re-query-verified
+rollback**. Four regressions confirmed the eligible path, the ineligible path, company-size-only
+updates and the transition/SAL/SQL gates are unchanged. A bounded bulk transaction produced correct
+per-record outcomes for 8 of 8 records with no governor-limit error.
+
+**Evidence classification, preserved exactly.** **Segment** stale evaluation was runtime-confirmed
+*before* remediation. **Territory** and **Match Status** were only ever **source-derived exposures** —
+no pre-remediation runtime failure was observed for either, and none is claimed. Their cases here are
+**post-remediation validations of correct behaviour**. Version 12 is Obsolete, so the retrospective
+experiment cannot be run and will not be invented.
+
+**F-7 is now `IMPLEMENTED — DEPLOYED — RUNTIME VALIDATED`.**
+
+#### The detector correction, which the revalidation surfaced
+
+Revalidation produced a **false positive** from `lifecycle-progression` on a controlled fixture that
+had undergone one insert and no successful transition: its stage stamp sat **1 second** before its
+`CreatedDate`, and path B reported the stage as predating the record.
+
+Read-only triage established the cause. `Lifecycle_Stage_Entered__c` is written by the before-save
+Flow from `$Flow.CurrentDateTime`, captured **before** Salesforce stamps `CreatedDate` at commit — so
+on the create path the stamp sits at, or a moment before, `CreatedDate` **by construction**. Path B
+compared at full precision, so a second boundary crossed inside one transaction read as a violation.
+The intended rule is a **calendar-day** claim: that is what the control's existing tests assert, and
+path D already reduces precision the same way for the same reason.
+
+**The fix is detective-only and reuses what already existed** — path B now compares through the
+`day()` helper already present in the same function. **No Flow, Custom Metadata, lifecycle definition
+or preventive behaviour was touched**, and no tolerance constant was invented. The Flow is behaving
+as documented; it was not changed to make a detector pass, and the detector was not weakened to make
+a fixture pass.
+
+**Validated:** targeted control tests 29/29, full application suite 265/265, `tsc --noEmit` clean,
+production build clean across 12 routes. The **same-day** boundary is newly asserted; the
+**day-earlier** contradiction test was preserved unchanged and still fires, and a negative control
+run against the real detector with the affected fixture's own values moved back one day still
+produces the contradiction. Reassessing the **same unchanged Salesforce record** removed the false
+contradiction; `lifecycle-progression` moved from 2 failing to 1 with population, unmeasurable and
+not-evaluated counts unchanged, and every other control identical.
+
+⚠️ **The corrected detector was not used during the F-7 validation above.** That ran against the
+previous implementation; the correction came afterwards.
+
+⚠️ **Attribution of the false positive is indeterminate.** Whether the previous Flow ordering could
+have produced the same artifact was never tested, and cannot be now — version 12 is Obsolete. It is
+recorded as unresolved rather than settled by assumption, and **no finding ID has been assigned**;
+that remains a separate decision.
+
+#### Fixtures and state
+
+Sixteen controlled synthetic Leads were created for this validation, all named `NIQ Fixture R-*` on
+reserved `.invalid` domains. **No pre-existing record was mutated, and nothing was deleted** — the
+earlier `NIQ Fixture 01`–`04`, `F7-A` and `F7-B` evidence records are untouched, verified by their
+unchanged modification timestamps. Cleanup of the R-series fixtures remains a separate approval.
+
+**Test result: every expected outcome was observed.** Nine runtime cases passed, the detector
+correction passed all four validation layers, and exactly one runtime determination changed — the
+false positive that prompted it. Evidence in [`testing-strategy.md`](testing-strategy.md) §2t.
 
 **Not committed at the time of writing**; the commit hash will be recorded when the change is
 committed.

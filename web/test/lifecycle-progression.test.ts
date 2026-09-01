@@ -133,6 +133,22 @@ test('a stage entered before the Lead existed is a contradiction', () => {
   assert.match(String(r.evidence[0].Result), /before the Lead itself was created/);
 });
 
+test('a same-day stage stamp a moment before creation is not a contradiction', () => {
+  /*
+   * The before-save Flow captures $Flow.CurrentDateTime before Salesforce
+   * stamps CreatedDate at commit, so on the create path the stamp can land a
+   * moment earlier and cross a second boundary. That is transaction timing,
+   * not a stage that predates the record.
+   */
+  const l = governed({
+    Status: 'Working - Contacted',
+    CreatedDate: '2026-08-20T09:00:52.000+0000',
+    Lifecycle_Stage_Entered__c: '2026-08-20T09:00:51.000+0000',
+  });
+  const r = run([l]);
+  assert.equal(r.failing, 0);
+});
+
 test('acceptance recorded before the Lead existed is a contradiction', () => {
   const l = governed({
     Status: 'SAL',
