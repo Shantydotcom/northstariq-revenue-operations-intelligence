@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Purpose** | The running record of what was actually built, deployed, and validated |
-| **Status** | Open — Salesforce Increments 1-4 human-accepted · Web MVP implemented · **connected read path exercised against the org 2026-08-24; no control behaviour validated by it, and not deployed** |
+| **Status** | Open — Salesforce Increments 1-4 human-accepted · **lifecycle governance implemented and validated; the `F-7` preventive remediation deployed as `Lead_Inbound_Before_Save` v13 and runtime-validated (2026-09-01)** · Web MVP implemented · **connected read path exercised against the org 2026-08-24; no control behaviour validated by it, and the application is not deployed** |
 
 ---
 
@@ -3624,11 +3624,19 @@ accepted as the **Seller persona**, not as an administrator. The web application
 path** was exercised against the org on 2026-08-24; **no Salesforce control behaviour was validated
 by that run.**
 
+**Salesforce lifecycle governance is implemented and validated**, and the `F-7` preventive
+remediation is **deployed and runtime-validated** — `Lead_Inbound_Before_Save` version 13, nine
+controlled runtime cases, with version 12 retained as the rollback target. The
+`lifecycle-progression` **path B detective correction is implemented and validated**; it post-dates
+that F-7 validation and was not used in it. The dated entries below and
+[`testing-strategy.md`](testing-strategy.md) §2r–§2t own the evidence, including which findings were
+runtime-confirmed and which remain source-derived.
+
 | Area | Status |
 |---|---|
 | Salesforce org | ✅ Authenticated `northstariq-dev` · inspected read-only · **unmodified** |
 | Custom fields — 2 formulas | ✅ **VALIDATED — all 4 branches** (gap closed in Increment 2) |
-| Flow `Lead_Inbound_Before_Save` | ✅ **VALIDATED** — 8/8 scenarios, bulk-safe at batch 8, entry conditions verified |
+| Flow `Lead_Inbound_Before_Save` | ✅ **VALIDATED** — 8/8 Increment 2 scenarios, bulk-safe at batch 8, entry conditions verified. **Version 13 (2026-09-01)** carries the `F-7` sequencing remediation, so lifecycle qualification evaluates the state resolved by the same transaction; deployed and runtime-validated across nine controlled cases, version 12 retained as the rollback target. |
 | `Normalized_Domain__c` · `Segment__c` · `Segment_Basis__c` | ✅ **VALIDATED** — populated and explained by the Flow |
 | `Territory__c` · `Match_Status__c` · `Matched_Account__c` · `Routing_Reason__c` · `Exception_Type__c` | ✅ **VALIDATED (Inc 3)** |
 | `Account.Normalized_Domain__c` | ✅ **VALIDATED (Inc 3)** — reproduces Lead normalization on all 13 stock Accounts |
@@ -3666,7 +3674,7 @@ folded into rows about org metadata.
 | SQL qualification enforcement — `SQL_Qualification_Policy__mdt` + `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27), policy v1.0** — 11/11 behavioural scenarios including native conversion. Requires substantiated Sales acceptance, a governed business need and an agreed next step dated today or later. ⚠️ **SYNTHETIC BASELINE** policy. The detective half is now **implemented** as Sales Acceptance / SQL Integrity. |
 | Sales acceptance enforcement — `Sales_Acceptance_Policy__mdt` + `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27), policy v1.0** — 9/9 behavioural scenarios. Requires an explicit seller acceptance and a substantiated Marketing handoff before `SAL`; records who accepted, when, and under which policy. ⚠️ **SYNTHETIC BASELINE** policy. Sales Acceptance / SQL Integrity (detective) is now **implemented**. |
 | MQL qualification enforcement — `MQL_Qualification_Policy__mdt` + `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27), policy v1.1** — 10/10 then 11/11 behavioural scenarios. **Four** required conditions declared on the policy record, none weighted; blocks an unearned MQL claim and records `MQL_Basis__c` when it is earned. Seller first touch was removed in v1.1 and is now a candidate for SAL. ⚠️ **SYNTHETIC BASELINE** policy. |
-| Lifecycle Progression Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 28 fixture scenarios plus a live read-only run: 15 evaluated, 0 failing, 6 unmeasurable. Builds its model from `Lifecycle_Transition__mdt` and holds no transition matrix of its own. ✅ **SCORED since Model v2 (2026-08-28)**. |
+| Lifecycle Progression Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 28 fixture scenarios plus a live read-only run: 15 evaluated, 0 failing, 6 unmeasurable. Builds its model from `Lifecycle_Transition__mdt` and holds no transition matrix of its own. ✅ **SCORED since Model v2 (2026-08-28)**. **Corrected 2026-09-01** — contradiction path B now compares stage entry to record creation at day precision, after a false positive on a controlled fixture. Detective-only; no Flow or governed configuration changed. The correction post-dates the `F-7` runtime validation and was not used in it. |
 | MQL Qualification Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 22 fixture scenarios plus a live read-only run. Reads the same governed policy the Flow consults and judges existing claims against it. ✅ **SCORED since Model v2 (2026-08-28)**. |
 | Sales Acceptance / SQL Integrity — NorthstarIQ detective control | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 37 fixture scenarios plus a live read-only run: **0 evaluated, 0 failing, 3 unmeasurable, 46 outside**. No baseline Lead has ever been through the governed handoff, and none was created to change that. Consumes `Sales_Acceptance_Policy__mdt` v1.0 and `SQL_Qualification_Policy__mdt` v1.0 as two separate definitions; judges the recorded next-step date against the recorded qualification event, never against TODAY. ✅ **SCORED since Model v2 (2026-08-28)**. |
 | Lifecycle transition enforcement — `Lead_Inbound_Before_Save` | ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** — 9/9 behavioural scenarios for ordinary Status edits, plus native Lead conversion verified separately the same day. Blocks a transition absent from the policy — including one attempted through Salesforce Lead Conversion — and stamps `Lifecycle_Stage_Entered__c` on create and on an allowed transition. |
@@ -3686,11 +3694,19 @@ folded into rows about org metadata.
 ### Evidence-standard gap — recorded, not resolved
 
 [`testing-strategy.md`](testing-strategy.md) §7 requires five conditions for **Validated**, including
-**(4) a re-runnable SOQL query or report supports the claim**. **`scripts/soql/` is empty.**
+**(4) a re-runnable SOQL query or report supports the claim**. **`scripts/soql/` now holds
+version-controlled read-only queries covering the lifecycle work only** — see the directory itself
+for the current set rather than a count quoted here.
+
+⚠️ **Every committed query was written *after* the validation it relates to, and each says so in its
+own header.** They make a result **re-checkable**; none is the evidence that was used at the time,
+and none may be presented as such.
 
 Validation queries for Increments 1-4 **were executed** against the org and their **outcomes** are
 recorded in the dated entries above. The **queries themselves were not committed**, so a reader
-cannot re-run them from this repository today.
+cannot re-run those increments from this repository today. **Criterion 4 is narrowed for the
+lifecycle work and remains open for Increments 1-4** — narrowed by committing queries, not by
+relaxing the standard.
 
 **The standard is not being broadened to accommodate this, and no result is being downgraded to
 conceal it.** The executed verification evidence is real: field-by-field CMDT comparison, Tooling API
