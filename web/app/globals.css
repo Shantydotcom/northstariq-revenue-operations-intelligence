@@ -2928,6 +2928,158 @@ ul.verification li {
   text-decoration: underline;
 }
 
+/*
+ * -------------------------------------------- a safeguard that was corrected
+ *
+ * Nested inside `.safeguard`, and it stays nested. A remediation is a stage of
+ * one investigation trail, not a second subject: it is set off by a rule and an
+ * indent rather than promoted to its own surface, so a reader sees the
+ * correction as belonging to the safeguard directly above it.
+ *
+ * `.safeguard p` mutes and un-margins every paragraph beneath it, which is
+ * right for the safeguard body and wrong for the prose here - hence the two
+ * explicit overrides rather than a weaker selector upstream.
+ */
+.remediation {
+  border-top: 1px solid var(--border);
+  margin-top: 22px;
+  padding-top: 18px;
+}
+
+.remediation-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.remediation-head h4 {
+  font-size: var(--t-body);
+  margin: 0;
+}
+
+.remediation-status {
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--w-bold);
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
+  border-radius: 4px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.remediation h5 {
+  font-size: var(--t-meta);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-faint);
+  font-weight: var(--w-medium);
+  margin: 22px 0 10px;
+}
+
+.remediation .explain {
+  margin: 16px 0 0;
+  color: var(--ink);
+}
+
+.remediation .footnote {
+  margin: 10px 0 0;
+  color: var(--ink-faint);
+}
+
+.remediation .evidence-link {
+  margin: 20px 0 0;
+}
+
+/* Identifiers, not a deployment report: component, version, reversal target. */
+.deployment {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(184px, 1fr));
+  gap: 10px;
+}
+
+.deployment div {
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 8px 11px;
+}
+
+.deployment dt {
+  font-size: var(--t-meta);
+  color: var(--ink-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--w-medium);
+}
+
+.deployment dd {
+  margin: 3px 0 0;
+  font-size: var(--t-ui);
+  color: var(--ink);
+  font-weight: var(--w-medium);
+}
+
+/*
+ * WHICH EVIDENCE WAS ACTUALLY OBSERVED, AND WHICH WAS ONLY REACHABLE.
+ *
+ * The badge is the guard against the one misreading that would matter: that
+ * every listed risk had been seen failing. Colour is a second signal only -
+ * each badge spells its basis out, so the distinction survives greyscale, a
+ * colour-vision difference and a screen reader alike.
+ */
+.exposures {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.exposure-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.exposure-subject {
+  font-weight: var(--w-bold);
+  font-size: var(--t-ui);
+}
+
+.basis-badge {
+  font-size: var(--t-label);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: var(--w-bold);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  color: var(--ink-muted);
+}
+
+.basis-badge.runtime-confirmed {
+  color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+
+.exposure-after {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--t-small);
+  line-height: 1.6;
+  color: var(--ink-muted);
+  max-width: 74ch;
+}
+
 .footnote.canonical {
   border-top: 1px solid var(--border);
   margin-top: 40px;

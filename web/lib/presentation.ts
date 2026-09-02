@@ -22,6 +22,85 @@ export interface Safeguard {
   body: string;
   /** Short technical context. Never metadata internals. */
   tech?: string[];
+  /**
+   * Set only where the safeguard itself was found defective, corrected and
+   * revalidated. Absent everywhere else, and absent is the normal case.
+   */
+  remediation?: SafeguardRemediation;
+}
+
+/**
+ * HOW AN EXPOSURE WAS ESTABLISHED, BEFORE ANYTHING WAS CHANGED.
+ *
+ * The single distinction most easily lost when a remediation is summarised.
+ * One input's failure was observed happening; the others were only ever read
+ * out of the configuration as reachable. Collapsing those into "we found three
+ * problems" would claim runtime evidence that was never gathered, so the
+ * basis is a typed field rather than an adjective inside a sentence.
+ */
+export type EvidenceBasis = 'runtime-confirmed' | 'source-derived';
+
+export interface RemediationExposure {
+  /** The qualification input whose same-save resolution was at issue. */
+  subject: string;
+  /** How this exposure was established BEFORE the correction. */
+  before: EvidenceBasis;
+  /** What the equivalent post-correction case actually proves — and only that. */
+  after: string;
+}
+
+/**
+ * A safeguard that was found wrong, corrected, deployed and revalidated.
+ *
+ * EVIDENCE, NOT WORKFLOW. Nothing here is a status NorthstarIQ maintains, a
+ * state it transitions, or an action it can take: the application reads
+ * Salesforce and never writes to it. These are recorded facts about a change a
+ * human approved and deployed, rendered inside the finding they belong to
+ * rather than on a page that would imply a remediation engine exists.
+ *
+ * Deliberately no free-form narrative field. Detailed technical evidence stays
+ * in the repository; this is the bounded summary an evaluator can read in
+ * under a minute and then verify.
+ */
+export interface SafeguardRemediation {
+  /** The evidence ladder reached, in the project's own vocabulary. */
+  status: string;
+  /** What the safeguard did wrong. */
+  defect: string;
+  /** What that produced in the org — the reason it mattered. */
+  consequence: string;
+  /** Why it behaved that way. */
+  rootCause: string;
+  /** The bounded correction that was approved. */
+  change: string;
+  deployment: RemediationDeployment;
+  /** Post-correction runtime outcomes, each settled by re-querying Salesforce. */
+  verification: string[];
+  /** Existing behaviour proven unchanged. Bounded volume, never scale. */
+  regression: string[];
+  /** What NorthstarIQ's own detective control observed afterwards. */
+  detectiveConfirmation: string;
+  /** Per-input evidence basis, kept separable by construction. */
+  exposures: RemediationExposure[];
+  /** Evidence produced later that supports, but did not perform, this validation. */
+  laterConfirmation: string;
+  /** What a controlled reversal would require. Not an automated rollback. */
+  recovery: string;
+  /** Repository path holding the corrected implementation. */
+  evidencePath?: string;
+}
+
+export interface RemediationDeployment {
+  /** The single component that was deployed. */
+  component: string;
+  /** The version that became active. */
+  active: string;
+  /** The prior version, still identifiable, that a reversal would target. */
+  rollbackTarget: string;
+  /** Salesforce deploy request Id, only where one was actually recovered. */
+  requestId?: string;
+  /** The check-only run that preceded it, where one was recorded. */
+  checkOnly?: string;
 }
 
 /**
@@ -230,6 +309,12 @@ const REPO = 'https://github.com/Shantydotcom/northstariq-revenue-operations-int
 export function evidenceUrl(p: CheckPresentation): string | null {
   if (!p.evidencePath) return null;
   return `${REPO}/${p.evidenceIsDirectory ? 'tree' : 'blob'}/main/${p.evidencePath}`;
+}
+
+/** The corrected implementation itself, for a safeguard that was remediated. */
+export function remediationEvidenceUrl(r: SafeguardRemediation): string | null {
+  if (!r.evidencePath) return null;
+  return `${REPO}/blob/main/${r.evidencePath}`;
 }
 
 export const PRESENTATION: Record<CheckId, CheckPresentation> = {
@@ -447,6 +532,76 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
       title: 'Salesforce refuses an unsupported new qualification',
       body: 'The intake Flow reads the active MQL policy on every status change and blocks entry to the qualified stage unless every requirement it declares is satisfied, naming the ones that were not. When it permits the move it records why, on the Lead, in a field no principal can edit. That safeguard governs NEW transitions; this control is the other half, judging the claims that already exist.',
       tech: ['Lead_Inbound_Before_Save', 'MQL_Qualification_Policy__mdt', 'Lead.MQL_Basis__c'],
+      /*
+       * THE ONE REMEDIATION IN THIS FILE.
+       *
+       * The safeguard above was found defective in the org, corrected and
+       * revalidated. It is recorded here, inside the finding whose subject it
+       * is, because that is one investigation trail — not a remediation
+       * module, and not a workflow NorthstarIQ executes.
+       *
+       * The defect was found by controlled experiment against the org, NOT by
+       * this control. This control detected the persisted contradiction the
+       * defect produced; it reads stored state and cannot observe Flow
+       * execution order. That boundary is stated in `detectiveConfirmation`
+       * rather than left for a reader to infer.
+       */
+      remediation: {
+        status: 'Implemented · Deployed · Runtime validated',
+        defect:
+          'When a company-size change and a lifecycle Status change arrived in the same Salesforce save, the gate evaluated the segment already stored on the Lead rather than the one that same transaction implied.',
+        consequence:
+          'It failed in both directions. A Lead the transaction made eligible was refused on a segment it no longer had; one the transaction made ineligible was admitted and persisted as Marketing-qualified at a segment the policy does not qualify — carrying two basis strings, written in the same transaction, that contradicted each other.',
+        rootCause:
+          'The lifecycle qualification gate ran ahead of the enrichment chain — segmentation, account matching, Strategic designation, territory — that derives the very inputs it reads.',
+        change:
+          'The gate was relocated behind that chain. Connector-only: eight connectors retargeted, 149 non-connector elements unchanged, and the deployed metadata re-retrieved and compared to the approved source at zero differences.',
+        deployment: {
+          component: 'Lead_Inbound_Before_Save',
+          active: 'Version 13 — active',
+          rollbackTarget: 'Version 12 — obsolete, retained',
+          requestId: '0Afaj00000imni0CAA',
+          checkOnly: '0Afaj00000imjJHCAY',
+        },
+        verification: [
+          'Nine controlled runtime cases passed, each settled by re-querying Salesforce rather than by reading the deployment result',
+          'The same-save transition that was previously refused is now accepted, with the segment and the qualification evidence agreeing',
+          'The same-save transition that previously persisted an unsupported claim is now refused, and the rollback was confirmed by re-query rather than inferred from the error',
+        ],
+        regression: [
+          'The eligible and the ineligible paths behave as they did before',
+          'A company-size-only update re-segments the Lead and moves no lifecycle stage',
+          'The transition, Sales acceptance and SQL gates still refuse what they refused before',
+          'One mixed transaction of eight Leads produced the correct outcome for each — bounded fixture volume, not a scale result',
+        ],
+        detectiveConfirmation:
+          'Assessed against the deployed version, this control raised no failure for the corrected behaviour. It reads persisted state: it corroborates the outcome, and it does not establish Flow execution order.',
+        exposures: [
+          {
+            subject: 'Segment',
+            before: 'runtime-confirmed',
+            after:
+              'Observed failing in both directions before the correction, and both directions were re-run against it.',
+          },
+          {
+            subject: 'Territory',
+            before: 'source-derived',
+            after:
+              'The post-correction case proves the gate now reads a territory resolved in the same save. No pre-correction runtime failure was ever observed, and none is claimed.',
+          },
+          {
+            subject: 'Match Status',
+            before: 'source-derived',
+            after:
+              'The post-correction case proves the gate now reads a match state resolved in the same save. No pre-correction runtime failure was ever observed, and none is claimed.',
+          },
+        ],
+        laterConfirmation:
+          'A full Lead to Opportunity traversal was completed later under version 13. It confirms the corrected safeguard across a whole lifecycle — it is not the original validation of this correction, and it did not perform it.',
+        recovery:
+          'Version 12 is still identifiable in the org and the approved change is a bounded connector delta, so a reversal is possible. It would not be automatic: both same-save directions would have to be re-run unchanged before a reversal could be called safe.',
+        evidencePath: 'force-app/main/default/flows/Lead_Inbound_Before_Save.flow-meta.xml',
+      },
     },
     verification: [
       'A Lead satisfying every requirement is permitted and its qualification evidence recorded',
@@ -454,7 +609,7 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
       'A qualification-eligible Lead attempting a structurally invalid transition is refused by the lifecycle policy first',
     ],
     verificationSource:
-      'Application unit tests against fixture records, plus a live read-only Developer Edition run on 2026-08-27. \u26a0\ufe0f This control was created after the Salesforce preventive safeguard was validated; it was not used during that validation.',
+      'Application unit tests against fixture records, plus a live read-only Developer Edition run on 2026-08-27. \u26a0\ufe0f This control was created after the Salesforce preventive safeguard was first validated, and was not used in that validation. The safeguard was later found defective, corrected and revalidated on 2026-09-01 \u2014 those outcomes are the ones recorded under the remediation above, and the full lifecycle traversal that followed is later confirmation rather than that revalidation.',
     evidencePath: 'force-app/main/default/objects/MQL_Qualification_Policy__mdt/MQL_Qualification_Policy__mdt.object-meta.xml',
   },
 

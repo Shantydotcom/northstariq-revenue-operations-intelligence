@@ -10,6 +10,7 @@ import {
   evidenceUrl,
   explainControl,
   formatObservedAt,
+  remediationEvidenceUrl,
 } from '@/lib/presentation';
 import { TRACEABILITY } from '@/lib/traceability';
 import { resolveSetupLinks, setupLinkFor, fieldLinkFor } from '@/lib/setup-links';
@@ -95,6 +96,9 @@ export default async function FindingDetailPage({
 
   const p = PRESENTATION[check.id];
   const github = evidenceUrl(p);
+  // Present on the one control whose safeguard was itself remediated.
+  const rem = p.safeguard.remediation;
+  const remediationGithub = rem ? remediationEvidenceUrl(rem) : null;
   const trace = TRACEABILITY[check.id];
   const priority = check.severity === 'High' ? 'High priority' : `${check.severity} priority`;
   // Identifiers only, so a dependency can open the real configuration.
@@ -416,6 +420,140 @@ export default async function FindingDetailPage({
                   </li>
                 ))}
               </ul>
+            ) : null}
+
+            {/*
+             * 6b. WHERE THE SAFEGUARD ITSELF WAS FOUND WRONG.
+             *
+             * Nested inside the safeguard it corrects, not promoted to a page
+             * of its own. Remediation and verification are stages of ONE
+             * investigation trail; giving them separate destinations would
+             * split the trail and imply NorthstarIQ runs a remediation engine.
+             * It does not - it reads Salesforce and never writes to it, and
+             * every fact below records a change a human approved and deployed.
+             *
+             * Rendered only where a remediation exists. Ten of the eleven
+             * controls have none, and an empty "no remediation" block on each
+             * of them would be noise dressed as completeness.
+             */}
+            {rem ? (
+              <div className="remediation">
+                <div className="remediation-head">
+                  <h4>This safeguard was found defective, and corrected</h4>
+                  <span className="remediation-status">{rem.status}</span>
+                </div>
+
+                <dl className="control-pair">
+                  <dt>What went wrong</dt>
+                  <dd>{rem.defect}</dd>
+                  <dt>What it produced</dt>
+                  <dd>{rem.consequence}</dd>
+                  <dt>Root cause</dt>
+                  <dd>{rem.rootCause}</dd>
+                  <dt>Approved change</dt>
+                  <dd>{rem.change}</dd>
+                </dl>
+
+                {/*
+                 * The deployment, as identifiers rather than prose. A reader
+                 * who wants to check this needs the component, the version now
+                 * running and the one a reversal would target - not a report.
+                 */}
+                <h5>Deployed to Salesforce</h5>
+                <dl className="deployment">
+                  <div>
+                    <dt>Component</dt>
+                    <dd className="mono">{rem.deployment.component}</dd>
+                  </div>
+                  <div>
+                    <dt>Now active</dt>
+                    <dd>{rem.deployment.active}</dd>
+                  </div>
+                  <div>
+                    <dt>Rollback target</dt>
+                    <dd>{rem.deployment.rollbackTarget}</dd>
+                  </div>
+                  {rem.deployment.checkOnly ? (
+                    <div>
+                      <dt>Check-only run first</dt>
+                      <dd className="mono">{rem.deployment.checkOnly}</dd>
+                    </div>
+                  ) : null}
+                  {rem.deployment.requestId ? (
+                    <div>
+                      <dt>Deploy request</dt>
+                      <dd className="mono">{rem.deployment.requestId}</dd>
+                    </div>
+                  ) : null}
+                </dl>
+
+                <h5>Verified after deployment</h5>
+                <ul className="verification">
+                  {rem.verification.map((v) => (
+                    <li key={v}>
+                      <span className="tick" aria-hidden="true">
+                        ✓
+                      </span>
+                      <span>{v}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <h5>Existing behaviour re-checked</h5>
+                <ul className="verification">
+                  {rem.regression.map((r) => (
+                    <li key={r}>
+                      <span className="tick" aria-hidden="true">
+                        ✓
+                      </span>
+                      <span>{r}</span>
+                    </li>
+                  ))}
+                </ul>
+
+                <p className="explain">{rem.detectiveConfirmation}</p>
+
+                {/*
+                 * THE DISTINCTION THIS WHOLE BLOCK STANDS OR FALLS ON.
+                 *
+                 * One input was observed failing before the fix; the others
+                 * were only ever read out of the configuration as reachable.
+                 * The basis is a badge because a reader skimming must not be
+                 * able to come away thinking all three were seen failing.
+                 */}
+                <h5>What each piece of evidence proves</h5>
+                <ul className="exposures">
+                  {rem.exposures.map((e) => (
+                    <li key={e.subject}>
+                      <span className="exposure-head">
+                        <span className="exposure-subject">{e.subject}</span>
+                        <span className={`basis-badge ${e.before}`}>
+                          {e.before === 'runtime-confirmed'
+                            ? 'Runtime-confirmed before the fix'
+                            : 'Source-derived exposure only'}
+                        </span>
+                      </span>
+                      <span className="exposure-after">{e.after}</span>
+                    </li>
+                  ))}
+                </ul>
+                <p className="footnote">{rem.laterConfirmation}</p>
+
+                <dl className="control-pair">
+                  <dt>Controlled recovery</dt>
+                  <dd>{rem.recovery}</dd>
+                </dl>
+
+                {remediationGithub ? (
+                  <p className="evidence-link">
+                    <a href={remediationGithub} target="_blank" rel="noreferrer">
+                      View the corrected automation
+                      <span aria-hidden="true"> ↗</span>
+                      <span className="sr-only"> (opens GitHub in a new tab)</span>
+                    </a>
+                  </p>
+                ) : null}
+              </div>
             ) : null}
           </div>
         </section>

@@ -3691,6 +3691,89 @@ Two existing assertions were updated, not relaxed: both pinned the old constant 
 **Not committed at the time of writing**; the commit hash will be recorded when the change is
 committed.
 
+### 2026-09-01 — The F-7 remediation becomes visible in the product, and two navigation labels stop implying workflows
+
+Requirement: `BR-17`, `PD-14`.
+Metadata: **none** — no Flow, Custom Metadata, field, object, permission or configuration change.
+Salesforce: **read-only only** — three Tooling API queries. No record created, updated or deleted, no
+conversion, no deployment.
+Application: Finding Detail presentation and the navigation model. **No detector predicate,
+population rule, scoring rule or lifecycle definition was changed.**
+Validation: application suite, type check, production build, repository validator, and the rendered
+page against the live read-only org.
+
+#### The evidence existed; the product did not carry it
+
+The `F-7` remediation was deployed and runtime-validated on 2026-09-01 and recorded in this log and
+in [`testing-strategy.md`](testing-strategy.md) §2t. **The application said none of it.** The
+`mql-integrity` safeguard was presented as though it had always behaved correctly, and its stated
+provenance stopped at the 2026-08-27 validation — which predates the defect being found. An
+evaluator using NorthstarIQ could not learn that the preventive safeguard was itself found wrong,
+corrected, deployed and revalidated.
+
+`Safeguard` now carries an optional `remediation`, populated for **`mql-integrity` and nothing else**,
+and rendered as a nested block inside the Implemented safeguard section it concerns. It records the
+defect, the consequence, the root cause, the bounded correction, the deployment, what was verified
+afterwards, what regression was re-checked, what the detective control independently observed, what
+a controlled reversal would require, and the per-input evidence basis.
+
+**No second remediation was created and Salesforce was not mutated.** This surfaces evidence that
+already existed.
+
+#### Remediation and Verification are stages of a finding, not destinations
+
+Both were sidebar rows marked Planned. That was honest about them not being built, but wrong about
+what they are: they are stages of one investigation trail, and a finding already owns its safeguard
+and that safeguard's verification. Two standalone rows advertised a remediation workflow and a
+verification workflow this MVP does not have and should not claim — NorthstarIQ reads Salesforce and
+never writes to it, so it executes no remediation at all.
+
+**Both rows were removed.** No route, placeholder or redirect existed for either, so nothing was
+deleted and nothing broke; `Analytics` and `Audit Log` remain Planned, unchanged. The navigation
+model moved to `web/lib/navigation.ts` so the test suite can assert what the application offers —
+components are not reachable from this project's test runner, and the claim was worth pinning.
+
+#### The deploy request id, recovered rather than assumed
+
+This log recorded the `F-7` deployment without a deploy request id, unlike every other deployment
+entry. Two read-only Tooling API queries recovered it: exactly two `DeployRequest` records exist in
+the window — `0Afaj00000imjJHCAY` (**check-only**, Succeeded, 1/1, 0 errors) and
+`0Afaj00000imni0CAA` (Succeeded, 1/1, 0 errors, 18:03:40Z → 18:03:55Z). `Lead_Inbound_Before_Save`
+version 13 was created at **18:03:41Z**, inside the second request's window, which ties the
+deployment to the version it produced. Both ids are now shown on the finding. The check-only run
+this log already described is the first of the two.
+
+The same session re-confirmed, read-only, that **version 13 is Active and version 12 is Obsolete and
+still present** — the rollback target is real, not a documented intention.
+
+#### Evidence classification is now enforced by tests, not by careful wording
+
+The distinction most easily lost in a summary is that **Segment** stale evaluation was
+runtime-confirmed before the correction, while **Territory** and **Match Status** were only ever
+source-derived exposures whose post-correction cases prove corrected behaviour and nothing about
+history. That basis is a typed field rendered as a badge, and tests now assert both bases are present
+and that neither source-derived entry claims a failure that was never observed. The later end-to-end
+traversal is asserted to describe itself as later confirmation rather than as this validation.
+
+**Validated:** application tests **277/277** (269 before; eight added — six for the remediation
+contract, two for navigation), `tsc --noEmit` clean, production build clean across 12 routes,
+repository validator 50 passed / 0 warnings / 0 failed, `git diff --check` clean. The rendered page
+was checked against the live read-only org: the remediation block appears only on `mql-integrity`,
+three other findings render no empty remediation content, record links and Setup dependency links
+still resolve, and the sidebar offers neither removed row.
+
+One assertion written during this work was **corrected rather than kept green**: it required the
+recovery text not to mention automation, which the copy fails because it explicitly denies being
+automatic. The assertion now requires that denial.
+
+**Deferred, not pursued:** `RemediationIcon` is now unused in `components/Icons.tsx` and was left in
+place — deleting an exported component is unrelated cleanup, not part of this change.
+
+**Not committed at the time of writing**; the commit hash will be recorded when the change is
+committed.
+
+---
+
 ---
 
 ## Implementation Status

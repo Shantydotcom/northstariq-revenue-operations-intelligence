@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { readStoredResult } from '@/lib/assessment-store';
+import { NAV_GROUPS, type NavIcon } from '@/lib/navigation';
 import {
   AnalyticsIcon,
   AssessmentIcon,
@@ -12,69 +13,32 @@ import {
   DashboardIcon,
   FindingsIcon,
   IntegrationsIcon,
-  RemediationIcon,
   StarMark,
-  VerificationIcon,
 } from './Icons';
 
 /**
  * The application shell's navigation.
  *
- * The sidebar states the whole control lifecycle - assess, investigate,
- * remediate, verify, analyse - because that progression IS the product
- * argument. Three of those stages are built; the rest are architecture.
+ * What the rows ARE lives in `lib/navigation.ts`, where the test suite can
+ * reach it. This file owns only how they render.
  *
- * SO THE UNBUILT ONES ARE NOT LINKS. A destination that renders an empty page
- * is worse than one that says it does not exist yet: it costs a click to learn
- * nothing, and it quietly implies capability the repository does not have.
- * They render as non-interactive rows carrying a "Planned" tag, stay out of the
- * tab order, and are marked `aria-disabled` so a screen reader hears the same
- * thing a sighted reader sees. No route, no placeholder, no broken link.
+ * A row without an `href` is approved architecture that is not built, and it is
+ * NOT A LINK. A destination that renders an empty page is worse than one that
+ * says it does not exist yet: it costs a click to learn nothing, and it quietly
+ * implies capability the repository does not have. Those rows are
+ * non-interactive, carry a "Planned" tag, stay out of the tab order, and are
+ * marked `aria-disabled` so a screen reader hears what a sighted reader sees.
+ * No route, no placeholder, no broken link.
  */
 
-interface Item {
-  label: string;
-  icon: (p: { className?: string }) => React.ReactElement;
-  /** Absent where the destination is approved architecture but not built. */
-  href?: string;
-}
-
-interface Group {
-  heading: string;
-  items: Item[];
-}
-
-const GROUPS: Group[] = [
-  {
-    heading: 'Control surface',
-    items: [
-      { label: 'Dashboard', icon: DashboardIcon, href: '/' },
-      {
-        label: 'Assessment',
-        icon: AssessmentIcon,
-        href: '/assessment',
-      },
-      { label: 'Findings', icon: FindingsIcon, href: '/findings' },
-      { label: 'Remediation', icon: RemediationIcon },
-      { label: 'Verification', icon: VerificationIcon },
-    ],
-  },
-  {
-    heading: 'Intelligence',
-    items: [{ label: 'Analytics', icon: AnalyticsIcon }],
-  },
-  {
-    heading: 'System',
-    items: [
-      {
-        label: 'Integrations',
-        icon: IntegrationsIcon,
-        href: '/integrations',
-      },
-      { label: 'Audit Log', icon: AuditIcon },
-    ],
-  },
-];
+const ICONS: Record<NavIcon, (p: { className?: string }) => React.ReactElement> = {
+  dashboard: DashboardIcon,
+  assessment: AssessmentIcon,
+  findings: FindingsIcon,
+  analytics: AnalyticsIcon,
+  integrations: IntegrationsIcon,
+  audit: AuditIcon,
+};
 
 const isActive = (pathname: string, href: string) =>
   href === '/' ? pathname === '/' : pathname.startsWith(href);
@@ -144,14 +108,14 @@ export default function AppSidebar() {
       </Link>
 
       <nav className="side-nav" aria-label="Main">
-        {GROUPS.map((group) => (
+        {NAV_GROUPS.map((group) => (
           <div className="nav-group" key={group.heading}>
             <p className="nav-heading" aria-hidden={collapsed}>
               {group.heading}
             </p>
             <ul>
               {group.items.map((item) => {
-                const Icon = item.icon;
+                const Icon = ICONS[item.icon];
                 const active = item.href ? isActive(pathname, item.href) : false;
 
                 if (!item.href) {

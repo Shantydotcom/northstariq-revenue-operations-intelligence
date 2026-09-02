@@ -12,7 +12,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { PRESENTATION, evidenceUrl } from '../lib/presentation.ts';
+import { PRESENTATION, evidenceUrl, remediationEvidenceUrl } from '../lib/presentation.ts';
+import { NAV_GROUPS } from '../lib/navigation.ts';
 import { TRACEABILITY } from '../lib/traceability.ts';
 import {
   CHECK_IDS,
@@ -378,4 +379,163 @@ test('a comparison finding shows both sides of the comparison', () => {
   assert.ok(r.evidenceColumns.find((c) => c.key === 'CloseDate')?.proving);
   assert.match(String(r.evidence[0].Result), /10 days/, 'how far past');
   assert.match(String(r.evidence[0].Result), /2026-08-23/, 'past what');
+});
+
+/* ------------------------- 11. a safeguard that was itself found defective */
+
+/**
+ * REMEDIATION IS EVIDENCE ABOUT A FINDING, NOT A PRODUCT WORKFLOW.
+ *
+ * These guard the claims that would be easiest to overstate: that only one
+ * safeguard was actually remediated, that the deployment is identified rather
+ * than described, that observed failure and reachable exposure never merge into
+ * one claim, and that evidence produced afterwards is never presented as the
+ * validation it came after.
+ */
+
+test('exactly one safeguard carries a remediation, and it is the one that was remediated', () => {
+  const remediated = CHECK_IDS.filter((id) => PRESENTATION[id].safeguard.remediation);
+
+  assert.deepEqual(remediated, ['mql-integrity'], 'one canonical remediation, not a pattern');
+
+  // The page renders the block only when it exists, so every other control has
+  // to be genuinely absent rather than present and empty.
+  for (const id of CHECK_IDS) {
+    if (id === 'mql-integrity') continue;
+    assert.equal(
+      PRESENTATION[id].safeguard.remediation,
+      undefined,
+      `${id} renders no remediation section`,
+    );
+  }
+});
+
+test('the remediation identifies what was deployed and what a reversal would target', () => {
+  const rem = PRESENTATION['mql-integrity'].safeguard.remediation;
+  assert.ok(rem);
+
+  assert.equal(rem.deployment.component, 'Lead_Inbound_Before_Save');
+  assert.match(rem.deployment.active, /13/, 'the version now running');
+  assert.match(rem.deployment.rollbackTarget, /12/, 'the version a reversal targets');
+
+  // Deploy ids are recorded because they were recovered from the org. A
+  // placeholder would be worse than the field being absent, so the shape is
+  // asserted rather than merely the presence of a string.
+  for (const id of [rem.deployment.requestId, rem.deployment.checkOnly]) {
+    if (id === undefined) continue;
+    assert.match(id, /^0Af[A-Za-z0-9]{15}$/, 'a real Salesforce deploy request id');
+  }
+
+  // Recovery is a described path, not a capability the application has - so the
+  // copy has to deny the automation rather than merely omit mentioning it.
+  assert.match(rem.recovery, /not be automatic/i, 'no automated rollback is implied');
+  assert.match(rem.recovery, /re-run|revalidat/i, 'a reversal still has to be proven');
+});
+
+test('observed failure and reachable exposure are never merged into one claim', () => {
+  const rem = PRESENTATION['mql-integrity'].safeguard.remediation;
+  assert.ok(rem);
+
+  const basis = new Map(rem.exposures.map((e) => [e.subject, e]));
+
+  // Segment was watched failing before anything was changed.
+  assert.equal(basis.get('Segment')?.before, 'runtime-confirmed');
+
+  // The other two were only ever read out of the configuration as reachable.
+  // Their post-correction cases prove the corrected behaviour and nothing about
+  // history, so each must disclaim the failure it never demonstrated.
+  for (const subject of ['Territory', 'Match Status']) {
+    const e = basis.get(subject);
+    assert.equal(e?.before, 'source-derived', `${subject} was never runtime-confirmed`);
+    assert.match(
+      String(e?.after),
+      /no pre-correction runtime failure/i,
+      `${subject} does not claim a failure that was never observed`,
+    );
+  }
+
+  // At least one of each, or the distinction is decorative.
+  const kinds = new Set(rem.exposures.map((e) => e.before));
+  assert.equal(kinds.size, 2, 'both bases are actually represented');
+});
+
+test('evidence produced afterwards is not presented as the validation it followed', () => {
+  const rem = PRESENTATION['mql-integrity'].safeguard.remediation;
+  assert.ok(rem);
+
+  // The later end-to-end traversal supports the correction; it did not validate
+  // it, and the wording has to keep saying so.
+  assert.match(rem.laterConfirmation, /later/i);
+  assert.match(rem.laterConfirmation, /not the original validation/i);
+
+  // Deployment success is never the behavioural claim.
+  assert.match(rem.verification.join(' '), /re-quer/i, 'outcomes were read back from Salesforce');
+
+  // The detective control corroborates the state; it cannot see Flow ordering.
+  assert.match(rem.detectiveConfirmation, /does not establish Flow execution order/i);
+
+  // Bounded volume is stated where a scale reading would otherwise be available.
+  assert.match(rem.regression.join(' '), /not a scale result/i);
+});
+
+test('the remediated control says its safeguard was revalidated, not only first validated', () => {
+  const p = PRESENTATION['mql-integrity'];
+
+  // The original 2026-08-27 provenance is evidence and stays.
+  assert.match(p.verificationSource, /2026-08-27/, 'the earlier validation is preserved');
+  // But it can no longer be the newest thing the page admits to.
+  assert.match(p.verificationSource, /2026-09-01/, 'the revalidation is stated');
+  assert.match(p.verificationSource, /revalidated/i);
+});
+
+test('the corrected automation is linked to the repository, not asserted', () => {
+  const rem = PRESENTATION['mql-integrity'].safeguard.remediation;
+  assert.ok(rem?.evidencePath);
+
+  assert.ok(rem.evidencePath.startsWith('force-app/'), 'a repository path');
+  assert.match(rem.evidencePath, /Lead_Inbound_Before_Save/, 'the component that was deployed');
+  assert.ok(remediationEvidenceUrl(rem)?.includes(rem.evidencePath));
+
+  // A control with no corrected implementation gets no link rather than a stub.
+  assert.equal(remediationEvidenceUrl({ ...rem, evidencePath: undefined }), null);
+});
+
+/* ------------------------------------------------- 12. what navigation offers */
+
+test('remediation and verification are not offered as standalone destinations', () => {
+  const items = NAV_GROUPS.flatMap((g) => g.items);
+  const labels = items.map((i) => i.label);
+
+  // They are stages of one finding's investigation trail. A sidebar row - even
+  // a Planned one - would advertise two workflows this MVP does not have.
+  assert.ok(!labels.includes('Remediation'), 'no standalone Remediation destination');
+  assert.ok(!labels.includes('Verification'), 'no standalone Verification destination');
+
+  // And nothing was quietly renamed into the same claim.
+  for (const label of labels) {
+    assert.doesNotMatch(label, /remediat|verif/i, `${label} does not reintroduce the workflow`);
+  }
+});
+
+test('the navigation that is built still resolves, and the planned rows stay unlinked', () => {
+  const items = NAV_GROUPS.flatMap((g) => g.items);
+
+  // The three built destinations, unchanged by the removal above.
+  const built = items.filter((i) => i.href).map((i) => i.href);
+  assert.deepEqual(built, ['/', '/assessment', '/findings', '/integrations']);
+
+  // Approved architecture that is not built is named but never linked.
+  const planned = items.filter((i) => !i.href).map((i) => i.label);
+  assert.deepEqual(planned, ['Analytics', 'Audit Log']);
+
+  // Every row can render: a label, and an icon the component knows.
+  for (const item of items) {
+    assert.ok(item.label.length > 0);
+    assert.ok(
+      ['dashboard', 'assessment', 'findings', 'analytics', 'integrations', 'audit'].includes(
+        item.icon,
+      ),
+      `${item.label} names a known icon`,
+    );
+  }
 });
