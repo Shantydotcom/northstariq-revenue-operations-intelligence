@@ -3776,6 +3776,137 @@ committed.
 
 ---
 
+### 2026-09-02 — Increment 7.1: routing and the lifecycle finally meet, and acceptance turns out not to require anybody
+
+Two things had each been proven, separately, and the seam between them had never been tested.
+
+Routing was validated with Leads that landed in a **coverage queue** and stopped there — none of them
+ever qualified. Lifecycle governance was validated with Leads that were owned by an individual from
+the moment they were created — none of them was ever routed. Reading the two bodies of evidence
+together suggested a complete Marketing-to-Sales handoff. **No record had actually walked it.**
+
+This increment walked it, with **no metadata change of any kind**. `Lead_Inbound_Before_Save` v13 was
+confirmed Active with v12 Obsolete and no newer version before a single record was created, and it
+was still v13 afterwards. Nothing was deployed, activated, reconfigured or relaxed. The question was
+about **current behaviour**, and current behaviour was left alone so it could answer.
+
+#### What was asked
+
+> Can a queue-owned MQL currently be accepted into SAL while remaining queue-owned?
+
+Two Leads, identical business inputs, one deliberate difference. `S7-HAPPY` (`00Qaj00000vGBJdEAO`)
+had its ownership taken from the queue by a seller. `S7-EXC` (`00Qaj00000vGBUvEAO`) did not. Both
+domains were verified against `Account.Normalized_Domain__c` and against existing Leads first, so
+neither could reach routing Tier 1 or Tier 2 by accident. No derived field was pre-populated on
+either record — segment, territory, ownership, SLA, MQL evidence and acceptance evidence were all
+written by the Flow, which is the only way any of it counts as evidence.
+
+#### `S7-HAPPY` — the first complete traversal in this org's history
+
+Intake routed it to `NIQ North America Coverage` as Tier 3, resolved Mid-Market and NA-West, and set
+a 4-hour response target. A seller then took ownership from the queue — **standard Salesforce
+queue-member behaviour, performed by a person, not by automation**, and the step that had never
+previously happened here. The Flow correctly wrote nothing during that transfer: `decRoutingEligible`
+is create-only, so the original routing decision and its recorded reason survived intact.
+
+First contact stamped `First_Touch_DateTime__c` well inside the target, so the response SLA reads
+**Met** on real timestamps rather than on an assertion. MQL qualification then passed all four
+conditions of policy v1.1 and wrote its basis. Acceptance passed both conditions of Sales Acceptance
+Policy v1.0 and wrote all three evidence fields.
+
+Intake → coverage queue → individual seller → first touch → MQL → acceptance, end to end, with every
+governed artifact written by the automation that owns it.
+
+#### `S7-EXC` — the same path, minus the person
+
+Everything identical, except nobody took the record out of the queue.
+
+It reached `Working - Contacted` while queue-owned. It reached `MQL` while queue-owned, and the MQL
+gate wrote **the same basis text, character for character** — because the MQL policy does not read
+ownership and has no reason to.
+
+Then, still owned by `NIQ North America Coverage`, with `OwnerId` untouched:
+
+```
+Sales_Accepted__c = true
+Status            = SAL
+```
+
+**The save succeeded.** No error, no rollback. `Status` is `SAL`. `Sales_Accepted_At__c`,
+`Sales_Accepted_By__c` and `Sales_Acceptance_Basis__c` are all populated, and the basis correctly
+names Sales Acceptance Policy v1.0 and both requirements it satisfied. `Owner.Type` is still `Queue`.
+
+> **A Lead can carry complete, correctly substantiated Sales acceptance evidence while no individual
+> person is accountable for it. Salesforce permits this today and says nothing about it.**
+
+#### This is not a defect, and that is the point
+
+Every gate did exactly what it was written to do. `Sales_Acceptance_Policy__mdt` declares two
+requirements — explicit acceptance, and a substantiated Marketing handoff — and both were genuinely
+satisfied. **Accountability is not among the things the policy governs**, so no rule was broken.
+
+That makes this a different class of finding from `F-7`. `F-7` was an implementation defect *inside*
+one safeguard: a correct rule reading state that the same transaction had already changed. This is a
+governance gap *between* two safeguards that are each individually correct. Routing decides who holds
+the record. Acceptance decides whether the handoff was legitimate. Neither was ever asked to care
+whether the holder is a person, and the field descriptions say as much — `Sales_Accepted_By__c`
+already argues that ownership and acceptance are different business facts. They are. Nothing
+currently requires the first to exist when the second is granted.
+
+#### NorthstarIQ did not see it either
+
+An assessment ran against the live org straight afterwards. **`S7-EXC` passes every control that
+evaluated it**, including `sales-acceptance-sql` and `routing-exceptions`.
+
+That is the correct behaviour of each control, not a bug in any of them. `routing-exceptions` fails a
+Lead only when routing dumped it in the exception queue; a coverage queue is a *successful* routing
+outcome. `sales-acceptance-sql` judges the evidence the governed policy requires, and every piece of
+it is present and correct. `Owner.Type` is queried and used only for display — **no control reads
+it**.
+
+So there are two distinct facts here, and they must not be collapsed: **what the org permits**, and
+**what NorthstarIQ can currently observe**. Both gaps are real. Neither was closed in this increment,
+because closing either one was not authorised and would have destroyed the baseline this increment
+existed to establish.
+
+#### Preservation
+
+All 72 Leads present beforehand were captured field-by-field, and re-read afterwards. The two
+projections hash identically — `sha256 e24e1d2fb0fdaa8ad83af7217b900ba3771dd555984b481a2a8f2bd8b255a699`.
+**Zero pre-existing records modified, zero deleted.** The only mutations were the two new fixtures:
+**2 records created and 7 update operations** — four on `S7-HAPPY` (ownership, first contact,
+qualification, acceptance) and three on `S7-EXC` (the same, minus the ownership handoff). No metadata
+change, no deployment, no Flow activation, no CMDT change, no permission change, no conversion.
+
+Both fixtures are **retained** — `S7-HAPPY` as the happy-path evidence, `S7-EXC` as pre-remediation
+evidence of the confirmed gap. Neither is baseline data, and neither may be quoted as one.
+
+#### Status, stated exactly
+
+**`IMPLEMENTED — RUNTIME CONFIRMED (2026-09-02)`** for the operational traversal and for the
+accountability gap. Not remediated, not prevented, not detected.
+
+⚠️ **The proposed remediation does not exist and was not tested.**
+`Sales_Acceptance_Policy__mdt.Require_Individual_Owner__c` is not a field in this org. Flow **v14 is
+not a version that exists**. Neither was created, deployed nor simulated, and nothing in this entry
+is evidence about how a remediated gate would behave. `F-7` was not reopened and v13 is unchanged.
+
+⚠️ **One fidelity limitation, recorded rather than smoothed over.** Both acceptance saves ran under
+the CLI's existing authenticated identity — the Revenue Operations administrator — because
+authenticating as `NIQ Seller` is a gated action outside this increment's authorisation. The
+acceptance gate reads no identity at all, so the result stands; but `S7-HAPPY` demonstrates the
+**ownership handoff**, not a seller-authenticated acceptance, and its `Sales_Accepted_By__c` differs
+from its `OwnerId` for that reason alone.
+
+`scripts/soql/acceptance-accountability.soql` was written **after** this run. Its field projection is
+the one that was executed; its accountability predicate is new. It is labelled a later-created
+reproducibility artifact in its own header and is not evidence of what was used at the time.
+
+**Not committed at the time of writing**; the commit hash will be recorded when the change is
+committed.
+
+---
+
 ## Implementation Status
 
 **Increments 1-4 are deployed, runtime-validated, and human-accepted.** Increments 3 and 4 were

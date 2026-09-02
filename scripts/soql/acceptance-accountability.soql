@@ -1,0 +1,49 @@
+-- NorthstarIQ — Sales acceptance and the accountable owner
+--
+-- ⚠️ LATER-CREATED REPRODUCIBILITY ARTIFACT — written 2026-09-02 AFTER the
+-- Increment 7.1 controlled runtime validation had already been executed. This
+-- file was NOT used during that validation and is not historical evidence of
+-- anything. The field projection it uses is the one that WAS executed during
+-- the run, narrowed there to the two fixtures by name; the accountability
+-- predicate below is new and generalises it to the whole org.
+--
+-- Purpose: answer one question the eleven NorthstarIQ controls do not ask.
+--
+--   WHO IS ACCOUNTABLE FOR A LEAD SALES HAS ACCEPTED?
+--
+-- Sales_Accepted_By__c records who ASSERTED acceptance. OwnerId records who
+-- HOLDS the record. Those are different business facts — the field description
+-- on Sales_Accepted_By__c says so explicitly — and nothing in the deployed
+-- architecture requires them to agree, or requires the owner to be a person at
+-- all. Routing assigns Tier 3 Leads to a COVERAGE QUEUE at intake, and the
+-- acceptance path in Lead_Inbound_Before_Save v13 writes three evidence fields
+-- and never touches OwnerId.
+--
+-- So a Lead can carry complete, valid, policy-substantiated acceptance evidence
+-- while remaining owned by a queue. Owner.Type tells them apart:
+--
+--   Owner.Type = 'User'   an individual person is accountable
+--   Owner.Type = 'Queue'  a coverage pool holds it; nobody is individually
+--                         accountable, and the acceptance says nothing about
+--                         who will act
+--
+-- Runtime-confirmed 2026-09-02 by fixture S7-EXC (00Qaj00000vGBUvEAO), which
+-- reached Status = SAL with all three acceptance evidence fields populated
+-- while owned by NIQ North America Coverage. The save was permitted; no error
+-- was raised. Compare S7-HAPPY (00Qaj00000vGBJdEAO), the same inputs with the
+-- queue → seller handoff performed.
+--
+-- ⚠️ This query is a DIAGNOSTIC, not a control. No NorthstarIQ control read
+-- Owner.Type as of the run above; every one of the eleven passed S7-EXC.
+
+SELECT Id, Name, Company, Status,
+       OwnerId, Owner.Name, Owner.Type,
+       Territory__c, Routing_Reason__c,
+       MQL_Basis__c,
+       Sales_Accepted__c, Sales_Accepted_At__c,
+       Sales_Accepted_By__c, Sales_Accepted_By__r.Name,
+       Sales_Acceptance_Basis__c,
+       Lifecycle_Stage_Entered__c
+FROM Lead
+WHERE Sales_Accepted_At__c != NULL
+ORDER BY Sales_Accepted_At__c DESC

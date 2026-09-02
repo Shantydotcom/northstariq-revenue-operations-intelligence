@@ -1551,6 +1551,144 @@ folded into the six-step plan.
 
 ---
 
+## 2v. Increment 7.1 — the queue → seller handoff, and the accountability question — executed 2026-09-02
+
+**Target:** `northstariq-dev`, the controlled Developer Edition org. The org identifier was verified
+against the expected target before execution and is deliberately not recorded here — mutable
+Salesforce identifiers stay out of tracked content.
+**Automation under test:** `Lead_Inbound_Before_Save` **version 13, Active** — verified active, with
+v12 Obsolete and no newer version present, before any record was created.
+
+**No metadata was changed, deployed or activated.** This increment tests **current deployed
+behaviour only**. Nothing was configured to make a test pass.
+
+### Why this ran
+
+Every earlier lifecycle validation used Leads that were owned by an individual from the moment they
+were created. Every earlier routing validation used Leads that never qualified. **The two chains had
+never met**, so nothing in this repository established what happens when a Lead is routed to a
+**coverage queue** and then progresses through qualification into Sales acceptance.
+
+The open question was narrow and empirical:
+
+> **Can a queue-owned MQL currently be accepted into SAL while remaining queue-owned?**
+
+### Two controlled fixtures, identical inputs, one deliberate difference
+
+| | `S7-HAPPY` | `S7-EXC` |
+|---|---|---|
+| Record | `00Qaj00000vGBJdEAO` | `00Qaj00000vGBUvEAO` |
+| `LeadSource` | `NorthstarIQ Inbound` | `NorthstarIQ Inbound` |
+| `NumberOfEmployees` | 300 | 300 |
+| Country / State | `US` / `CA` | `US` / `CA` |
+| Domain | `s7-happy-northstariq.invalid` | `s7-exc-northstariq.invalid` |
+| **The difference** | ownership taken from the queue by a seller | **ownership never taken** |
+
+Both domains were verified against `Account.Normalized_Domain__c` and against existing Leads before
+creation: zero matches each, so both resolve to `Match_Status__c = No Match` and neither can reach
+routing Tier 1 or Tier 2. **No derived field was pre-populated on either record.** Segment,
+territory, ownership, SLA, MQL evidence and acceptance evidence were all written by the Flow.
+
+### `S7-HAPPY` — the accountable path, in five saves
+
+| # | Operation | Persisted result |
+|---|---|---|
+| 1 | Create | `Segment__c = Mid-Market` · `Territory__c = NA-West` · `Match_Status__c = No Match` · **`OwnerId` = `NIQ North America Coverage` (Queue)** · `SLA_Target_DateTime__c` set +4h · `Routing_Reason__c` = *"At intake: Territory Coverage: NA-West -> NIQ_North_America \| Rule v1.0"* |
+| 2 | `OwnerId` → `NIQ Seller` | **`Owner.Type` Queue → User.** The Flow wrote nothing: `decRoutingEligible` is create-only, so routing and its recorded reason were preserved exactly |
+| 3 | `Status` → `Working - Contacted` | `First_Touch_DateTime__c` stamped `02:54:34Z` against a `06:53:53Z` target → **`SLA_Status__c = Met`** |
+| 4 | `Status` → `MQL` | `MQL_Basis__c` written: *"Qualified under MQL Policy v1.1: governed source NorthstarIQ Inbound; Mid-Market segment eligible; territory NA-West resolved; account match No Match"* |
+| 5 | `Sales_Accepted__c = true` **+** `Status = SAL`, one save | All three evidence fields written by `asgnSalesAcceptance`: `Sales_Accepted_At__c 02:55:04Z`, `Sales_Accepted_By__c`, `Sales_Acceptance_Basis__c` = *"Accepted under Sales Acceptance Policy v1.0: explicit seller acceptance recorded; Marketing handoff substantiated by MQL evidence"* |
+
+**This is the first record in this org to traverse intake → coverage queue → individual seller →
+first touch → MQL → acceptance.** Step 2 is the operational action that had never previously
+occurred, and it is standard Salesforce queue-member behaviour — no automation performs it.
+
+### `S7-EXC` — the same path with step 2 omitted
+
+| # | Operation | Persisted result |
+|---|---|---|
+| 1 | Create | Identical intake outcome. **`OwnerId` = `NIQ North America Coverage` (Queue)** |
+| 2 | *(deliberately skipped)* | — |
+| 3 | `Status` → `Working - Contacted` | `First_Touch_DateTime__c` stamped, `SLA_Status__c = Met`, **still queue-owned** |
+| 4 | `Status` → `MQL` | `MQL_Basis__c` written — **identical text to `S7-HAPPY`.** The MQL gate does not read ownership. **Still queue-owned** |
+| 5 | **The critical test:** `Sales_Accepted__c = true` **+** `Status = SAL`, one save, `OwnerId` untouched | **THE SAVE SUCCEEDED.** No error. No rollback |
+
+**Persisted state of `S7-EXC` after the attempt:**
+
+```
+Status                     SAL
+OwnerId                    00Gaj00000VhQIMEA3
+Owner.Name                 NIQ North America Coverage
+Owner.Type                 Queue
+MQL_Basis__c               Qualified under MQL Policy v1.1: ... (full evidence)
+Sales_Accepted__c          true
+Sales_Accepted_At__c       2026-09-02T02:56:21Z
+Sales_Accepted_By__c       (populated)
+Sales_Acceptance_Basis__c  Accepted under Sales Acceptance Policy v1.0: explicit
+                           seller acceptance recorded; Marketing handoff
+                           substantiated by MQL evidence
+```
+
+### Result — **runtime-confirmed**
+
+> **`Lead_Inbound_Before_Save` v13 permits a Lead to enter the governed Sales Accepted stage,
+> carrying complete and correctly substantiated acceptance evidence, while ownership remains with a
+> coverage queue. No individual is accountable, and Salesforce raises nothing.**
+
+This is **not a defect in any rule.** Every gate did exactly what it was written to do. The active
+`Sales_Acceptance_Policy__mdt` declares two requirements — explicit acceptance and substantiated MQL
+evidence — and both were satisfied. **Accountability is simply not among the things the policy
+governs.** The gap is between two independently correct mechanisms, not inside either one.
+
+### The detective result — NorthstarIQ did not detect it
+
+An assessment was run against the live org immediately afterwards (Model v2, 108 records assessed,
+11 findings). **`S7-EXC` appears in the passing sample of every control that evaluated it**,
+including `sales-acceptance-sql` and `routing-exceptions`.
+
+| Control | Treatment of `S7-EXC` | Why |
+|---|---|---|
+| `routing-exceptions` | **passing** | Fails only on `Owner.Name = 'NIQ Routing Exception'`. A coverage queue is a successful routing outcome |
+| `sales-acceptance-sql` | **passing** | Evaluates the evidence the policy requires. All of it is present and correct |
+| `missing-firmographics`, `segment-consistency`, `missing-territory`, `sla-risk`, `ambiguous-match`, `lifecycle-progression` | **passing** | Nothing about the record is wrong on their terms |
+| `mql-integrity`, `lifecycle-conversion` | **not evaluated** | Correctly outside their populations at `SAL` |
+
+**No control reads `Owner.Type`.** It is queried and used only for display. The operational gap and
+the detective gap are therefore both real, and they are separate facts: one is what Salesforce
+allows, the other is what NorthstarIQ can currently see.
+
+### What these results do not establish
+
+**Not a claim about the proposed remediation.** `Sales_Acceptance_Policy__mdt.Require_Individual_Owner__c`
+does not exist. Flow v14 does not exist. Neither was created, simulated or tested. Nothing here
+establishes how a remediated gate would behave.
+
+**Not a defect in v13's F-7 remediation**, which concerned same-transaction sequencing and is
+untouched. F-7 was not reopened.
+
+**Not proof that this condition exists in historical data.** Before this run, the org held no
+accepted Lead that was queue-owned; the condition was created deliberately to test whether the
+platform permits it. **Its latent reachability is what was proven, not its prevalence.**
+
+**Not scale.** Two records.
+
+### Two disclosures
+
+**The acceptance actor was not the record owner.** `asgnSalesAcceptance` captures `$User.Id` from
+the authenticated session. Both saves ran under the Salesforce CLI's existing authenticated identity
+— the Revenue Operations administrator — because authenticating as `NIQ Seller` is a gated action
+outside this increment's authorisation. `S7-HAPPY` therefore records a `Sales_Accepted_By__c` that
+differs from its `OwnerId`, and `S7-EXC` records one that could not equal its queue owner in any
+case. **This does not affect the result**: the acceptance gate evaluates `Sales_Accepted__c` and
+`MQL_Basis__c` and reads no identity at all. It does mean the happy path demonstrates the *ownership*
+handoff, not a seller-authenticated acceptance.
+
+**No pre-existing record was touched.** All 72 Leads present before the run were captured
+field-by-field beforehand and re-read afterwards; the two projections hash identically
+(`sha256 e24e1d2f…`). Zero pre-existing records were modified, and none was deleted.
+
+---
+
 ## 3. Dataset Specification
 
 | Object | Count | Purpose |
