@@ -55,11 +55,25 @@ export function lead(overrides: Partial<LeadRecord> = {}): LeadRecord {
     Sales_Accepted_By__c: null,
     Sales_Acceptance_Basis__c: null,
     SQL_Basis__c: null,
+    /*
+     * No seller-decision commitment by default. The clean fixture has not
+     * reached Marketing qualification, so no deadline was ever issued - which
+     * is also the shape of every Lead that predates the commitment. A fixture
+     * that carried a deadline by default would make "unmeasurable is not a
+     * breach" untestable.
+     */
+    Acceptance_Due_DateTime__c: null,
+    Acceptance_Basis__c: null,
+    Acceptance_Status__c: null,
+    Sales_Rejected_At__c: null,
+    Sales_Rejected_By__c: null,
+    Sales_Rejection_Basis__c: null,
     // The three SELLER INPUTS in the sales evidence chain. Empty by default,
     // like the evidence fields: no baseline Lead has been through the governed
     // Sales handoff, and a fixture that quietly ticked the box would make the
     // "input is not evidence" boundary untestable.
     Sales_Accepted__c: false,
+    Sales_Rejection_Reason__c: null,
     Qualified_Need__c: null,
     Next_Step_Date__c: null,
     Territory__c: 'NA-West',
@@ -150,6 +164,20 @@ export const GOVERNANCE: LifecycleGovernance = {
     acceptedStage: 'SAL',
     requireExplicitAcceptance: true,
     requireMqlEvidence: true,
+    /*
+     * v1.0 did not govern ownership, and the shared Lead fixture is
+     * queue-owned. Leaving this false is what keeps every existing scenario
+     * measuring what it was written to measure; the ownership requirement is
+     * exercised against v1.1 in sales-acceptance-sql.test.ts.
+     */
+    requireIndividualOwner: false,
+    /*
+     * v1.0 issued no decision commitment either - the capability did not
+     * exist. Null is what makes every pre-existing scenario evaluate no
+     * seller-decision records at all, which is exactly how the control must
+     * behave against history.
+     */
+    acceptanceSlaHours: null,
   },
   sqlPolicy: {
     version: 'v1.0',

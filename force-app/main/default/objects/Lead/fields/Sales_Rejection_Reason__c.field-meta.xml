@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Sales_Rejection_Reason__c</fullName>
+    <description>BR-15, BR-16, PD-12. THE SELLER INPUT that records an explicit decline of the Marketing handoff: populating it IS the act of rejecting, which is why no separate checkbox exists to become a second source of the same fact. RESTRICTED picklist - a governed vocabulary is assessable by a later control where free-form notes are not, and each value routes to a different upstream owner. On a valid rejection Lead_Inbound_Before_Save writes the timestamp, the authenticated actor and the versioned basis, and it refuses the save unless an accountable individual owner holds the Lead - a coverage queue can no more decline a handoff than accept one. NOT disqualification, NOT Closed - Not Converted, and NOT lifecycle regression: the Lead remains MQL. Not a general disposition field, and not to be repurposed for outcomes it was never governed to express.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Why Sales declined this handoff. Selecting a reason records the rejection.</inlineHelpText>
+    <label>Sales Rejection Reason</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Not ICP</fullName>
+                <default>false</default>
+                <label>Not ICP</label>
+            </value>
+            <value>
+                <fullName>Insufficient Evidence</fullName>
+                <default>false</default>
+                <label>Insufficient Evidence</label>
+            </value>
+            <value>
+                <fullName>Wrong Territory or Ownership</fullName>
+                <default>false</default>
+                <label>Wrong Territory or Ownership</label>
+            </value>
+            <value>
+                <fullName>Timing — Not Sales Ready</fullName>
+                <default>false</default>
+                <label>Timing — Not Sales Ready</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

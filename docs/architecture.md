@@ -484,13 +484,91 @@ same transition check — not one merged qualification branch.
 **The detective half is now built.** The NorthstarIQ **Sales Acceptance / SQL Integrity** control
 reads the active acceptance policy, the acceptance actor, time and basis, `MQL_Basis__c`, and Lead
 Status history, and judges whether a SAL claim is substantiated — without recreating what acceptance
-means. ✅ **IMPLEMENTED and VALIDATED (2026-08-27)** · ⚠️ **UNSCORED** — absent from `CHECK_IDS` and
-`runAllChecks`, so Assessment Model v1 is unchanged.
+means. ✅ **IMPLEMENTED and VALIDATED (2026-08-27)**. It was introduced **unscored** — absent from
+`CHECK_IDS` and `runAllChecks`, leaving Assessment Model v1 unchanged — and has since been
+**registered**: it is in `CHECK_IDS` and runs with the rest under Model v2.
 
-**Rejection is out of scope, and the gap is stated.** `Closed - Not Converted` is reachable from every
-stage including MQL, but it is a **disqualification**, not a recorded *Sales rejection of a handoff* —
-it carries no reason and no actor. Treating the two as identical would be wrong. An explicit
-rejection disposition is a **future candidate**, deliberately not built here.
+**Rejection was out of scope here, and has since been built.** `Closed - Not Converted` is reachable
+from every stage including MQL, but it is a **disqualification**, not a recorded *Sales rejection of a
+handoff* — it carries no reason and no actor. Treating the two as identical would be wrong, and that
+distinction still holds. The explicit rejection disposition this section called a **future candidate**
+was subsequently implemented under Sales Acceptance Policy **v1.2**; see the currency note in
+[`implementation-log.md`](implementation-log.md) for what is and is not yet written up.
+
+### The governed seller decision — implemented (`BR-15`, `BR-16`, `PD-15`, `PD-16`)
+
+**A handoff that is never answered is the failure this closes.** Acceptance already proved that Sales
+*took* a Lead. It could not distinguish a seller still deciding from one who never looked, and it had
+no way to record a decline at all. The seller decision adds both halves: a bounded commitment issued
+when Marketing qualification is granted, and two governed ways to answer it.
+
+**The commitment is issued once and pinned.** On valid MQL entry `Lead_Inbound_Before_Save` reads the
+active acceptance policy and, when that policy declares `Acceptance_SLA_Hours__c`, writes
+`Acceptance_Due_DateTime__c` together with `Acceptance_Basis__c` in a single assignment — so a
+deadline can never exist without the evidence naming the policy that set it. **Persisted, not
+derived**: a declarative formula can reference Custom Metadata only by naming a record at authoring
+time, so a formula could never follow the *active* policy, and pinning the deadline means a later
+policy version cannot retroactively move a commitment already given. The time basis is the same
+**documented weekend-aware approximation** the response SLA uses — reusing `fxStartAdj` rather than
+restating it, since only the duration differs. It is **not** Salesforce Business Hours and **not**
+holiday-aware; that remains the `PD-05` gap.
+
+**Accountable ownership gates both answers.** `Require_Individual_Owner__c` asks positively whether
+the owner is a User — a Lead owner is a User (`005`) or a Queue (`00G`), and a positive test refuses
+anything unexpected rather than admitting it. A coverage queue is valid routing ownership before
+seller pickup and insufficient ownership once a decision is claimed, so a queue can no more decline a
+handoff than accept one. **This is the governed NorthstarIQ policy, not Salesforce behaviour** —
+Salesforce is perfectly willing to hold an accepted Lead on a queue.
+
+**Two governed outcomes, one at a time.**
+
+| Path | What the seller does | What the Flow writes | Lifecycle result |
+|---|---|---|---|
+| **Acceptance** | ticks `Sales_Accepted__c` and moves to the accepted stage | `Sales_Accepted_At__c` · `_By__c` · `Sales_Acceptance_Basis__c` | Lead advances to `SAL` |
+| **Rejection** | selects a governed `Sales_Rejection_Reason__c` | `Sales_Rejected_At__c` · `_By__c` · `Sales_Rejection_Basis__c` | **Lead stays at MQL, owner unchanged** |
+
+Populating the reason **is** the act of rejecting, which is why no companion checkbox exists to
+disagree with it. Rejection changes neither `Status` nor `OwnerId`: handing a declined Lead back to a
+queue is a routing decision that has not been governed, and is deliberately not taken here.
+
+**One Lead carries one seller decision.** A single guard refuses a rejection when an acceptance
+already stands, and the acceptance test refuses when a rejection stands **or is being claimed in the
+same save** — it reads the incoming reason as well as the stamp, because in a save claiming both the
+rejection stamp has not been written yet. Reversing a recorded decision is **outside MVP scope**: it
+would need its own authority and its own evidence, and half-building it would leave a record that
+cannot explain itself.
+
+**The rejection gate sits where every path converges.** A rejection is not a `Status` change, so a
+guard placed only on the transition branch would be reachable around. Create, lifecycle transition
+and plain update all pass through the same decision, and `ISCHANGED(Sales_Rejection_Reason__c)` was
+added to the entry criteria so the Flow runs for a decision that changes no stage.
+
+**Policy succession, not policy editing.** The acceptance policy has moved v1.0 → v1.1 → v1.2, each
+step an **atomic two-record deployment** that activates the new version and deactivates the old one
+together, so the org is never left with zero active policies or two. Outgoing versions keep every
+requirement value they had; only `Is_Active__c` changes. `docs/data-model.md` owns the record table.
+
+**Salesforce executing the Flow is not proof of compliance.** The preventive safeguard decides what
+may be *written*; it says nothing about what a record looks like afterwards. Ownership keeps moving
+after a decision, so a Lead accepted by a named seller and later handed back to a coverage pool passes
+every gate and still ends up with nobody accountable. **NorthstarIQ therefore judges the resulting
+state and its evidence independently** — reading the persisted basis strings and the *current* owner,
+never re-running the Flow's logic and never treating a successful save as a finding of compliance.
+That division is the point of the whole design: **preventive stops an invalid decision; detective
+reports a valid decision that has since decayed.**
+
+**`Acceptance_Status__c`** derives the current state in one precedence — Not Applicable → Accepted →
+Rejected → Overdue → Pending — from persisted evidence only, with no Custom Metadata reference. The
+Salesforce page and the NorthstarIQ control therefore read **one** definition rather than each keeping
+its own. There is deliberately no `Malformed` state: a malformed decision never persists, because the
+safeguard blocks the save and the transaction rolls back.
+
+**Evidence status.** Flow **v15** active (v14 retained as the rollback target) · acceptance policy
+**v1.2** active. Commitment issuance, Pending, governed rejection, governed acceptance, the
+queue-owned rejection block and both mutual-exclusivity directions are **runtime-confirmed**.
+⚠️ The `Overdue` state is **synthetic test evidence only**, and the decision **actor** is the
+CLI-authenticated administrator rather than the Lead owner — see
+[`testing-strategy.md`](testing-strategy.md) §2w.
 
 ### SQL qualification — implemented (`BR-15`, `BR-17`, `PD-14`)
 

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Acceptance_Status__c</fullName>
+    <description>BR-15, BR-16, PD-12. The current seller-decision state, derived from persisted Lead evidence ONLY - no Custom Metadata reference, because a declarative formula can name a CMDT record only at authoring time and could therefore never follow the ACTIVE policy. That constraint is exactly why the deadline itself is persisted by the Flow rather than computed here. Same shape as SLA_Status__c: one definition read by both the Salesforce UI and the NorthstarIQ control, so neither re-implements the other. PRECEDENCE IS THE POINT - Accepted outranks Rejected, but the two can never coexist because Lead_Inbound_Before_Save refuses a second seller decision; the ordering is a safety net, not the enforcement. There is deliberately no "Malformed" state: a malformed decision never persists, because the safeguard blocks the save and the transaction rolls back.</description>
+    <externalId>false</externalId>
+    <formula>IF(
+  ISBLANK(Acceptance_Due_DateTime__c),
+  "Not Applicable",
+  IF(
+    NOT(ISBLANK(Sales_Accepted_At__c)),
+    "Accepted",
+    IF(
+      NOT(ISBLANK(Sales_Rejected_At__c)),
+      "Rejected",
+      IF(
+        NOW() &gt; Acceptance_Due_DateTime__c,
+        "Overdue",
+        "Pending"
+      )
+    )
+  )
+)</formula>
+    <formulaTreatBlanksAs>BlankAsBlank</formulaTreatBlanksAs>
+    <inlineHelpText>Current seller-decision state. Derived - not editable by anyone.</inlineHelpText>
+    <label>Acceptance Status</label>
+    <required>false</required>
+    <trackTrending>false</trackTrending>
+    <type>Text</type>
+    <unique>false</unique>
+</CustomField>

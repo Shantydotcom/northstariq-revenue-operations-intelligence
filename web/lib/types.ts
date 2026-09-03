@@ -42,7 +42,8 @@ export type CheckId =
   | 'lifecycle-conversion'
   | 'mql-integrity'
   | 'lifecycle-progression'
-  | 'sales-acceptance-sql';
+  | 'sales-acceptance-sql'
+  | 'seller-decision-timeliness';
 
 /** One column of finding evidence. `mono` renders values in a monospace face. */
 export interface EvidenceColumn {

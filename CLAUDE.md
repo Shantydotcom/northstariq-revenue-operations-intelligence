@@ -150,6 +150,49 @@ and never writes to it.
 consequential. Do not create a second source of truth for a rule, constant or calculation that
 already exists.
 
+**Change completeness** — **any Salesforce configuration introduced by NorthstarIQ must be
+evaluated for change completeness across applicable dependencies: business requirement, metadata,
+security/access, automation, UX, integrations, reporting, deployment, validation, and evidence.**
+A change is not complete because its metadata deployed. A field created without deciding who may
+edit it, automation added without deciding what a blank value does, system-written evidence left
+casually editable, or policy metadata changed without preserving which version governed an earlier
+decision are each technically valid and operationally incomplete.
+
+| Dependency | The question it asks |
+|---|---|
+| Business requirement | Which governed requirement demands this, what behaviour is expected, and what is explicitly out of scope? |
+| Metadata | Right type, length, values and dependencies? Does it need versioning, and are historical definitions preserved intact? |
+| Security / access | Who reads, who edits, what does an integration actually need — and is system-written evidence protected from casual editing? (*Least privilege*, above) |
+| Automation | What reads or writes it? Precise entry criteria and change detection · safe null and blank behaviour · bulk-safe · no overwriting of protected evidence |
+| UX | Does a person genuinely need to see, edit or act on it? If not, say so and build nothing. |
+| Integrations | Does NorthstarIQ or another approved integration read it? Does the query contract change? Could an integration overwrite governed evidence? |
+| Reporting | Does governed reporting depend on it, and does the change alter a metric's meaning or its historical interpretation? |
+| Deployment | Smallest safe unit · check-only first · capability separable from activation · rollback target · explicit target org (§17) |
+| Validation | The smallest set of layers that actually proves the behaviour — not every layer every time |
+| Evidence | What proves it exists, that it behaves, and which rule version governed an earlier decision — classified honestly under §9 |
+
+**Applicable is not mandatory.** A dependency is *applicable* when it could materially affect the
+correctness, security, operability, user experience, integration behaviour, reporting semantics,
+deployment safety, validation or evidentiary integrity of the change. Consider all ten; implement
+only what the change actually needs, and record the rest as **Not applicable** with its reason.
+Adding a page layout or a report so that every row can say "implemented" is the failure this rule
+exists to prevent, not compliance with it. The order above is a completeness model, not a sequence
+to execute.
+
+The output is a short list of applicable / not-applicable judgements with one reason each, stated in
+the task's own reporting. **It is a reasoning aid, not an artifact** — do not create a document,
+template or checklist file for it unless the change itself warrants one.
+
+**It evaluates; it does not authorise.** Completeness review happens *before* the approval gates in
+§8 and §17 and grants nothing they withhold. Where the change alters behaviour or state, judge
+whether controlled recovery applies — enough pre-mutation evidence to reverse an approved change
+safely, proportionate to the risk of that change and never a backup product.
+
+**This governs configuration NorthstarIQ itself introduces.** It is not an assessment area, a
+detector, a finding category, a metadata scanner or a product capability, and it audits no existing
+configuration retrospectively. Evaluating a *client's* Salesforce configuration this way would be
+new product scope requiring its own approval.
+
 **Do not encode mutable Salesforce facts in this file or in any skill** — authentication mechanism,
 Connected App, username, permission-set name, org ID, instance URL, token behaviour, or current
 field / CMDT / Flow / record counts. Discover them when needed.

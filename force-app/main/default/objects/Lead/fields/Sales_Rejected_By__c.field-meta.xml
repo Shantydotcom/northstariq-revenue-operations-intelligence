@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Sales_Rejected_By__c</fullName>
+    <description>BR-15, BR-16, PD-12. Who declined the handoff, captured from the authenticated Salesforce identity at the moment of rejection - never free text and never inferred. DELIBERATELY NOT OwnerId: ownership is reassignable, while the rejection is who declined responsibility at a point in time. Also NOT LastModifiedById, which any later edit overwrites - the identical reasoning already settled for Sales_Accepted_By__c. Field history does not track a decision actor and is retention-limited, so it cannot substitute either.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Who declined this handoff. Set by automation - do not edit.</inlineHelpText>
+    <label>Sales Rejected By</label>
+    <deleteConstraint>SetNull</deleteConstraint>
+    <referenceTo>User</referenceTo>
+    <relationshipLabel>Leads Rejected</relationshipLabel>
+    <relationshipName>Leads_Rejected</relationshipName>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Lookup</type>
+</CustomField>

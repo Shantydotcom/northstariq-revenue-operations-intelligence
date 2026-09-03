@@ -87,6 +87,30 @@ export interface LeadRecord {
   Sales_Acceptance_Basis__c: string | null;
   SQL_Basis__c: string | null;
   /*
+   * The seller-decision commitment and its outcome.
+   *
+   * `Acceptance_Due_DateTime__c` is the deadline AS IT WAS ISSUED at MQL
+   * entry, not a deadline recomputed now: the Flow persists it precisely so a
+   * later policy change cannot move a commitment that was already given.
+   * `Acceptance_Status__c` is a formula, so the control and the Salesforce UI
+   * read one definition rather than each keeping its own.
+   *
+   * The rejection trio mirrors the acceptance trio and is judged the same way
+   * - the basis is the immutable evidence, the reason picklist is the seller
+   * input that records the decline.
+   */
+  Acceptance_Due_DateTime__c: string | null;
+  /*
+   * The provenance half of the commitment: which policy issued that deadline,
+   * and on what time basis. Read because the deadline alone cannot survive
+   * policy succession - it stays correct, but stops being explainable.
+   */
+  Acceptance_Basis__c: string | null;
+  Acceptance_Status__c: string | null;
+  Sales_Rejected_At__c: string | null;
+  Sales_Rejected_By__c: string | null;
+  Sales_Rejection_Basis__c: string | null;
+  /*
    * The two SELLER INPUTS in the sales evidence chain, and the one seller
    * input in the acceptance chain. Deliberately typed and read alongside the
    * evidence fields but NEVER treated as equivalent to them: a checkbox, a
@@ -100,6 +124,12 @@ export interface LeadRecord {
    * interprets it and nothing is served by querying it.
    */
   Sales_Accepted__c: boolean;
+  /*
+   * The seller input that records a decline. Populating it IS the rejection,
+   * which is why there is no companion checkbox to disagree with it. Read for
+   * context; the immutable `Sales_Rejection_Basis__c` is what gets judged.
+   */
+  Sales_Rejection_Reason__c: string | null;
   Qualified_Need__c: string | null;
   Next_Step_Date__c: string | null;
   Data_Quality_Status__c: string | null;
@@ -262,7 +292,8 @@ export interface SegmentEligibilityRecord {
  */
 export const SALES_ACCEPTANCE_POLICY_SOQL = `
 SELECT Policy_Version__c, Accepted_Stage__c,
-       Require_Explicit_Acceptance__c, Require_MQL_Evidence__c
+       Require_Explicit_Acceptance__c, Require_MQL_Evidence__c,
+       Require_Individual_Owner__c, Acceptance_SLA_Hours__c
 FROM Sales_Acceptance_Policy__mdt
 WHERE Is_Active__c = true
 `.trim().replace(/\s+/g, ' ');
@@ -280,6 +311,8 @@ export interface SalesAcceptancePolicyRecord {
   Accepted_Stage__c: string | null;
   Require_Explicit_Acceptance__c: boolean;
   Require_MQL_Evidence__c: boolean;
+  Require_Individual_Owner__c: boolean;
+  Acceptance_SLA_Hours__c: number | null;
 }
 
 export interface SqlPolicyRecord {
@@ -297,6 +330,9 @@ SELECT Id, Name, Company, LeadSource, Status, NumberOfEmployees, CountryCode, St
        Routing_Reason__c, Exception_Type__c, MQL_Basis__c,
        Lifecycle_Stage_Entered__c, Sales_Accepted_At__c, Sales_Accepted_By__c,
        Sales_Acceptance_Basis__c, Sales_Accepted__c, SQL_Basis__c,
+       Acceptance_Due_DateTime__c, Acceptance_Basis__c, Acceptance_Status__c,
+       Sales_Rejected_At__c, Sales_Rejected_By__c,
+       Sales_Rejection_Reason__c, Sales_Rejection_Basis__c,
        Qualified_Need__c, Next_Step_Date__c,
        Data_Quality_Status__c, Data_Quality_Detail__c,
        SLA_Status__c, SLA_Target_DateTime__c, First_Touch_DateTime__c, SLA_Basis__c,

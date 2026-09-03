@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Acceptance_Due_DateTime__c</fullName>
+    <description>BR-15, BR-16, PD-12. The seller-decision commitment issued when the Lead validly entered MQL: the moment by which Sales must have accepted or explicitly rejected the handoff. A NORTHSTARIQ SYNTHETIC BUSINESS POLICY, not Salesforce behaviour and not a universal RevOps rule. PERSISTED, NOT DERIVED, for the same reason SLA_Target_DateTime__c is: the commitment is pinned as it was issued, so a later policy change cannot retroactively move a deadline that was already given. Lifecycle_Stage_Entered__c cannot substitute - it is overwritten on the next transition and stops answering when MQL was entered. LeadHistory records the transition but no formula field can read it, and history is retention-limited. TIME BASIS: the same documented weekend-aware approximation used for the response SLA - NOT Salesforce Business Hours, and it does NOT honour Holiday records. Written only by Lead_Inbound_Before_Save at the moment MQL is granted.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>When a Sales decision on this MQL is due. Set by automation - do not edit.</inlineHelpText>
+    <label>Acceptance Due</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

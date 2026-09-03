@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 
 import {
   salesAcceptanceSqlIntegrity,
+  salesAcceptanceRequirements,
   runAllChecks,
   CHECK_IDS,
 } from '../lib/checks/index.ts';
@@ -40,12 +41,32 @@ import type {
 } from '../lib/soql.ts';
 import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, lead, opportunity } from './fixtures.ts';
 
-/** The two active policies as Salesforce currently declares them. */
+/**
+ * The acceptance policy as v1.0 declared it - the definition every existing
+ * scenario below was written against, and under which the shared Lead fixture's
+ * queue ownership decides nothing.
+ */
 const ACCEPTANCE: SalesAcceptancePolicy = {
   version: 'v1.0',
   acceptedStage: 'SAL',
   requireExplicitAcceptance: true,
   requireMqlEvidence: true,
+  requireIndividualOwner: false,
+  // v1.0 issued no decision commitment; the capability did not exist.
+  acceptanceSlaHours: null,
+};
+
+/**
+ * v1.1 - the same two requirements plus an accountable individual owner.
+ *
+ * A SEPARATE POLICY, not a mutated one, exactly as Salesforce holds it: v1.0
+ * stays truthful for the Leads that recorded it, and a Lead accepted under
+ * v1.0 is never retroactively judged against this.
+ */
+const ACCEPTANCE_V11: SalesAcceptancePolicy = {
+  ...ACCEPTANCE,
+  version: 'v1.1',
+  requireIndividualOwner: true,
 };
 
 const SQL: SqlQualificationPolicy = {
@@ -407,6 +428,8 @@ const salRecord = (v: string): SalesAcceptancePolicyRecord => ({
   Accepted_Stage__c: 'SAL',
   Require_Explicit_Acceptance__c: true,
   Require_MQL_Evidence__c: true,
+  Require_Individual_Owner__c: false,
+  Acceptance_SLA_Hours__c: null,
 });
 
 const sqlRecord = (v: string): SqlPolicyRecord => ({
@@ -458,6 +481,8 @@ test('valid policy records resolve to exactly what Salesforce declared', () => {
       acceptedStage: 'SAL',
       requireExplicitAcceptance: true,
       requireMqlEvidence: false,
+      requireIndividualOwner: false,
+      acceptanceSlaHours: null,
     },
   );
   assert.deepEqual(
@@ -558,4 +583,125 @@ test('unmeasurable records change neither the numerator nor the denominator', ()
   assert.equal(withUnmeasurable.failing, clean.failing);
   assert.equal(withUnmeasurable.score, clean.score);
   assert.equal(withUnmeasurable.unmeasurableCount, 2);
+});
+
+/* ------------------------------- 23. accountable individual ownership (v1.1) */
+/*
+ * The governed rule Increment 7.2 adds: acceptance transfers responsibility to
+ * a person, so a Lead accepted while a coverage queue still holds it has
+ * nobody accountable for it.
+ *
+ * This is a NorthstarIQ policy decision, not Salesforce behaviour - Salesforce
+ * permits queue ownership at any stage, which is exactly what Increment 7.1
+ * confirmed at runtime. Every case below reads the requirement off the policy,
+ * so the same switch that stops the Flow enforcing it stops this control
+ * reporting it.
+ *
+ * Under v1.1 the basis text names the third requirement, and the version has
+ * to match or the version guard - correctly - refuses to judge at all.
+ */
+const SAL_BASIS_V11 =
+  'Accepted under Sales Acceptance Policy v1.1: explicit seller acceptance recorded; Marketing handoff substantiated by MQL evidence; accountable individual owner in place';
+
+/** Accepted under v1.1, still held by the coverage queue the fixture defaults to. */
+const acceptedV11Queue = () => accepted({ Sales_Acceptance_Basis__c: SAL_BASIS_V11 });
+
+/** The same, taken by a named seller. */
+const acceptedV11User = () =>
+  accepted({
+    Sales_Acceptance_Basis__c: SAL_BASIS_V11,
+    Owner: { Name: 'NIQ Seller', Type: 'User' },
+  });
+
+test('policy off: a queue-owned acceptance raises no ownership contradiction', () => {
+  const r = run([accepted()], { acceptance: ACCEPTANCE });
+  assert.equal(r.evaluated, 1);
+  assert.equal(r.failing, 0, 'v1.0 governs acceptance evidence, not ownership');
+});
+
+test('policy on: a queue-owned acceptance is a contradiction', () => {
+  const r = run([acceptedV11Queue()], { acceptance: ACCEPTANCE_V11 });
+  assert.equal(r.evaluated, 1);
+  assert.equal(r.failing, 1);
+  assert.match(String(r.evidence[0].Result), /no individual is accountable for it/);
+  assert.match(
+    String(r.evidence[0].Result),
+    /NIQ North America/,
+    'the queue actually holding it is named, not "a queue"',
+  );
+});
+
+test('policy on: an individually owned acceptance passes', () => {
+  const r = run([acceptedV11User()], { acceptance: ACCEPTANCE_V11 });
+  assert.equal(r.evaluated, 1);
+  assert.equal(r.failing, 0);
+});
+
+test('the ownership requirement is read from the policy, not hard-coded', () => {
+  const queueOwned = acceptedV11Queue();
+  assert.equal(
+    run([queueOwned], { acceptance: { ...ACCEPTANCE_V11, requireIndividualOwner: false } }).failing,
+    0,
+    'switching the requirement off in Salesforce switches off detection too',
+  );
+  assert.equal(run([queueOwned], { acceptance: ACCEPTANCE_V11 }).failing, 1);
+});
+
+test('an acceptance recorded under a superseded version is not judged against v1.1', () => {
+  /*
+   * The S7-EXC shape: accepted queue-owned under v1.0, which did not govern
+   * ownership. Convicting it under a rule that post-dates it would be exactly
+   * the retroactive judgement the version guard exists to prevent.
+   */
+  const r = run([accepted()], { acceptance: ACCEPTANCE_V11 });
+  assert.equal(r.failing, 0);
+  assert.equal(r.evaluated, 0);
+  assert.equal(r.unmeasurableCount, 1);
+  assert.match(String(r.notEvaluatedRows[0].Reason), /Sales Acceptance Policy v1\.0/);
+});
+
+test('ownership survives to SQL: a queue-owned qualified Lead is still unaccountable', () => {
+  const r = run([qualified({ Sales_Acceptance_Basis__c: SAL_BASIS_V11 })], {
+    acceptance: ACCEPTANCE_V11,
+  });
+  assert.equal(r.failing, 1);
+  assert.match(String(r.evidence[0].Result), /no individual is accountable/);
+});
+
+test('Owner is proving evidence and carries the owner actually recorded', () => {
+  const r = run([acceptedV11Queue()], { acceptance: ACCEPTANCE_V11 });
+  const owner = r.evidenceColumns.find((c) => c.key === 'Owner');
+  assert.ok(owner, 'the control exposes the owner it decided on');
+  assert.equal(owner.proving, true);
+  assert.equal(r.evidence[0].Owner, 'NIQ North America');
+});
+
+test('the v1.1 requirement labels state the rule in business language', () => {
+  assert.deepEqual(salesAcceptanceRequirements(ACCEPTANCE_V11), [
+    'a named seller explicitly accepted the Lead',
+    'the Marketing handoff it accepted was itself substantiated',
+    'an individual seller, not a queue, is accountable for it',
+  ]);
+  assert.equal(salesAcceptanceRequirements(ACCEPTANCE).length, 2);
+});
+
+test('the ownership requirement does not disturb SQL qualification', () => {
+  /* A clean v1.1 chain owned by a seller: acceptance and SQL both intact. */
+  const r = run([qualified({ Sales_Acceptance_Basis__c: SAL_BASIS_V11, Owner: { Name: 'NIQ Seller', Type: 'User' } })], {
+    acceptance: ACCEPTANCE_V11,
+  });
+  assert.equal(r.failing, 0);
+  /* And an SQL defect is still caught, unchanged, alongside the new rule. */
+  const broken = run(
+    [
+      qualified({
+        Sales_Acceptance_Basis__c: SAL_BASIS_V11,
+        Owner: { Name: 'NIQ Seller', Type: 'User' },
+        SQL_Basis__c: 'Qualified under SQL Policy v1.0: next step 2026-06-20; substantiated Sales acceptance',
+      }),
+    ],
+    { acceptance: ACCEPTANCE_V11 },
+  );
+  assert.equal(broken.failing, 1);
+  assert.match(String(broken.evidence[0].Result), /no business need confirmed/);
 });

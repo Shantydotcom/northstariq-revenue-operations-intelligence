@@ -613,6 +613,83 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
     evidencePath: 'force-app/main/default/objects/MQL_Qualification_Policy__mdt/MQL_Qualification_Policy__mdt.object-meta.xml',
   },
 
+  'seller-decision-timeliness': {
+    label: 'Sales Decisions Overdue on Marketing-Qualified Handoffs',
+    checkName: 'Seller Decision Timeliness',
+    blurb: 'Marketing-qualified Leads past their decision deadline with no acceptance and no explicit rejection.',
+    headlinePredicate:
+      'Marketing-qualified Leads are past their seller-decision deadline with no decision recorded.',
+    queueDescription:
+      'Leads whose seller-decision commitment has expired without an acceptance or an explicit rejection.',
+    populationNoun: 'Leads carrying a seller-decision commitment',
+    denominator: true,
+    unit: 'leads',
+    why: 'A handoff nobody answers is worse than one that is declined. Marketing cannot tell whether its qualification was wrong or simply unread, the prospect waits while neither function owns the next move, and the cost is invisible because nothing in the record says a decision was ever owed.',
+    control:
+      'A Lead that validly enters MQL is given a decision commitment, and Sales is expected to answer it within that window — either by accepting the handoff or by explicitly declining it with a governed reason. Both answers close the loop; only silence leaves it open.',
+    recheck:
+      'Either the seller accepts the handoff, or declines it with a governed reason. Re-running the assessment re-reads the deadline the record was actually given and the decision state Salesforce derives from it.',
+    finding: (f, e) =>
+      `${f} of ${e} Leads carrying a seller-decision commitment ${f === 1 ? 'is' : 'are'} past the deadline with no acceptance and no explicit rejection recorded.`,
+    explain: {
+      inScope:
+        'because a seller-decision commitment was actually issued on them when they entered Marketing qualification',
+      notClaimed:
+        'have not reached Marketing qualification, so no seller decision has been requested on them',
+      notEvaluated:
+        'either have not reached Marketing qualification, or reached it before the acceptance policy issued a decision commitment — a Lead that was never given a deadline cannot have missed one, and counting it as a breach would overstate the problem exactly as an unmeasurable response would',
+      proves:
+        'A pass means a decision was recorded inside the window the record was given, or the window has not yet closed. It does not mean the decision was commercially correct, and an explicit rejection passes this control precisely because the seller answered — a completed decision, never a won deal.',
+    },
+    sourceEvidence: {
+      intro:
+        'Where the commitment comes from, and why the deadline is read rather than recalculated.',
+      pairs: [
+        {
+          term: 'Salesforce Custom Metadata — Sales Acceptance Policy',
+          detail:
+            'One active record states how long Sales has, from valid MQL entry, to answer the handoff. A version carrying no decision hours issues no commitment at all, which is how every version before this capability behaves. NorthstarIQ reads the governed record rather than restating the duration.',
+        },
+        {
+          term: 'The decision commitment recorded on the Lead',
+          detail:
+            'Written by the intake Flow at the moment Marketing qualification is granted, and never rewritten. The deadline is judged AS IT WAS ISSUED — recalculating it from whichever policy is active today would silently move a commitment the Lead was already given, and would put a second copy of the time calculation outside Salesforce.',
+        },
+        {
+          term: 'The derived decision state',
+          detail:
+            'A Salesforce formula deciding between Not Applicable, Accepted, Rejected, Overdue and Pending from the deadline and the two decision stamps. The assessment reads that one definition rather than keeping its own, so the Lead page and the finding can never disagree.',
+        },
+        {
+          term: 'Not the response SLA — a different commitment',
+          detail:
+            'The 4-hour response commitment measures intake to first seller touch and is held per segment. This one measures Marketing qualification to a seller decision and is held on the acceptance policy. Different start, different stop, different accountable act. Neither is renamed or reused to serve the other.',
+        },
+      ],
+    },
+    safeguard: {
+      kind: 'detective',
+      title: 'Nothing in Salesforce prevents a seller from simply not answering',
+      body: 'A deadline passing is the absence of an event, and no before-save automation can fire on the passage of time — preventing this would need scheduled automation the MVP deliberately does not carry. So the commitment is issued and pinned preventively at MQL entry, and the silence that follows is detected here. The preventive half governs what a decision must satisfy; this half reports the decision that was never made.',
+      tech: [
+        'Lead_Inbound_Before_Save',
+        'Sales_Acceptance_Policy__mdt',
+        'Lead.Acceptance_Due_DateTime__c',
+        'Lead.Acceptance_Status__c',
+        'Lead.Sales_Rejected_At__c',
+      ],
+    },
+    verification: [
+      'A commitment is issued only when the active policy declares decision hours; a policy declaring none issues nothing and the control evaluates no record',
+      'A Lead inside its decision window is Pending and is not reported as a finding',
+      'A governed rejection stops the clock exactly as an acceptance does, and both pass',
+      'A Lead that reached Marketing qualification before commitments existed is reported as unmeasurable, never as a breach',
+    ],
+    verificationSource:
+      'Application unit tests against fixture records. ⚠️ SYNTHETIC TEST EVIDENCE — the overdue case is proved against a fixture carrying a past deadline, because manufacturing one in Salesforce would mean waiting out the real window or tampering with governed configuration. Live overdue evidence is obtainable naturally once an undecided commitment expires, and has not yet been recorded.',
+    evidencePath:
+      'force-app/main/default/objects/Lead/fields/Acceptance_Due_DateTime__c.field-meta.xml',
+  },
   'sales-acceptance-sql': {
     label: 'Sales Handoff and Qualification Evidence Conflicts',
     checkName: 'Sales Handoff & Qualification',

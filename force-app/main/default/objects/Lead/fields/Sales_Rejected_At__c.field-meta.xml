@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Sales_Rejected_At__c</fullName>
+    <description>BR-15, BR-16, PD-12. When Sales explicitly declined the MQL handoff. STOPS THE DECISION CLOCK: without a persisted rejection time an on-time rejection and a late one are indistinguishable, so the commitment could not be measured at all. A SEPARATE FIELD FROM Lifecycle_Stage_Entered__c for the same reason as Sales_Accepted_At__c - that one is overwritten on every later transition. Rejection is NOT disqualification and NOT Closed - Not Converted; the Lead remains MQL. Written only by Lead_Inbound_Before_Save at the moment a governed rejection is recorded.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>When Sales declined this handoff. Set by automation - do not edit.</inlineHelpText>
+    <label>Sales Rejected At</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>DateTime</type>
+</CustomField>

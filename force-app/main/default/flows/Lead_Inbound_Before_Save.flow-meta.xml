@@ -346,7 +346,7 @@
             </value>
         </assignmentItems>
         <connector>
-            <targetReference>decRoutingEligible</targetReference>
+            <targetReference>getDecisionPolicy</targetReference>
         </connector>
     </assignments>
     <assignments>
@@ -360,6 +360,13 @@
             <operator>Assign</operator>
             <value>
                 <elementReference>fxMQLBasis</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>varMQLGranted</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <booleanValue>true</booleanValue>
             </value>
         </assignmentItems>
         <connector>
@@ -428,11 +435,66 @@
             </value>
         </assignmentItems>
         <connector>
+            <targetReference>getDecisionPolicy</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <description>BR-15, BR-16, PD-12. Captures the rejection event: WHEN it happened, WHO declined it from the authenticated identity, and WHY it was permitted including the policy version in force. Reached only after every requirement passed, so a refused attempt can never leave evidence behind. OWNERSHIP IS NOT TOUCHED and neither is Status: the Lead remains MQL with its seller, because handing a declined Lead back to a queue is a routing decision that has not been governed.</description>
+        <name>asgnRejectionEvidence</name>
+        <label>Capture Sales Rejection Evidence</label>
+        <locationX>974</locationX>
+        <locationY>218</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Sales_Rejected_At__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>$Flow.CurrentDateTime</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Sales_Rejected_By__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>$User.Id</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Sales_Rejection_Basis__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxRejectionBasis</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
+            <targetReference>decMQLCommitment</targetReference>
+        </connector>
+    </assignments>
+    <assignments>
+        <description>BR-15, BR-16, PD-12. Issues the seller-decision commitment at the moment MQL is granted. PERSISTED, NOT DERIVED: a formula field cannot follow the ACTIVE policy - Custom Metadata is reachable from a formula only by naming a record at authoring time - and pinning the deadline as issued means a later policy change cannot retroactively move a commitment already given. The time basis is the documented weekend-aware approximation, not Salesforce Business Hours.</description>
+        <name>asgnAcceptanceCommitment</name>
+        <label>Issue Seller Decision Commitment</label>
+        <locationX>974</locationX>
+        <locationY>326</locationY>
+        <assignmentItems>
+            <assignToReference>$Record.Acceptance_Due_DateTime__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxAcceptanceDue</elementReference>
+            </value>
+        </assignmentItems>
+        <assignmentItems>
+            <assignToReference>$Record.Acceptance_Basis__c</assignToReference>
+            <operator>Assign</operator>
+            <value>
+                <elementReference>fxAcceptanceBasis</elementReference>
+            </value>
+        </assignmentItems>
+        <connector>
             <targetReference>decRoutingEligible</targetReference>
         </connector>
     </assignments>
     <customErrors>
-        <description>BR-15, BR-16, PD-12. Blocks entry into the governed accepted stage when Sales has not explicitly accepted, or when the Marketing handoff it would be accepting is unsubstantiated. Names the requirements that were not satisfied without exposing field names. The whole save is rolled back: Status, the stage timestamp and all three acceptance evidence fields are left exactly as they were.</description>
+        <description>BR-15, BR-16, PD-12. Blocks entry into the governed accepted stage when Sales has not explicitly accepted, when the Marketing handoff it would be accepting is unsubstantiated, or when no individual owner is accountable for it. Names the requirements that were not satisfied without exposing field names. The whole save is rolled back: Status, the stage timestamp and all three acceptance evidence fields are left exactly as they were, and ownership is untouched - a refusal never reassigns the Lead.</description>
         <name>errSalesNotAccepted</name>
         <label>Block Unaccepted SAL Entry</label>
         <locationX>1502</locationX>
@@ -472,6 +534,17 @@
         <locationY>566</locationY>
         <customErrorMessages>
             <errorMessage>This lifecycle transition is not allowed by the governed NorthstarIQ lifecycle policy: {!fxPriorStage} to {!fxNewStage}.</errorMessage>
+            <isFieldError>false</isFieldError>
+        </customErrorMessages>
+    </customErrors>
+    <customErrors>
+        <description>BR-15, BR-16, PD-12. Blocks a Sales rejection the governed policy does not permit - no handoff to decline, no accountable individual owner, or a seller decision already recorded. The whole save is rolled back, so the reason is never left behind on the record without its evidence.</description>
+        <name>errRejectionNotPermitted</name>
+        <label>Block Ungoverned Sales Rejection</label>
+        <locationX>842</locationX>
+        <locationY>218</locationY>
+        <customErrorMessages>
+            <errorMessage>{!fxRejectionFailureDetail}</errorMessage>
             <isFieldError>false</isFieldError>
         </customErrorMessages>
     </customErrors>
@@ -837,7 +910,7 @@
         <locationX>1106</locationX>
         <locationY>0</locationY>
         <defaultConnector>
-            <targetReference>decRoutingEligible</targetReference>
+            <targetReference>getDecisionPolicy</targetReference>
         </defaultConnector>
         <defaultConnectorLabel>No lifecycle change</defaultConnectorLabel>
         <rules>
@@ -1051,6 +1124,80 @@
                 <targetReference>getMQLPolicy</targetReference>
             </connector>
             <label>Allowed</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-15, BR-16, PD-12. Is a governed Sales rejection being recorded, and is it permitted? Placed where every path converges - create, lifecycle transition and plain update alike - because a rejection is not a Status change and would otherwise be reachable on a route that never checks it. Two rules evaluated in order: a permitted rejection is recorded, and any other claimed rejection is refused. A save claiming nothing simply passes through.</description>
+        <name>decSellerDecision</name>
+        <label>Governed Seller Rejection?</label>
+        <locationX>1106</locationX>
+        <locationY>218</locationY>
+        <defaultConnector>
+            <targetReference>decMQLCommitment</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No rejection claimed</defaultConnectorLabel>
+        <rules>
+            <name>ruleRejectionPermitted</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxRejectionClaimed</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <conditions>
+                <leftValueReference>fxRejectionPermitted</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>asgnRejectionEvidence</targetReference>
+            </connector>
+            <label>Governed rejection</label>
+        </rules>
+        <rules>
+            <name>ruleRejectionRefused</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxRejectionClaimed</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>errRejectionNotPermitted</targetReference>
+            </connector>
+            <label>Rejection not permitted - block</label>
+        </rules>
+    </decisions>
+    <decisions>
+        <description>BR-15, BR-16, PD-12. Does this save owe a seller-decision commitment? True only when this transaction granted MQL and the active policy issues one. A policy carrying no acceptance hours issues nothing, so the capability sits dormant until the governing version declares it.</description>
+        <name>decMQLCommitment</name>
+        <label>Decision Commitment Owed?</label>
+        <locationX>1106</locationX>
+        <locationY>326</locationY>
+        <defaultConnector>
+            <targetReference>decRoutingEligible</targetReference>
+        </defaultConnector>
+        <defaultConnectorLabel>No commitment owed</defaultConnectorLabel>
+        <rules>
+            <name>ruleCommitmentIssued</name>
+            <conditionLogic>and</conditionLogic>
+            <conditions>
+                <leftValueReference>fxCommitmentIssued</leftValueReference>
+                <operator>EqualTo</operator>
+                <rightValue>
+                    <booleanValue>true</booleanValue>
+                </rightValue>
+            </conditions>
+            <connector>
+                <targetReference>asgnAcceptanceCommitment</targetReference>
+            </connector>
+            <label>Commitment owed</label>
         </rules>
     </decisions>
     <description>BR-01, BR-03, BR-05, BR-06, BR-07, BR-08, BR-13. Normalizes the company domain and derives segment from governed Segment_Band__mdt configuration, recording the basis. Before-save: assigns fields on the triggering record only, performs no DML, and reads only Custom Metadata. Data quality remains the responsibility of the Data_Quality_Status__c and Data_Quality_Detail__c formula fields and is deliberately not duplicated here.</description>
@@ -1400,12 +1547,23 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
 )</expression>
     </formulas>
     <formulas>
-        <description>BR-15, BR-16, PD-12. Both requirements the active policy declares. No score, no threshold, no partial credit. Each term is policy-gated, so a requirement the policy does not declare evaluates true and drops out.</description>
+        <description>REQUIREMENT 3 - an accountable individual owner. THE GOVERNED NORTHSTARIQ POLICY, NOT SALESFORCE BEHAVIOUR: Salesforce is perfectly willing to hold an accepted Lead on a queue, and this synthetic business decided it should not. A coverage queue is valid routing ownership before seller pickup; it is not an accountable person once SAL is claimed. Asks POSITIVELY whether the owner is a User, rather than whether it is not a queue - a Lead OwnerId is a User (005) or a Queue (00G), and a positive test refuses anything unexpected instead of admitting it. The key prefix is read straight off the record already in the transaction: no lookup, no formula field, no polymorphic Owner traversal, which a before-save Flow cannot rely on anyway. AN ACCOUNTABILITY CHECK, NOT A ROUTING RULE - this Flow never assigns ownership here, so the safeguard verifies that a seller took the Lead and never manufactures the accountability it is testing for.</description>
+        <name>fxSALOwnerAccountable</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getSALPolicy.Require_Individual_Owner__c}),
+  LEFT({!$Record.OwnerId}, 3) = "005"
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15, BR-16, PD-12. Every requirement the active policy declares. No score, no threshold, no partial credit. Each term is policy-gated, so a requirement the policy does not declare evaluates true and drops out - which is why adding the third term changes nothing at all while Require_Individual_Owner__c is off.</description>
         <name>fxSALAccepted</name>
         <dataType>Boolean</dataType>
         <expression>AND(
   {!fxSALAcceptanceGiven},
-  {!fxSALMQLEvidence}
+  {!fxSALMQLEvidence},
+  {!fxSALOwnerAccountable},
+  {!fxSALNoRejection}
 )</expression>
     </formulas>
     <formulas>
@@ -1414,7 +1572,8 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
         <dataType>String</dataType>
         <expression>"Accepted under Sales Acceptance Policy " &amp; {!getSALPolicy.Policy_Version__c} &amp; ": "
 &amp; IF({!getSALPolicy.Require_Explicit_Acceptance__c}, "explicit seller acceptance recorded; ", "")
-&amp; IF({!getSALPolicy.Require_MQL_Evidence__c}, "Marketing handoff substantiated by MQL evidence; ", "")</expression>
+&amp; IF({!getSALPolicy.Require_MQL_Evidence__c}, "Marketing handoff substantiated by MQL evidence; ", "")
+&amp; IF({!getSALPolicy.Require_Individual_Owner__c}, "accountable individual owner in place; ", "")</expression>
     </formulas>
     <formulas>
         <description>BR-15, BR-16, PD-12. Trims the trailing separator left by the last declared requirement and holds the result inside the 255-character field.</description>
@@ -1431,7 +1590,9 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
         <dataType>String</dataType>
         <expression>"This Lead cannot enter the governed NorthstarIQ Sales Acceptance stage (Sales Acceptance Policy " &amp; {!getSALPolicy.Policy_Version__c} &amp; "). Not satisfied: "
 &amp; IF({!fxSALAcceptanceGiven}, "", "explicit Sales acceptance; ")
-&amp; IF({!fxSALMQLEvidence}, "", "substantiated Marketing handoff evidence; ")</expression>
+&amp; IF({!fxSALMQLEvidence}, "", "substantiated Marketing handoff evidence; ")
+&amp; IF({!fxSALOwnerAccountable}, "", "an accountable individual owner - this Lead is still held by a queue, so no person has taken responsibility for it; ")
+&amp; IF({!fxSALNoRejection}, "", "the absence of a Sales rejection - this handoff has been explicitly declined, and one Lead carries one governed seller decision; ")</expression>
     </formulas>
     <formulas>
         <description>REQUIREMENT 1 - substantiated Sales acceptance. An EVIDENCE-CHAIN check against the immutable acceptance timestamp. The Sales Acceptance Policy is NOT re-run and the MQL policy is NOT re-run: a prior governed stage is consumed through its evidence, never re-tested.</description>
@@ -1505,6 +1666,117 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
         <name>fxNewStage</name>
         <dataType>String</dataType>
         <expression>TEXT({!$Record.Status})</expression>
+    </formulas>
+    <formulas>
+        <description>The seller-decision deadline before the weekend shift. REUSES fxStartAdj - the same weekend-aware start already used for the response SLA - because that formula depends only on the transaction time, never on the response hours. Only the DURATION differs, so only the duration is restated here. Hours come from the active policy, never from this Flow.</description>
+        <name>fxAcceptRawTarget</name>
+        <dataType>DateTime</dataType>
+        <expression>{!fxStartAdj} + ({!getDecisionPolicy.Acceptance_SLA_Hours__c} / 24)</expression>
+    </formulas>
+    <formulas>
+        <name>fxAcceptRawDow</name>
+        <dataType>Number</dataType>
+        <scale>0</scale>
+        <expression>MOD( DATEVALUE({!fxAcceptRawTarget}) - DATE(1900,1,7), 7 )</expression>
+    </formulas>
+    <formulas>
+        <description>APPROXIMATION - PORTFOLIO DEMO, stated in the same words as the response SLA it borrows the technique from. Weekend-aware only. This is NOT Salesforce Business Hours and does NOT honour Holiday records; that remains a known production gap requiring Apex. A deadline landing on a Saturday moves to Monday, and on a Sunday to Monday.</description>
+        <name>fxAcceptanceDue</name>
+        <dataType>DateTime</dataType>
+        <expression>{!fxAcceptRawTarget} + IF({!fxAcceptRawDow} = 6, 2, IF({!fxAcceptRawDow} = 0, 1, 0))</expression>
+    </formulas>
+    <formulas>
+        <description>Is a decision commitment owed on this save? Only when THIS transaction granted MQL - varMQLGranted is set on the qualification path and nowhere else, so no stage name is needed here - and only when the active policy actually issues one. A policy with no acceptance hours issues no commitment, which is how every version before v1.2 behaves and why activation stays reversible by policy succession alone.</description>
+        <name>fxCommitmentIssued</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  {!varMQLGranted},
+  NOT(ISBLANK({!getDecisionPolicy.Acceptance_SLA_Hours__c})),
+  {!getDecisionPolicy.Acceptance_SLA_Hours__c} &gt; 0
+)</expression>
+    </formulas>
+    <formulas>
+        <description>Is a rejection being claimed in THIS save? Populating the reason IS the act of rejecting, so no separate checkbox exists to disagree with it. Gated on the value actually changing, so an unrelated later edit to an already-rejected Lead does not re-run the decision or restamp its evidence. THE VALUE ITSELF IS NOT VALIDATED HERE - the picklist is RESTRICTED, so Salesforce refuses anything outside the governed vocabulary before this Flow ever sees it.</description>
+        <name>fxRejectionClaimed</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  NOT(ISBLANK(TEXT({!$Record.Sales_Rejection_Reason__c}))),
+  OR( ISNEW(), ISCHANGED({!$Record.Sales_Rejection_Reason__c}) )
+)</expression>
+    </formulas>
+    <formulas>
+        <description>REQUIREMENT 1 - there is a handoff to decline. Expressed as the presence of the decision commitment rather than as a stage name, which keeps every lifecycle value out of this Flow and makes the test exact: a seller can only decline a handoff that was actually made to them.</description>
+        <name>fxRejectionInScope</name>
+        <dataType>Boolean</dataType>
+        <expression>NOT(ISBLANK({!$Record.Acceptance_Due_DateTime__c}))</expression>
+    </formulas>
+    <formulas>
+        <description>REQUIREMENT 2 - an accountable individual owner. THE SAME GOVERNED RULE AS ACCEPTANCE, read from the same policy record rather than restated: declining responsibility is as accountable an act as taking it, so a coverage queue can no more reject a handoff than accept one. Policy-gated, so switching the requirement off relaxes both halves together.</description>
+        <name>fxRejectionOwnerAccountable</name>
+        <dataType>Boolean</dataType>
+        <expression>OR(
+  NOT({!getDecisionPolicy.Require_Individual_Owner__c}),
+  LEFT({!$Record.OwnerId}, 3) = "005"
+)</expression>
+    </formulas>
+    <formulas>
+        <description>REQUIREMENT 3 - no seller decision has already been made. One Lead carries one authoritative seller decision. Reversing a recorded decision is deliberately OUTSIDE MVP SCOPE: it would need its own authority and its own evidence, and half-building it here would leave a record that cannot explain itself.</description>
+        <name>fxNoPriorDecision</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  ISBLANK({!$Record.Sales_Accepted_At__c}),
+  ISBLANK({!$Record.Sales_Rejected_At__c})
+)</expression>
+    </formulas>
+    <formulas>
+        <description>Every requirement a governed rejection declares. Same shape as fxSALAccepted, and policy-gated for the same reason.</description>
+        <name>fxRejectionPermitted</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  {!fxRejectionInScope},
+  {!fxRejectionOwnerAccountable},
+  {!fxNoPriorDecision}
+)</expression>
+    </formulas>
+    <formulas>
+        <description>The mirror of fxNoPriorDecision on the acceptance side: acceptance cannot be granted while a rejection is claimed in the same save or already stands. Reads the REASON as well as the timestamp, because in a single save claiming both, the rejection stamp has not been written yet and only the incoming reason reveals the conflict.</description>
+        <name>fxSALNoRejection</name>
+        <dataType>Boolean</dataType>
+        <expression>AND(
+  ISBLANK(TEXT({!$Record.Sales_Rejection_Reason__c})),
+  ISBLANK({!$Record.Sales_Rejected_At__c})
+)</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15, BR-16, PD-12. The explanation written to Sales_Rejection_Basis__c: the reason given and the policy version in force. Carries the version because the NorthstarIQ version guard establishes which definition governed a record by reading it back out of the basis. EVIDENCE, NOT POLICY - and deliberately not an audit log: it explains one decision in one sentence.</description>
+        <name>fxRejectionBasis</name>
+        <dataType>String</dataType>
+        <expression>LEFT(
+  "Rejected under Sales Acceptance Policy " &amp; {!getDecisionPolicy.Policy_Version__c}
+  &amp; ": " &amp; TEXT({!$Record.Sales_Rejection_Reason__c})
+  &amp; "; declined by the accountable individual owner",
+  255
+)</expression>
+    </formulas>
+    <formulas>
+        <description>Names the requirements a refused rejection did not satisfy, built from the SAME formulas the rejection test uses so the message can never disagree with the decision.</description>
+        <name>fxRejectionFailureDetail</name>
+        <dataType>String</dataType>
+        <expression>"This Lead cannot record a governed Sales rejection (Sales Acceptance Policy " &amp; {!getDecisionPolicy.Policy_Version__c} &amp; "). Not satisfied: "
+&amp; IF({!fxRejectionInScope}, "", "a Marketing handoff to decline - no seller decision was ever requested on this Lead; ")
+&amp; IF({!fxRejectionOwnerAccountable}, "", "an accountable individual owner - this Lead is still held by a queue, so no person can decline it; ")
+&amp; IF({!fxNoPriorDecision}, "", "the absence of an earlier seller decision - this Lead already carries a governed acceptance or rejection, and reversing one is outside the governed process; ")</expression>
+    </formulas>
+    <formulas>
+        <description>BR-15, BR-16, PD-12. The evidence written beside the deadline: which acceptance policy issued the commitment, what target it declared, and the time basis that computed it. THE PROVENANCE HALF of the pinned deadline, exactly as SLA_Basis__c is for SLA_Target_DateTime__c - without it a deadline outlives the identity of the policy that set it, and an undecided Lead could only be explained by guessing at whichever version is active later. States the approximation honestly and claims no Business Hours or holiday precision. DESCRIBES THE COMMITMENT ONLY - it never asserts that a decision was made, which is the business of Sales_Acceptance_Basis__c and Sales_Rejection_Basis__c, neither of which overwrites this.</description>
+        <name>fxAcceptanceBasis</name>
+        <dataType>String</dataType>
+        <expression>LEFT(
+  "Seller decision commitment under Sales Acceptance Policy " &amp; {!getDecisionPolicy.Policy_Version__c}
+  &amp; ": decision due within " &amp; TEXT(ROUND({!getDecisionPolicy.Acceptance_SLA_Hours__c}, 0))
+  &amp; " business hours of MQL entry (weekend-aware approximation)",
+  255
+)</expression>
     </formulas>
     <interviewLabel>Lead Inbound Before Save {!$Flow.CurrentDateTime}</interviewLabel>
     <label>Lead Inbound Before Save</label>
@@ -1822,6 +2094,30 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
         <object>Lifecycle_Transition__mdt</object>
         <storeOutputAutomatically>true</storeOutputAutomatically>
     </recordLookups>
+    <recordLookups>
+        <description>The active Sales Acceptance policy, independent of any stage being entered. SEPARATE FROM getSALPolicy DELIBERATELY: that lookup selects by the stage the Lead is entering, which is correct when acceptance is granted but finds nothing at MQL entry, where the governing acceptance policy must still be read to issue its decision commitment. Filtered on Is_Active__c alone, exactly as the NorthstarIQ assessment queries it - the type only ever holds one active policy, so an active record IS the policy by construction and no stage name is needed. Custom Metadata, so no SOQL limit is consumed, and no loop encloses it.</description>
+        <name>getDecisionPolicy</name>
+        <label>Get Active Seller Decision Policy</label>
+        <locationX>1106</locationX>
+        <locationY>110</locationY>
+        <assignNullValuesIfNoRecordsFound>false</assignNullValuesIfNoRecordsFound>
+        <connector>
+            <targetReference>decSellerDecision</targetReference>
+        </connector>
+        <filterLogic>and</filterLogic>
+        <filters>
+            <field>Is_Active__c</field>
+            <operator>EqualTo</operator>
+            <value>
+                <booleanValue>true</booleanValue>
+            </value>
+        </filters>
+        <getFirstRecordOnly>true</getFirstRecordOnly>
+        <object>Sales_Acceptance_Policy__mdt</object>
+        <sortField>Policy_Version__c</sortField>
+        <sortOrder>Desc</sortOrder>
+        <storeOutputAutomatically>true</storeOutputAutomatically>
+    </recordLookups>
     <start>
         <locationX>50</locationX>
         <locationY>0</locationY>
@@ -1835,7 +2131,8 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
   ISCHANGED({!$Record.NumberOfEmployees}),
   ISCHANGED({!$Record.CountryCode}),
   ISCHANGED({!$Record.StateCode}),
-  ISCHANGED({!$Record.Status})
+  ISCHANGED({!$Record.Status}),
+  ISCHANGED({!$Record.Sales_Rejection_Reason__c})
 )</filterFormula>
         <object>Lead</object>
         <recordTriggerType>CreateAndUpdate</recordTriggerType>
@@ -1988,5 +2285,16 @@ IF(ISBLANK(TEXT({!$Record.Exception_Type__c})), "", " | " &amp; TEXT({!$Record.E
         <isCollection>false</isCollection>
         <isInput>false</isInput>
         <isOutput>false</isOutput>
+    </variables>
+    <variables>
+        <description>Set on the MQL qualification path and nowhere else, so the convergence point can tell that THIS transaction granted MQL without naming a lifecycle stage.</description>
+        <name>varMQLGranted</name>
+        <dataType>Boolean</dataType>
+        <isCollection>false</isCollection>
+        <isInput>false</isInput>
+        <isOutput>false</isOutput>
+        <value>
+            <booleanValue>false</booleanValue>
+        </value>
     </variables>
 </Flow>

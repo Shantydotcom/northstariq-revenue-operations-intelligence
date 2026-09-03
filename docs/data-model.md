@@ -146,6 +146,13 @@ increments added the qualification, acceptance and conversion evidence fields re
 | `Lead.Qualified_Need__c` | **Picklist, restricted** | **INPUT** — the confirmed business need | `BR-15`, `BR-17` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Four governed values. Field-level value set, **not** a Global Value Set — no second object consumes this vocabulary, and reusable metadata is not created for hypothetical reuse. Restriction proven: Salesforce rejected an out-of-vocabulary value. |
 | `Lead.Next_Step_Date__c` | Date | **INPUT** — the agreed forward motion | `BR-15`, `BR-17` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Required to be today or later **at qualification time**. Not `Opportunity.CloseDate` (no Opportunity exists yet) and not a buying timeline (a prediction, not a fact). |
 | `Lead.Next_Step__c` | Text(255) | **CONTEXT** — what the next action is | `BR-15` | ✅ **DELIVERED (2026-08-27).** **Never a qualification requirement** — blank does not prevent SQL, no Flow condition reads it, no control will interpret it. It exists so a reader sees *what* was agreed, not only that a date exists. |
+| `Lead.Acceptance_Due_DateTime__c` | Date/Time | **EVIDENCE** — the seller-decision deadline, issued at valid MQL entry | `BR-15`, `BR-16`, `PD-15` | ✅ **DELIVERED and RUNTIME-CONFIRMED (2026-09-03).** **Persisted, not derived**: a formula cannot follow the *active* policy — Custom Metadata is reachable from a formula only by naming a record at authoring time — and pinning the deadline as issued means a later policy change cannot move a commitment already given. `Lifecycle_Stage_Entered__c` cannot substitute: it is overwritten on the next transition. |
+| `Lead.Acceptance_Basis__c` | Text(255) | **EVIDENCE** — which policy issued that deadline, the governed target, and the time basis | `BR-15`, `BR-16`, `PD-15` | ✅ **DELIVERED and RUNTIME-CONFIRMED (2026-09-03).** The provenance half of the commitment, exactly as `SLA_Basis__c` is for `SLA_Target_DateTime__c`. Without it a pinned deadline outlives the identity of the policy that set it. **Describes the commitment, never the outcome**, and is not overwritten by either decision. |
+| `Lead.Acceptance_Status__c` | **Formula(Text)** | Not Applicable · Accepted · Rejected · Overdue · Pending | `BR-15`, `BR-16`, `PD-15` | ✅ **DELIVERED and RUNTIME-CONFIRMED (2026-09-03)** for Not Applicable, Pending, Accepted and Rejected. ⚠️ **`Overdue` is SYNTHETIC TEST EVIDENCE only** — proved by fixture, never observed at runtime. Strict precedence, so Accepted and Rejected can never both apply; there is deliberately **no `Malformed` state**, because a malformed decision never persists. |
+| `Lead.Sales_Rejection_Reason__c` | **Picklist, restricted** | **INPUT** — the seller's explicit decline | `BR-15`, `BR-16`, `PD-16` | ✅ **DELIVERED and RUNTIME-CONFIRMED (2026-09-03).** Four governed values, **no `Other`**. Populating it **is** the act of rejecting, which is why no companion checkbox exists to become a second source of the same fact. One value (`Insufficient Evidence`) was exercised at runtime; the vocabulary itself is enforced by `restricted=true`. |
+| `Lead.Sales_Rejected_At__c` | Date/Time | **EVIDENCE** — when Sales declined | `BR-15`, `BR-16`, `PD-16` | ✅ **DELIVERED and RUNTIME-CONFIRMED (2026-09-03).** Stops the decision clock: without a persisted rejection time an on-time decline and a late one are indistinguishable. |
+| `Lead.Sales_Rejected_By__c` | Lookup(User) | **EVIDENCE** — who declined | `BR-15`, `PD-16` | ✅ **DELIVERED and RUNTIME-CONFIRMED (2026-09-03).** Captured from the authenticated identity. Deliberately not `OwnerId` (reassignable) and not `LastModifiedById` (overwritten by any later edit) — the identical reasoning already settled for `Sales_Accepted_By__c`. |
+| `Lead.Sales_Rejection_Basis__c` | Text(255) | **EVIDENCE** — why the rejection was permitted, and under which policy version | `BR-15`, `PD-16` | ✅ **DELIVERED and RUNTIME-CONFIRMED (2026-09-03).** Carries the version because the NorthstarIQ version guard establishes which definition governed a record by reading it back out of the basis. |
 | `Lead.SQL_Basis__c` | Text(255) | **EVIDENCE** — why SQL was permitted | `BR-15`, `BR-17` | ✅ **DELIVERED and VALIDATED (2026-08-27).** Records the need and next-step date **as they stood at qualification**, plus the policy version. Written once on entry to SQL; verified to survive native Lead Conversion. `editable=false` everywhere. |
 
 ### Formula fields
@@ -302,10 +309,25 @@ slide toward a generic lifecycle policy object. **Two small explicit types beat 
 | `Accepted_Stage__c` | Text(40) | The exact `Lead.Status` value this policy governs. | `SubscriberControlled` |
 | `Require_Explicit_Acceptance__c` | Checkbox | Whether the seller must have ticked `Sales_Accepted__c`. | `SubscriberControlled` |
 | `Require_MQL_Evidence__c` | Checkbox | Whether the Lead must carry substantiating MQL evidence. | `SubscriberControlled` |
+| `Require_Individual_Owner__c` | Checkbox, default `false` | Whether acceptance requires an individual Salesforce User owner rather than a Queue. | `SubscriberControlled` |
+| `Acceptance_SLA_Hours__c` | Number(4,1) | How long Sales has, from valid MQL entry, to accept or explicitly reject. Blank means the policy issues **no** decision commitment. | `SubscriberControlled` |
 | `Is_Active__c` | Checkbox, default `true` | Whether this version is in force. | `SubscriberControlled` |
 
-**Record semantics.** **One record deployed** — `NorthstarIQ Sales Acceptance v1.0`, governing `SAL`,
-active, both requirements declared.
+**Record semantics — three versions, one active.** Policy succession is how a governed rule changes
+here: a new version is added and the previous one is deactivated **in one atomic deployment**, so the
+org is never left with zero active policies or two.
+
+| Record | Version | Explicit acceptance | MQL evidence | Individual owner | Decision hours | Active |
+|---|---|---|---|---|---|---|
+| `NorthstarIQ_SAL_v1` | v1.0 | ✅ | ✅ | — | — | ❌ historical |
+| `NorthstarIQ_SAL_v1_1` | v1.1 | ✅ | ✅ | ✅ | — | ❌ historical |
+| `NorthstarIQ_SAL_v1_2` | v1.2 | ✅ | ✅ | ✅ | **24** | ✅ **in force** |
+
+**Earlier versions are never rewritten.** When v1.1 superseded v1.0 and v1.2 superseded v1.1, the only
+change to the outgoing record was `Is_Active__c` — every requirement value and label stayed intact,
+because evidence recorded under a version must remain interpretable after it stops governing. That is
+also what lets the NorthstarIQ version guard classify a v1.0-era or v1.1-era acceptance as
+**superseded / not evaluated** rather than as a v1.2 violation.
 
 ⚠️ **SYNTHETIC BASELINE.** Authored for reproducible demonstration of lifecycle governance. It is
 **not** an originally validated client business requirement.

@@ -1689,6 +1689,107 @@ field-by-field beforehand and re-read afterwards; the two projections hash ident
 
 ---
 
+## 2w. Increments 7.2–7.8 — the governed seller decision, executed 2026-09-02 / 2026-09-03
+
+Four runtime matrices, run in sequence as the capability was built, deployed dormant, activated and
+exercised. Every assertion below was observed against `northstariq-dev`; anything not observed is
+labelled as such.
+
+### 2w-1. Accountable seller governance under policy v1.1 — executed 2026-09-02
+
+Flow **v14**, acceptance policy **v1.1** (`Require_Individual_Owner__c = true`). One fixture,
+`S7-V11-RUNTIME`.
+
+| # | Scenario | Result |
+|---|---|---|
+| A | Queue-owned MQL attempts acceptance | **Blocked** — Flow error names the accountable-owner requirement; full rollback, `LastModifiedDate` unmoved |
+| B | Same Lead transferred to an individual User, then accepted | **Passed** — basis records v1.1 including the accountable-owner clause |
+| C | SAL → SQL under the existing SQL policy | **Passed** — SQL semantics unchanged |
+| D | Owner returned to a coverage queue **after** acceptance | Update succeeds by design — the safeguard governs SAL *entry*, not later ownership |
+| E | v1.0-era fixtures re-read after v1.1 activation | **Superseded / not evaluated** — never reclassified as v1.1 violations |
+| F | `S7-HAPPY` left untouched | **Unchanged** |
+
+Scenario D is the point of the pairing: NorthstarIQ's detective control then reported the degraded
+Lead — **preventive stops invalid entry; detective reports valid entry that has since decayed.**
+Application unit tests covering the same logic: 47 passed, 0 failed.
+
+### 2w-2. Stage C dormant capability — executed 2026-09-03
+
+Flow **v15** deployed and active, all seven Lead fields and `Acceptance_SLA_Hours__c` live, but
+acceptance policy **v1.1** still in force with **no** decision hours. One fixture,
+`S7-C-DORMANT-RUNTIME`.
+
+| Assertion | Result |
+|---|---|
+| Valid MQL under v15 + v1.1 | **Passed** — `MQL_Basis__c` written |
+| `Acceptance_Due_DateTime__c` issued? | **No** — null, as intended |
+| `Acceptance_Basis__c` issued? | **No** — null |
+| `Acceptance_Status__c` | **Not Applicable** |
+| Accountable User-owned acceptance still works | **Passed** — basis records **v1.1** |
+| Commitment fields after acceptance | Still absent |
+
+**The capability was live and inert**, because `fxCommitmentIssued` requires the active policy to
+declare decision hours and v1.1 declares none. Dormancy is therefore a property of the policy, not of
+an unreleased Flow.
+
+### 2w-3. Stage D policy activation — executed 2026-09-03
+
+Atomic two-record succession: v1.1 → inactive, v1.2 → created active with `Acceptance_SLA_Hours__c =
+24`. Check-only first, then the real deployment. Post-deploy: exactly one active policy (v1.2), Flow
+still v15, v1.1 requirement values byte-identical apart from `Is_Active__c`, and **all five retained
+fixtures unchanged** — activation manufactured no commitment on records that never received one.
+
+### 2w-4. Post-activation v1.2 runtime matrix — executed 2026-09-03
+
+Two fresh fixtures, `S7-V12-REJECTION` and `S7-V12-ACCEPTANCE`. Both were needed: every earlier
+fixture is v1.1-era or older and is correctly treated as superseded.
+
+| # | Assertion | Result |
+|---|---|---|
+| 1 | Valid MQL issues `Acceptance_Due_DateTime__c` | **Passed** — both fixtures |
+| 2 | `Acceptance_Basis__c` pins **v1.2**, 24 business hours, weekend-aware approximation | **Passed** — both |
+| 3 | Persisted deadline matches the approved calculation | **Passed** — independently recomputed for both |
+| 4 | `Acceptance_Status__c` before decision | **Pending** — both |
+| 5 | Queue-owned rejection | **Blocked**, full rollback |
+| 6 | Accountable User-owned rejection | **Passed** — reason, stamps and versioned basis written |
+| 7 | Rejection leaves Lead at **MQL** and preserves **Owner** | **Passed** |
+| 8 | `Acceptance_Status__c` after rejection | **Rejected** |
+| 9 | Rejected → accepted | **Blocked**, full rollback |
+| 10 | Accountable User-owned acceptance | **Passed** — basis records v1.2 |
+| 11 | `Acceptance_Status__c` after acceptance | **Accepted** |
+| 12 | Accepted → rejected | **Blocked**, full rollback |
+| 13 | Commitment evidence preserved through both decisions | **Passed** |
+| 14 | Five historical fixtures | **Unchanged** |
+
+Mutations: 2 Lead creates, 8 successful updates, **3 intentional blocked attempts**. No metadata,
+policy, permission or historical-record change.
+
+### What these results do not prove
+
+**`Overdue` has never been observed at runtime.** It is proved only by application test against a
+fixture carrying a past deadline — **SYNTHETIC TEST EVIDENCE**. It was deliberately not manufactured:
+doing so would have required waiting out the real 24-hour window or shortening governed configuration,
+and the second is forbidden. Both v1.2 fixtures were *decided*, so neither will ever age into it; a
+third, deliberately undecided fixture would be needed.
+
+**The decision actor is not the Lead owner.** In every run `Sales_Accepted_By__c` and
+`Sales_Rejected_By__c` recorded the CLI-authenticated administrator while `OwnerId` was the
+controlled seller. What is proven is **accountable-owner state at the moment of decision**, enforced
+by the Flow. What is **not** proven is that the accountable seller personally authenticated and acted
+— no seller-authenticated UI action has been validated at any point.
+
+**The time basis is an approximation.** The deadline is weekend-aware only. It is **not** Salesforce
+Business Hours and does **not** honour Holiday records — the known `PD-05` gap. Both observed runs
+were issued midweek, so neither exercised a weekend shift at runtime; the shift itself was verified by
+independent recomputation, not by a live weekend case.
+
+**Only one rejection reason was exercised at runtime.** `Insufficient Evidence`. The other three
+governed values are **source-validated** by the restricted picklist and asserted by test, not
+individually runtime-exercised.
+
+**Bulk behaviour was not re-tested here.** These matrices are single-record governance tests; bulk
+safety rests on the earlier increments' evidence.
+
 ## 3. Dataset Specification
 
 | Object | Count | Purpose |

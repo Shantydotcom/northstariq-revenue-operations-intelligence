@@ -24,6 +24,31 @@ export interface SalesAcceptancePolicy {
   acceptedStage: string;
   requireExplicitAcceptance: boolean;
   requireMqlEvidence: boolean;
+  /**
+   * Whether acceptance requires an individual User owner rather than a queue.
+   *
+   * A NorthstarIQ policy decision, not Salesforce behaviour. It is read here
+   * from the same record `Lead_Inbound_Before_Save` consults, so switching it
+   * off in Salesforce stops the safeguard enforcing it and stops this control
+   * reporting it, in one change.
+   */
+  requireIndividualOwner: boolean;
+  /**
+   * How long Sales has, from valid MQL entry, to accept or explicitly reject
+   * the handoff - or `null` where the policy issues no commitment at all.
+   *
+   * A NorthstarIQ policy decision, and a DIFFERENT COMMITMENT from the 4-hour
+   * first-touch response SLA held per segment on `Segment_Band__mdt`: that one
+   * starts at intake and stops at first touch, this one starts at MQL and
+   * stops at a seller decision.
+   *
+   * Read here only so the assessment can state which commitment was in force.
+   * It is NEVER used to recompute a deadline: the Flow persists
+   * `Acceptance_Due_DateTime__c` as issued, and that stamp is what gets
+   * judged, so changing this value cannot retroactively move a commitment a
+   * Lead was already given.
+   */
+  acceptanceSlaHours: number | null;
 }
 
 /** The active SQL qualification policy, in the shape the control evaluates. */
@@ -87,6 +112,11 @@ export function resolveSalesAcceptancePolicy(
     acceptedStage: stage,
     requireExplicitAcceptance: r.Require_Explicit_Acceptance__c === true,
     requireMqlEvidence: r.Require_MQL_Evidence__c === true,
+    requireIndividualOwner: r.Require_Individual_Owner__c === true,
+    acceptanceSlaHours:
+      typeof r.Acceptance_SLA_Hours__c === 'number' && r.Acceptance_SLA_Hours__c > 0
+        ? r.Acceptance_SLA_Hours__c
+        : null,
   };
 }
 
@@ -176,6 +206,7 @@ export function acceptanceRequirementLabels(p: SalesAcceptancePolicy): string[] 
   const labels: string[] = [];
   if (p.requireExplicitAcceptance) labels.push('a named seller explicitly accepted the Lead');
   if (p.requireMqlEvidence) labels.push('the Marketing handoff it accepted was itself substantiated');
+  if (p.requireIndividualOwner) labels.push('an individual seller, not a queue, is accountable for it');
   return labels;
 }
 

@@ -391,6 +391,39 @@ what stop-condition 8 of this increment required.
 RevOps holds the same shape rather than more: they may record an acceptance on behalf of the
 business, and are equally unable to alter the resulting evidence.
 
+### The seller decision — one input, five evidence fields
+
+Step 7 extended the same split to the governed decision. **18 `fieldPermissions` rows** were added,
+six fields across three permission sets.
+
+| Principal | `Sales_Rejection_Reason__c` (input) | `Acceptance_Due_DateTime__c` · `Acceptance_Basis__c` · `Acceptance_Status__c` · `Sales_Rejected_At__c` · `Sales_Rejected_By__c` · `Sales_Rejection_Basis__c` (evidence) |
+|---|---|---|
+| `NIQ_Revenue_Seller` | `readable=true`, **`editable=true`** | `readable=true`, **`editable=false`** |
+| `NIQ_Revenue_Operations` | `readable=true`, **`editable=true`** | `readable=true`, **`editable=false`** |
+| `NIQ_Integration_Read` | `readable=true`, `editable=false` | `readable=true`, `editable=false` |
+
+**Exactly one field is a decision input.** Selecting a governed `Sales_Rejection_Reason__c` *is* the
+rejection, so it is the only Step 7 field a human may write — and it is a **restricted** picklist, so
+Salesforce refuses any value outside the governed vocabulary before the Flow ever sees it. Everything
+else in the table is written by `Lead_Inbound_Before_Save` in system context and is editable by
+nobody, including RevOps. `Acceptance_Status__c` is a formula, so `editable=false` is the only valid
+setting for it.
+
+**The commitment is protected the same way the decision is.** `Acceptance_Due_DateTime__c` and
+`Acceptance_Basis__c` carry the deadline and the policy that issued it. Leaving either editable would
+make the SLA self-reported, so neither is — a seller cannot move their own deadline, and cannot
+rewrite which policy set it.
+
+**Object access was not broadened.** No Profile was created or edited, no Record Type introduced, and
+the integration principal remains read-only in both directions: **the assessment reads Salesforce and
+never writes to it.**
+
+⚠️ **FLS is not a UI claim.** These grants make the fields *accessible* to the personas that hold the
+permission sets. The Lead page layout predates every lifecycle-governance field — it carries neither
+these nor `Sales_Accepted__c`, `Qualified_Need__c` or `MQL_Basis__c` — and the governed runtime path
+in this MVP is API/CLI-driven. **No seller-facing Salesforce UI workflow is claimed**, and the layout
+becomes work only if one ever is.
+
 **A seller cannot assert their own qualification evidence.** `MQL_Basis__c` is readable and not
 editable wherever it is granted, so the reason a Lead is an MQL is written by the Flow or not at
 all — Marketing cannot type a justification into it, and Sales cannot amend one. That is the whole

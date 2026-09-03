@@ -1823,6 +1823,24 @@ export function salesAcceptanceSqlIntegrity(
         'Sales acceptance was recorded while the Marketing handoff it accepted carries no qualification evidence',
       );
     }
+    /*
+     * Policy-gated, and judged on the owner the record carries NOW.
+     *
+     * Unlike the two above, this requirement is not settled once and written
+     * into the basis - ownership keeps moving after acceptance, and that is
+     * the point. The preventive safeguard can only test it at the instant a
+     * Lead enters SAL, so a Lead accepted by a named seller and afterwards
+     * handed back to a coverage pool passes the gate and still ends up with
+     * nobody accountable for it. Current state is the only thing that answers
+     * "who is accountable for this today", so current state is what is read.
+     */
+    if (acceptancePolicy.requireIndividualOwner && l.Owner?.Type === 'Queue') {
+      contradictions.push(
+        `Sales accepted responsibility for this Lead and it is still held by ${
+          ownerName(l) ?? 'a queue'
+        }, so no individual is accountable for it`,
+      );
+    }
 
     return { claimed, contradictions, unprovable };
   }
@@ -1940,6 +1958,7 @@ export function salesAcceptanceSqlIntegrity(
         Id: l.Id,
         Status: dash(l.Status),
         'MQL Evidence': dash(l.MQL_Basis__c),
+        Owner: ownerName(l) ?? '— (none recorded)',
         'Sales Accepted At': dash(l.Sales_Accepted_At__c),
         'Sales Accepted By': dash(l.Sales_Accepted_By__c),
         'Acceptance Basis': dash(l.Sales_Acceptance_Basis__c),
@@ -2027,6 +2046,14 @@ export function salesAcceptanceSqlIntegrity(
          */
         { key: 'Status', label: 'Lead Status' },
         { key: 'MQL Evidence', label: 'Marketing Qualification Evidence', proving: true },
+        /*
+         * Proving only because the active policy made it so. Where
+         * Require_Individual_Owner__c is off, ownership decides nothing here
+         * and the column is still worth showing - but it is marked because
+         * under the policy that requires it, a queue in this cell IS the
+         * failure.
+         */
+        { key: 'Owner', label: 'Current Owner', proving: true },
         { key: 'Sales Accepted At', label: 'Accepted At', mono: true, proving: true },
         { key: 'Sales Accepted By', label: 'Accepted By', mono: true, proving: true },
         { key: 'Acceptance Basis', label: 'Recorded Acceptance Evidence', proving: true },
@@ -2052,6 +2079,183 @@ export function salesAcceptanceSqlIntegrity(
       failure: tally(failureCauses, (c) => c).map(([label, count]) => ({ label, count })),
       exclusion: tally(exclusionCauses, (c) => c).map(([label, count]) => ({ label, count })),
     },
+  );
+}
+
+/* ------------------------------------------------------------------ 12 */
+/**
+ * Did Sales make a governed decision on the MQL within the expected window?
+ *
+ * A DIFFERENT QUESTION FROM SALES ACCEPTANCE / SQL INTEGRITY, which is why it
+ * is a separate control rather than another verdict inside that one. That
+ * control asks whether an existing CLAIM is substantiated; a Lead sitting at
+ * MQL awaiting a decision claims nothing at all. Merging them would put two
+ * populations behind one number.
+ *
+ * ALSO NOT THE RESPONSE SLA. `slaRisk` measures intake → first seller touch
+ * against a per-segment commitment on `Segment_Band__mdt`. This measures MQL
+ * entry → seller decision against the acceptance policy. Different start,
+ * different stop, different accountable act, different governed target - and
+ * neither is renamed or reused to serve the other.
+ *
+ * THE DEADLINE IS READ, NEVER RECOMPUTED. `Acceptance_Due_DateTime__c` is the
+ * commitment as the Flow issued it at MQL entry. Recomputing it here from the
+ * currently active policy would let a later policy change silently move a
+ * deadline a Lead was already given - and would put a second copy of the
+ * weekend-aware calculation in TypeScript. Both are refused: the stamp is the
+ * commitment, and `Acceptance_Status__c` is the one shared definition of what
+ * it currently means, read from the same formula the Salesforce UI shows.
+ *
+ * A REJECTION IS A COMPLETED DECISION, NOT A WON DEAL. It passes this control
+ * because the seller answered inside the window. Nothing here reads it as a
+ * successful commercial outcome, and no scoring is attached to it.
+ */
+export function sellerDecisionTimeliness(
+  leads: LeadRecord[],
+  acceptancePolicy: SalesAcceptancePolicy,
+): CheckResult {
+  const dash = (v: string | null) => (v === null || v === '' ? '—' : v);
+
+  /*
+   * MEASURABLE POPULATION: a commitment was actually issued.
+   *
+   * Not "reached MQL". A Lead that entered MQL before the acceptance policy
+   * declared a decision window was never given a deadline, so it cannot have
+   * missed one. Counting historical absence of evidence as failure is the
+   * exact error M-07 exists to prevent, and the response SLA already refuses
+   * it for the same reason.
+   */
+  const evaluatedRecords: RecordRef[] = [];
+  /*
+   * The policy versions that actually issued the commitments in this
+   * population, read back out of each record's own basis by the SAME parser
+   * the acceptance control uses - one reader for one evidence grammar, not a
+   * second provenance mechanism.
+   */
+  const issuingVersions = new Set<string>();
+  const failingRows: EvidenceRow[] = [];
+  const notEvaluated: NotEvaluatedRecord[] = [];
+
+  for (const l of leads) {
+    const claimsMql = l.MQL_Basis__c !== null || MQL_CLAIMING_STATUSES.includes(l.Status ?? '');
+
+    if (l.Acceptance_Due_DateTime__c === null) {
+      notEvaluated.push(
+        leadRow(
+          l,
+          { key: 'Acceptance_Status__c', value: l.Acceptance_Status__c },
+          claimsMql ? 'unmeasurable' : 'outside',
+          claimsMql
+            ? 'Seller decision timeliness — this Lead reached Marketing qualification before a decision commitment was issued, so no deadline was ever given and its decision cannot be timed; it was not included in this control’s score.'
+            : `Seller decision timeliness — this Lead's status is "${dash(l.Status)}" and it has not reached Marketing qualification, so no seller decision has been requested on it; it was not included in this control’s score.`,
+        ),
+      );
+      continue;
+    }
+
+    evaluatedRecords.push(refOf(l));
+    issuingVersions.add(recordedAcceptanceVersion(l.Acceptance_Basis__c) ?? '(unstated)');
+
+    /*
+     * The verdict is Salesforce's own, not a re-derivation. Overdue means the
+     * deadline passed with neither a governed acceptance nor a governed
+     * rejection recorded - the formula's precedence guarantees that, because
+     * either stamp outranks the time comparison.
+     */
+    if (l.Acceptance_Status__c !== 'Overdue') continue;
+
+    failingRows.push({
+      Name: l.Name,
+      Id: l.Id,
+      Status: dash(l.Status),
+      Owner: l.Owner?.Name ?? '—',
+      'Decision Due': dash(l.Acceptance_Due_DateTime__c),
+      'Commitment Basis': dash(l.Acceptance_Basis__c),
+      'Decision State': dash(l.Acceptance_Status__c),
+      'Accepted At': dash(l.Sales_Accepted_At__c),
+      'Rejected At': dash(l.Sales_Rejected_At__c),
+      'Rejection Reason': dash(l.Sales_Rejection_Reason__c),
+      Result:
+        `Decision overdue — the seller decision on this handoff was due ${dash(
+          l.Acceptance_Due_DateTime__c,
+        )} and neither an acceptance nor an explicit rejection has been recorded, so nobody has answered Marketing`,
+    });
+  }
+
+  const evaluated = evaluatedRecords.length;
+  const failing = failingRows.length;
+  const commitment =
+    acceptancePolicy.acceptanceSlaHours === null
+      ? 'no decision commitment'
+      : `a ${acceptancePolicy.acceptanceSlaHours}-hour decision commitment`;
+  const issued = issuingVersions.size === 0 ? '(none)' : list([...issuingVersions].sort());
+
+  return build(
+    {
+      id: 'seller-decision-timeliness',
+      title: 'Sales Decisions Overdue on Marketing-Qualified Handoffs',
+      category: 'Lifecycle Governance',
+      severity: 'Medium',
+      businessQuestion:
+        'Did Sales make a governed decision on the MQL within the expected decision window?',
+      businessImpact:
+        'A handoff nobody answers is worse than one that is declined: Marketing cannot tell whether its qualification was wrong or simply unread, and the prospect waits while neither function owns the next move. An explicit rejection closes the loop and tells Marketing something; silence tells it nothing.',
+      failureDetail:
+        failing === 0
+          ? ''
+          : `${failing} ${be(failing)} past the decision deadline with neither an acceptance nor an explicit rejection recorded`,
+      /*
+       * THE ISSUER IS READ, NOT ASSUMED.
+       *
+       * Each commitment names the policy that issued it in its own basis, so
+       * the population states those versions rather than the one active now.
+       * The two are identical today and will diverge at the next succession -
+       * which is exactly why the basis is persisted beside the deadline. A
+       * Lead is still judged against the stamp it was given; provenance
+       * explains that stamp, it does not decide it.
+       */
+      population: `${evaluated} Leads carrying a seller-decision commitment issued under Sales Acceptance Policy ${issued} — Sales Acceptance Policy ${
+        acceptancePolicy.version ?? '(unversioned)'
+      } currently declares ${commitment}`,
+      orgPopulation: leads.length,
+      orgPopulationNoun: 'Leads',
+      evaluated,
+      failing,
+      evidenceColumns: [
+        { key: 'Name', label: 'Lead' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'Status', label: 'Lead Status' },
+        /*
+         * The commitment and the state it produced are what decide this
+         * control, so both are proving. Owner is proving because it names who
+         * the unanswered handoff is sitting with - the accountable party the
+         * finding is actually about.
+         */
+        { key: 'Decision Due', label: 'Decision Due', mono: true, proving: true },
+        /*
+         * Proving, because it is what makes the deadline explainable. The
+         * commitment is judged against the stamp the record carries, and this
+         * is the only evidence saying which policy issued that stamp - the
+         * distinction that survives policy succession.
+         */
+        { key: 'Commitment Basis', label: 'Recorded Commitment Evidence', proving: true },
+        { key: 'Decision State', label: 'Decision State', proving: true },
+        { key: 'Owner', label: 'Current Owner', proving: true },
+        /*
+         * The two decision stamps are proving by their ABSENCE: they are the
+         * evidence that would have stopped the clock, and showing them empty
+         * is what makes the finding readable without opening Salesforce.
+         */
+        { key: 'Accepted At', label: 'Accepted At', mono: true, proving: true },
+        { key: 'Rejected At', label: 'Rejected At', mono: true, proving: true },
+        { key: 'Rejection Reason', label: 'Rejection Reason' },
+        { key: 'Result', label: 'Result' },
+      ],
+      notEvaluatedColumns: leadNotEvaluatedColumns('Acceptance_Status__c', 'Decision State'),
+    },
+    failingRows,
+    notEvaluated,
+    evaluatedRecords,
   );
 }
 

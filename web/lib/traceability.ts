@@ -232,6 +232,60 @@ export const TRACEABILITY: Record<CheckId, Traceability> = {
       'Nothing enforces that a Lead which claimed MQL *before* this architecture existed carries any evidence at all \u2014 the field did not exist when those records were created. Those Leads are reported as unmeasurable rather than as failures, because missing evidence is a gap in coverage and not a demonstrated violation.',
   },
 
+  'seller-decision-timeliness': {
+    fields: [
+      'Status',
+      'MQL_Basis__c',
+      'Acceptance_Due_DateTime__c',
+      'Acceptance_Status__c',
+      'Sales_Accepted_At__c',
+      'Sales_Rejected_At__c',
+      'Sales_Rejection_Reason__c',
+      'OwnerId',
+    ],
+    usages: [
+      {
+        object: 'Lead',
+        field: 'Acceptance_Due_DateTime__c',
+        name: 'Sales_Acceptance_Policy__mdt',
+        type: 'Custom Metadata',
+        purpose:
+          'Source Evidence — the governed decision commitment: how long Sales has, from valid MQL entry, to accept or explicitly reject the handoff, and the policy version that issued it. A version declaring no decision hours issues no commitment, so the capability stays dormant until the governing version turns it on.',
+        evidencePath:
+          'force-app/main/default/objects/Sales_Acceptance_Policy__mdt/fields/Acceptance_SLA_Hours__c.field-meta.xml',
+      },
+      {
+        object: 'Lead',
+        field: 'Acceptance_Due_DateTime__c',
+        name: 'Lead_Inbound_Before_Save',
+        type: 'Flow',
+        purpose:
+          'Issues and pins the deadline at the moment Marketing qualification is granted, using the documented weekend-aware approximation — not Salesforce Business Hours, and not holiday-aware. Persisted rather than derived because a formula cannot follow the active policy, and because a pinned commitment cannot be moved retroactively by a later policy change.',
+        evidencePath:
+          'force-app/main/default/flows/Lead_Inbound_Before_Save.flow-meta.xml',
+      },
+      {
+        object: 'Lead',
+        field: 'Acceptance_Status__c',
+        name: 'Acceptance_Status__c',
+        type: 'Formula field',
+        purpose:
+          'Derives the current decision state from the pinned deadline and the two decision stamps, in one precedence Salesforce and NorthstarIQ both read. There is deliberately no malformed state: a malformed decision never persists, because the Flow blocks the save and the transaction rolls back.',
+        evidencePath:
+          'force-app/main/default/objects/Lead/fields/Acceptance_Status__c.field-meta.xml',
+      },
+      {
+        object: 'Lead',
+        field: 'Sales_Rejection_Reason__c',
+        name: 'Sales_Rejection_Reason__c',
+        type: 'Standard value set',
+        purpose:
+          'The governed rejection vocabulary, restricted so Salesforce refuses anything outside it. Four values, each routing to a different upstream owner. Populating it is the act of rejecting, which stops the decision clock exactly as an acceptance does.',
+        evidencePath:
+          'force-app/main/default/objects/Lead/fields/Sales_Rejection_Reason__c.field-meta.xml',
+      },
+    ],
+  },
   'sales-acceptance-sql': {
     fields: [
       'Status',

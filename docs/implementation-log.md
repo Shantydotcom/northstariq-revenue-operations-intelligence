@@ -3907,7 +3907,103 @@ committed.
 
 ---
 
+### 2026-09-03 — Increments 7.2–7.8: the governed seller decision, built dormant and then switched on
+
+**The handoff finally has two answers.** Acceptance proved Sales *took* a Lead; it could not record a
+decline, and it could not tell a seller still deciding from one who never looked. This sequence added
+a bounded decision commitment at MQL and two governed ways to answer it.
+
+**Ratified first, built second.** Two Portfolio Decisions were put to the practitioner as owner of the
+fictional scenario and ratified before any implementation: **`PD-15`** (24-business-hour decision SLA,
+starting at valid MQL, stopping at acceptance or rejection, distinct from the 4-hour response SLA) and
+**`PD-16`** (rejection is a decline, not a disqualification; four governed reasons, no `Other`; the
+Lead stays MQL and keeps its owner). Both are recorded in
+[`requirements.md`](requirements.md).
+
+**A provenance gap was found by inspection and closed before deployment.** The approved design gave
+the commitment a deadline but no issuer. For a *decided* Lead the acceptance or rejection basis names
+the governing version; for an **undecided** one, a bare `Acceptance_Due_DateTime__c` would have
+outlived the identity of the policy that set it, and the control's own wording would have become false
+the moment a later version existed. `Acceptance_Basis__c` was added — the provenance half of the
+commitment, exactly as `SLA_Basis__c` is for `SLA_Target_DateTime__c` — and the control now reads the
+issuer from each record instead of assuming the active one.
+
+**Two field descriptions exceeded a platform limit, and the check-only caught it.** The first Stage C
+check-only failed: `Acceptance_Basis__c` (1181 chars) and `Sales_Rejection_Reason__c` (1157) both
+exceeded Salesforce's 1000-character `Description` maximum, and four further failures cascaded from
+the field that did not deploy. Nothing local could have caught it — `tsc`, the test suite and the
+repository validator do not check Salesforce metadata limits. Both were trimmed to ~850 and the retry
+passed 12/12. **This is exactly what check-only is for.**
+
+**Deployment was split so activation was its own decision.**
+
+| Stage | What deployed | DeployRequest | Result |
+|---|---|---|---|
+| C — check-only (failed) | 12 components | `0Afaj00000ixVUfCAM` | Failed — 6 errors, description length |
+| C — check-only (retry) | 12 components | `0Afaj00000ixj9SCAQ` | Succeeded 12/12 |
+| C — real | 7 Lead fields · 1 CMDT field · 3 permission sets · Flow v15 | `0Afaj00000ixmk1CAA` | Succeeded 12/12 |
+| D — check-only | 2 CustomMetadata records | `0Afaj00000ixbDXCAY` | Succeeded 2/2 |
+| D — real | v1.1 → inactive, v1.2 → active | `0Afaj00000ixpV0CAI` | Succeeded 2/2 |
+
+Stage C shipped the whole capability **dormant**: Flow **v15** went active and every field existed,
+but policy v1.1 declared no decision hours, so nothing was issued. That was verified in configuration
+and then at runtime. Stage D changed one governed value and the capability came alive. **v14 is
+retained as the Flow rollback target; v1.1 is retained as the policy rollback target** — recovery
+restores active-policy *selection*, and never rewrites history.
+
+**Salesforce executing the Flow is not proof of compliance.** Increment 7.5 made the case concretely:
+a Lead accepted by a named seller and afterwards handed back to a coverage queue passes every
+preventive gate and still ends up with nobody accountable. The Flow governs what may be *written*;
+NorthstarIQ judges the state that results. Both halves were runtime-confirmed.
+
+**Evidence and its limits.** Commitment issuance, Pending, governed rejection, governed acceptance,
+the queue-owned rejection block and both mutual-exclusivity directions are **runtime-confirmed** —
+[`testing-strategy.md`](testing-strategy.md) §2w owns the matrices. ⚠️ **`Overdue` is synthetic test
+evidence only** and was deliberately not manufactured. ⚠️ **The decision actor is the CLI-authenticated
+administrator, not the Lead owner** — accountable-owner *state* is proven; seller-authenticated action
+is not. ⚠️ The time basis is the **weekend-aware approximation**, not Business Hours.
+
+**Seven fixtures are retained as evidence, none deleted:** `S7-HAPPY`, `S7-EXC`, `S7-DORMANT`,
+`S7-V11-RUNTIME`, `S7-C-DORMANT-RUNTIME`, `S7-V12-REJECTION`, `S7-V12-ACCEPTANCE`.
+
+**One implemented control was deliberately left unregistered.** `seller-decision-timeliness` exists
+with presentation, traceability and 24 passing tests, but is **absent from `CHECK_IDS` and
+`runAllChecks`**, so it is not reachable through the normal assessment — the same way
+`mql-integrity`, `lifecycle-progression` and `sales-acceptance-sql` were each introduced before being
+registered by explicit decision. Registering it is a **separate product decision**: it would move the
+assessment model from eleven controls to twelve, and its headline state (`Overdue`) has never been
+observed at runtime.
+
+**Governance gained one durable rule during this sequence** — *Change completeness* in `CLAUDE.md` §6:
+any Salesforce configuration NorthstarIQ introduces is evaluated across ten applicable dependencies,
+with **applicable ≠ mandatory** stated explicitly so the rule cannot become a checklist.
+
+### 2026-09-03 — Increment 7.9: documentation parity for Increments 7.2–7.8
+
+Documentation-only. No executable file, Salesforce metadata or application behaviour changed. The
+implementation frontier had run ahead of the written record: this increment recorded `PD-15` and
+`PD-16`, the seven Lead fields and two Custom Metadata fields, the seller-decision architecture, the
+Step 7 field-level security split, and the four runtime matrices — and corrected statements that had
+become false, including a Flow version pinned at v13 and a claim that no further Salesforce increment
+was planned.
+
 ## Implementation Status
+
+> ### ⚠️ SCOPE — the table below is the Increment 1–4 foundation, not the current build
+>
+> **The table and prose in this section describe the Salesforce foundation as it stood at Increment
+> 4.** Everything built since — the lifecycle increments and the governed seller decision
+> (Increments 7.2–7.8) — is recorded in the **dated entries above**, which are the authority for
+> current state. Read any "complete" or "no further increment planned" wording here as scoped to
+> Increment 4.
+>
+> Live at the time of writing: `Lead_Inbound_Before_Save` **version 15** — not version 13 as the
+> table below states, with v14 retained as the rollback target · Sales Acceptance Policy **v1.2**
+> active, carrying a 24-business-hour seller-decision commitment, with v1.0 and v1.1 retained
+> inactive · seven additional `Lead` fields and two `Sales_Acceptance_Policy__mdt` fields deployed.
+>
+> The row-by-row foundation table is deliberately **not** rewritten for each later increment: doing so
+> would duplicate the dated history that already owns it, and the two would drift apart.
 
 **Increments 1-4 are deployed, runtime-validated, and human-accepted.** Increments 3 and 4 were
 accepted as the **Seller persona**, not as an administrator. The web application's connected **read
@@ -4023,8 +4119,12 @@ physically testable one is stated rather than hidden.
 
 ## Next Step
 
-**Salesforce foundation is MVP COMPLETE.** Increments 1-4 are human-accepted. No further Salesforce
-configuration increment is planned.
+**Salesforce foundation was MVP COMPLETE at Increment 4**, and Increments 1-4 are human-accepted.
+That statement has since been overtaken: **further Salesforce configuration increments were planned
+and shipped** — the governed seller decision (Increments 7.2 onward) added `Lead` fields, a Custom
+Metadata field, Flow versions 14 and 15, and the v1.1 → v1.2 acceptance-policy succession. The rest
+of this section reflects the position as of Increment 4 and is kept as the record of that moment,
+not as a current roadmap.
 
 **The external NorthstarIQ application now exists** - read, assess, findings, evidence - and is
 committed in this repository under `web/`. Writes remain deliberately held back; there is no write

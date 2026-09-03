@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Require_Individual_Owner__c</fullName>
+    <description>Whether SAL requires the Lead to be owned by an individual Salesforce User rather than a Queue. THE GOVERNED NORTHSTARIQ POLICY, NOT SALESFORCE BEHAVIOUR - Salesforce permits queue-owned records at any stage, and plenty of legitimate operating models accept into a pod or a shared book and name an individual later. This synthetic business decided otherwise: sales acceptance is the transfer of operational responsibility to an accountable person, so a coverage queue is valid routing ownership before seller pickup and insufficient ownership once SAL is claimed. An ACCOUNTABILITY check, not a routing rule: the safeguard verifies that a seller has taken the Lead, and never assigns ownership itself. Switching this off restores the ownership semantics in force before it existed, in both the Flow and the NorthstarIQ assessment.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Require Individual Accountable Owner.</inlineHelpText>
+    <label>Require Individual Accountable Owner</label>
+    <required>false</required>
+    <defaultValue>false</defaultValue>
+    <type>Checkbox</type>
+</CustomField>

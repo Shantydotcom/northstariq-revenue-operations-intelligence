@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Acceptance_SLA_Hours__c</fullName>
+    <description>The seller-decision commitment in hours: how long Sales has, from valid MQL entry, to accept or explicitly reject the handoff. A NORTHSTARIQ SYNTHETIC BUSINESS POLICY - not Salesforce behaviour and not a universal RevOps requirement. SEPARATE FROM Segment_Band__mdt.SLA_Response_Hours__c, which is the 4-hour first-touch response commitment measured from intake: different start, different stop, different accountable act. Held here rather than in the Flow so the business can change it without a deployment, and version-governed with the rest of the acceptance policy so a commitment stays interpretable after policy succession. TIME BASIS is the existing documented weekend-aware approximation - NOT Salesforce Business Hours and NOT holiday-aware. Blank means the policy issues no decision commitment, which is how every version before v1.2 behaves.</description>
+    <externalId>false</externalId>
+    <fieldManageability>SubscriberControlled</fieldManageability>
+    <inlineHelpText>Hours allowed for the seller decision, from valid MQL entry.</inlineHelpText>
+    <label>Acceptance Decision Hours</label>
+    <required>false</required>
+    <precision>4</precision>
+    <scale>1</scale>
+    <type>Number</type>
+</CustomField>
