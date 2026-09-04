@@ -522,6 +522,12 @@ export const TRACEABILITY: Record<CheckId, Traceability> = {
     noneEstablished:
       'This check reads standard Opportunity fields only, and the repository contains no custom Opportunity field, Flow, validation rule or report. That is consistent with it being a detective check: NorthstarIQ reports the condition, and nothing in Salesforce prevents it.',
   },
+  'revenue-handoff-integrity': {
+    fields: ['IsClosed', 'IsWon', 'AccountId', 'Amount', 'OpportunityContactRole'],
+    usages: [],
+    noneEstablished:
+      'SOURCE IMPLEMENTED · LOCALLY VALIDATED · NOT REGISTERED · NOT ACTIVE IN ASSESSMENT — the detector exists in source and is covered by automated tests, but it is absent from the active control set, so it has never executed against Salesforce. No Salesforce configuration backs it and none was created: it reads standard Opportunity fields and the standard OpportunityContactRole relationship, adding no custom field, Flow, validation rule, Custom Metadata Type or Record Type. Detective by deliberate decision — a preventive rule would block a real commercial win until unrelated administrative work finished. No additional access was required either: the integration principal already holds read on Opportunity and field-level access to AccountId and Amount, and OpportunityContactRole is not separately permissionable in Salesforce.',
+  },
 };
 
 /**

@@ -2372,6 +2372,216 @@ export {
   sqlRequirementLabels as sqlQualificationRequirements,
 };
 
+/* --------------------------------------- Revenue Handoff (PD-21, unregistered) */
+/**
+ * Revenue Handoff Integrity — does a won deal carry the evidence a downstream
+ * revenue process would need in order to act on it?
+ *
+ * ⚠️ SOURCE IMPLEMENTED, DELIBERATELY NOT REGISTERED. Absent from `CHECK_IDS`
+ * and from `runAllChecks`, so it executes in no assessment, produces no score
+ * and leaves Model v3 exactly as it was validated. Activation is a separate
+ * decision, because activation is the step that moves a published number.
+ *
+ * THE EVIDENCE SET IS FIXED BY PD-21 AND IS NOT EXTENSIBLE HERE. Three
+ * elements, no more: an Account relationship, a populated Amount, and at least
+ * one OpportunityContactRole. Adding a fourth would be a new governed policy
+ * version, not a code change.
+ *
+ * WHAT IS DELIBERATELY NOT CHECKED, AND WHY. `CloseDate` and `StageName` are
+ * not nillable, and `IsClosed`/`IsWon` are not writable at all, so Salesforce
+ * already guarantees all four — a detector for any of them would restate a
+ * platform invariant rather than observe a business gap. `IsPrimary` and the
+ * role's own `Role` value are not required either: PD-21 asks for "at least
+ * one" relationship, not a primary or labelled one.
+ *
+ * WHAT A FAILURE MEANS, EXACTLY. That the OPPORTUNITY lacks governed evidence.
+ * A missing contact role means the deal names no customer contact ON THE
+ * RECORD — never that no such person exists. Contacts can exist elsewhere in
+ * Salesforce, and this control reads none of them.
+ */
+export function revenueHandoffIntegrity(opps: OpportunityRecord[]): CheckResult {
+  const dash = (v: string | null) => (v === null || v === '' ? '—' : v);
+
+  /*
+   * Won, by Salesforce's own stage-derived invariants — never re-derived from
+   * the StageName label, which is a display value a configuration change can
+   * move independently of the outcome it names.
+   */
+  const population = opps.filter((o) => o.IsClosed && o.IsWon);
+
+  /*
+   * Zero roles, from a relationship that arrives in more than one shape.
+   *
+   * Salesforce returns `null` for an Opportunity with no contact roles — not
+   * an empty list — so null is the ORDINARY empty case here, not a defect. The
+   * `records` guard additionally covers a payload that omitted the array; an
+   * unreadable relationship counts as no evidence, which is the conservative
+   * reading for a control whose question is whether evidence is present.
+   */
+  const roleCount = (o: OpportunityRecord) => o.OpportunityContactRoles?.records?.length ?? 0;
+
+  const missingAccount = (o: OpportunityRecord) => o.AccountId === null;
+  /*
+   * Null only. PD-21 requires Amount POPULATED, and a zero is a populated
+   * value. Treating zero as absent would invent a monetary threshold the
+   * ratified decision does not state.
+   */
+  const missingAmount = (o: OpportunityRecord) => o.Amount === null;
+  const missingContactRole = (o: OpportunityRecord) => roleCount(o) === 0;
+
+  /** The governed evidence this record does not carry, in PD-21's own order. */
+  const gaps = (o: OpportunityRecord): string[] => {
+    const out: string[] = [];
+    if (missingAccount(o)) out.push('Account relationship');
+    if (missingAmount(o)) out.push('Amount');
+    if (missingContactRole(o)) out.push('Customer contact relationship');
+    return out;
+  };
+
+  /*
+   * ONE RECORD, HOWEVER MANY ELEMENTS ARE MISSING. A record failing all three
+   * predicates is one incomplete handoff, not three — so the failing set is
+   * filtered from the population once, and the per-predicate division is
+   * carried separately in `failureBreakdown`, where the counts legitimately
+   * overlap and are labelled as doing so.
+   */
+  const failing = population.filter((o) => gaps(o).length > 0);
+  const countIn = (p: (o: OpportunityRecord) => boolean) => population.filter(p).length;
+
+  const notEvaluated: NotEvaluatedRecord[] = opps
+    .filter((o) => !(o.IsClosed && o.IsWon))
+    .map((o) => ({
+      /*
+       * Outside, never unmeasurable: every element this control judges is
+       * directly observable on a won record, so no record it applies to can
+       * lack the evidence to be judged.
+       */
+      kind: 'outside' as const,
+      row: {
+        Name: o.Name,
+        StageName: dash(o.StageName),
+        Outcome: o.IsClosed ? 'Closed Lost' : 'Open',
+        Reason: o.IsClosed
+          ? 'Revenue Handoff evidence — this Opportunity was lost, so no handoff is owed and it never becomes Revenue; the governed evidence a lost deal owes is a loss reason, judged by a different control. It was not included in this control’s score.'
+          : `Revenue Handoff evidence — this Opportunity is still open at stage "${dash(
+              o.StageName,
+            )}", so Salesforce reports no win and no handoff is owed yet; it was not included in this control’s score.`,
+        Id: o.Id,
+      },
+    }));
+
+  return build(
+    {
+      id: 'revenue-handoff-integrity',
+      title: 'Closed Won Without Complete Handoff Evidence',
+      category: 'Pipeline Hygiene',
+      /*
+       * High: this population is TERMINAL. An open-pipeline defect still has a
+       * sales motion running over it that can correct it; a won deal has none,
+       * so evidence missing at the handoff stays missing until someone is told.
+       */
+      severity: 'High',
+      businessQuestion:
+        'When a deal is won, does the record carry what a downstream revenue process needs to act on it?',
+      businessImpact:
+        'A won deal is handed to whatever runs revenue downstream, and that handoff is only as good as the record behind it. With no Account there is no organisation to bill or onboard, with no Amount there is no value to pass on, and with no customer contact relationship there is no named person for onboarding, customer success or billing to attach to. NorthstarIQ reports readiness for that handoff and never calculates, infers or claims recognized revenue.',
+      failureDetail:
+        failing.length === 0
+          ? ''
+          : (() => {
+              const parts = (
+                [
+                  [countIn(missingAccount), 'no Account relationship'],
+                  [countIn(missingAmount), 'no Amount'],
+                  [countIn(missingContactRole), 'no customer contact relationship'],
+                ] as const
+              )
+                .filter(([c]) => c > 0)
+                .map(([c, label]) => `${c} with ${label}`);
+              return `${failing.length} Closed Won ${
+                failing.length === 1 ? 'Opportunity carries' : 'Opportunities carry'
+              } incomplete handoff evidence — ${parts.join(', ')}${
+                parts.length > 1 ? ' (a record can be missing more than one)' : ''
+              }`;
+            })(),
+      population: `${population.length} Closed Won Opportunities`,
+      orgPopulation: opps.length,
+      orgPopulationNoun: 'Opportunities',
+      evaluated: population.length,
+      failing: failing.length,
+      evidenceColumns: [
+        { key: 'Name', label: 'Opportunity' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'StageName', label: 'Stage' },
+        { key: 'CloseDate', label: 'Close Date', mono: true },
+        /*
+         * THE THREE PROVING COLUMNS. Each carries a value the failing
+         * predicate actually read, so a reader sees the absence the control
+         * reports rather than being asked to trust it. Two of them are CONTEXT
+         * columns on the other Opportunity controls, which do not judge them —
+         * the marker is per control, exactly as the type defines it.
+         */
+        { key: 'AccountRelationship', label: 'Account', proving: true },
+        { key: 'Amount', label: 'Amount', mono: true, proving: true },
+        { key: 'ContactRoles', label: 'Customer Contact Relationship', proving: true },
+        { key: 'Result', label: 'Result' },
+      ],
+      notEvaluatedColumns: [
+        { key: 'Name', label: 'Opportunity' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'StageName', label: 'Stage' },
+        { key: 'Outcome', label: 'Outcome' },
+        { key: 'Reason', label: "Why wasn't this record evaluated?" },
+      ],
+    },
+    failing.map((o) => ({
+      Name: o.Name,
+      AccountRelationship: missingAccount(o)
+        ? '— (no Account related)'
+        : (o.Account?.Name ?? 'Account related'),
+      Amount: o.Amount === null ? '— (not populated)' : o.Amount,
+      ContactRoles: missingContactRole(o)
+        ? '— (no contact role recorded)'
+        : `${roleCount(o)} recorded`,
+      StageName: dash(o.StageName),
+      CloseDate: dash(o.CloseDate),
+      /*
+       * Names EVERY missing element, so one row explains the whole gap and a
+       * record missing three is never read as missing one.
+       */
+      Result: `Missing governed handoff evidence: ${gaps(o).join(', ')}`,
+      Id: o.Id,
+    })),
+    notEvaluated,
+    population.map(refOf),
+    {
+      /*
+       * These counts OVERLAP — one record can appear on more than one line —
+       * which is why they are a breakdown rather than a partition, and why
+       * `failing` is counted over records instead of summing them.
+       */
+      failure: [
+        {
+          label: 'No Account relationship',
+          count: countIn(missingAccount),
+          detail: 'The won deal names no organisation for a downstream process to act on',
+        },
+        {
+          label: 'No Amount',
+          count: countIn(missingAmount),
+          detail: 'The won deal carries no value to pass downstream',
+        },
+        {
+          label: 'No customer contact relationship',
+          count: countIn(missingContactRole),
+          detail:
+            'The Opportunity records no OpportunityContactRole — the governed evidence of who the customer is on the deal. It is not a statement that no such person exists',
+        },
+      ],
+    },
+  );
+}
+
 /* -------------------------------------------------- negative control */
 /**
  * Not a visible finding.

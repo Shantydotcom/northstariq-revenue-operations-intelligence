@@ -161,6 +161,16 @@ export interface OpportunityRecord {
   StageName: string | null;
   CloseDate: string | null;
   Amount: number | null;
+  /*
+   * The Account relationship itself, not its name.
+   *
+   * `Account.Name` below is a display value and is null for two different
+   * reasons - no Account, or an Account whose name could not be read - so it
+   * cannot carry the relationship question. This is the id, which answers only
+   * that question. Field-level access for it was already granted to the
+   * integration principal before this field was read.
+   */
+  AccountId: string | null;
   IsClosed: boolean;
   IsWon: boolean;
   /*
@@ -172,6 +182,19 @@ export interface OpportunityRecord {
    */
   Loss_Reason__c: string | null;
   Account: { Name: string | null } | null;
+  /*
+   * The customer contact relationships recorded ON THE DEAL.
+   *
+   * ⚠️ SALESFORCE RETURNS `null`, NOT AN EMPTY LIST, when an Opportunity has no
+   * contact roles. Observed against the org, not assumed - so every consumer
+   * must treat null as zero roles rather than as missing data.
+   *
+   * Only `Id` is selected. Existence is the whole question: OpportunityContactRole
+   * cannot exist without a Contact (`ContactId` is not nillable), so a row
+   * already proves a named person without reading one Contact field. Reading
+   * more would take access the assessment does not need.
+   */
+  OpportunityContactRoles: { records: { Id: string }[] } | null;
 }
 
 /** Cap: the demo org holds ~50 Leads; 500 is headroom, not ambition. */
@@ -352,8 +375,19 @@ ORDER BY CreatedDate DESC
 LIMIT 500
 `.trim().replace(/\s+/g, ' ');
 
+/**
+ * One read for every Opportunity control.
+ *
+ * The child subquery is a relationship read, not a second query: Salesforce
+ * performs the join, so the checks stay pure functions over records already
+ * fetched and remain unit-testable with no network. Only the role's `Id` is
+ * selected - see `OpportunityContactRoles` above for why existence is
+ * sufficient and no Contact field is read.
+ */
 export const OPPORTUNITY_SOQL = `
-SELECT Id, Name, StageName, CloseDate, Amount, IsClosed, IsWon, Loss_Reason__c, Account.Name
+SELECT Id, Name, StageName, CloseDate, Amount, AccountId, IsClosed, IsWon,
+       Loss_Reason__c, Account.Name,
+       (SELECT Id FROM OpportunityContactRoles)
 FROM Opportunity
 ORDER BY CloseDate ASC
 LIMIT 500

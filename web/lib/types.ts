@@ -24,12 +24,17 @@ export type Category =
   | 'Lifecycle Governance';
 
 /**
- * Every implemented check. All eleven are in `CHECK_IDS` and all eleven run.
+ * Every implemented check — INCLUDING THOSE THAT ARE NOT REGISTERED.
  *
- * Whether a check produces a SCORE is a separate question, answered per run:
- * one that judged no record is Not Scored rather than scored zero. Membership
- * of this union is what makes the presentation and traceability records
- * type-complete; `CHECK_IDS` is the API allow-list.
+ * Membership here means the detector exists in source and carries complete
+ * presentation and traceability records. It does NOT mean the control runs:
+ * `CHECK_IDS` is the API allow-list and the active set, and a check absent
+ * from it executes in no assessment and moves no score. Two members are
+ * currently in that state by design.
+ *
+ * Whether a REGISTERED check produces a score is a third, separate question,
+ * answered per run: one that judged no record is Not Scored rather than
+ * scored zero.
  */
 export type CheckId =
   | 'missing-firmographics'
@@ -44,7 +49,15 @@ export type CheckId =
   | 'lifecycle-progression'
   | 'sales-acceptance-sql'
   | 'seller-decision-timeliness'
-  | 'closed-lost-reason';
+  | 'closed-lost-reason'
+  /*
+   * SOURCE IMPLEMENTED, NOT REGISTERED. Like `seller-decision-timeliness`, it
+   * is absent from `CHECK_IDS` and from `runAllChecks`, so it executes in no
+   * assessment and the validated model is unchanged at v3. Membership here is
+   * what makes its presentation and traceability records type-complete;
+   * `CHECK_IDS` is the separate thing that activates a control.
+   */
+  | 'revenue-handoff-integrity';
 
 /** One column of finding evidence. `mono` renders values in a monospace face. */
 export interface EvidenceColumn {

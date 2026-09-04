@@ -1074,6 +1074,81 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
     verificationSource:
       'Application unit tests against fixture records. No org-side test exists, because no org-side control was built.',
   },
+
+  /*
+   * SOURCE IMPLEMENTED, NOT REGISTERED. Present so the detector's presentation
+   * is complete and reviewable, exactly as `seller-decision-timeliness` is.
+   * Nothing here reaches a screen until the control is added to CHECK_IDS.
+   */
+  'revenue-handoff-integrity': {
+    label: 'Closed Won Without Complete Handoff Evidence',
+    checkName: 'Revenue Handoff Integrity',
+    blurb: 'Won Opportunities missing the governed evidence a revenue handoff needs.',
+    headlinePredicate:
+      'Closed Won Opportunities are missing governed Revenue Handoff evidence.',
+    queueDescription:
+      'Closed Won Opportunities missing an Account relationship, an Amount, or a customer contact relationship.',
+    populationNoun: 'Closed Won Opportunities',
+    denominator: true,
+    unit: 'opportunities',
+    why: 'A won deal is handed to whatever runs revenue downstream, and that handoff is only as good as the record behind it. With no Account there is no organisation to bill or onboard; with no Amount there is no value to pass on; with no customer contact relationship there is no named person for onboarding, customer success or billing to attach to. "Sales says this deal is won" and "this record can be acted on downstream" are two different claims, and only the first is evidenced by the stage.',
+    control:
+      'A Closed Won Opportunity should carry three things: an Account relationship, a populated Amount, and at least one Opportunity Contact Role. Salesforce enforces none of them — all three remain optional on a won deal — so NorthstarIQ reports the gap rather than preventing it. The set is fixed: adding a fourth requirement would be a new governed decision, not a wider check.',
+    recheck:
+      'The Opportunity carries all three evidence elements. Re-running the assessment re-reads what the record holds now — NorthstarIQ changes nothing in Salesforce.',
+    finding: (f, e) =>
+      `${f} of ${e} Closed Won Opportunities are missing governed Revenue Handoff evidence.`,
+    explain: {
+      inScope:
+        'because Salesforce reports them as closed and won, so a handoff is owed',
+      notClaimed: 'are still open, or were lost, so no handoff is owed',
+      notEvaluated:
+        'are either still open — no win has been declared — or were Closed Lost, which never becomes Revenue and owes a loss reason instead',
+      proves:
+        'A pass means all three evidence elements are present. It does not mean the Amount is right, the Account is the correct one, or that the named contact is the right person — none of which this control can falsify. It is also never a statement about recognized revenue.',
+    },
+    sourceEvidence: {
+      intro:
+        'Which evidence is required, where it comes from, and what the absence of a contact role does and does not mean.',
+      pairs: [
+        {
+          term: 'The evidence set is fixed, not open-ended',
+          detail:
+            'Three elements, ratified as a NorthstarIQ portfolio decision: an Account relationship, a populated Amount, and at least one Opportunity Contact Role. "Required handoff attributes" is otherwise unbounded, and each individually plausible addition would drag a bounded MVP toward quoting and contract management. Adding one is a new governed policy version, not an edit to this control.',
+        },
+        {
+          term: 'Salesforce owns the outcome; NorthstarIQ asks whether it is actionable',
+          detail:
+            'Whether an Opportunity is won is decided by its stage — IsClosed and IsWon are derived from the stage configuration and cannot be written directly, so this control never re-derives or contradicts them. Close Date and Stage are deliberately not checked: Salesforce already requires both, and a control that restates a platform guarantee reports nothing.',
+        },
+        {
+          term: 'A missing contact role is missing CRM evidence, not a missing person',
+          detail:
+            'Opportunity Contact Role is the governed Salesforce expression of who the customer is on the deal. Its absence means the Opportunity does not record that relationship — never that no such person exists. Contacts can exist against the Account and elsewhere in Salesforce, and this control reads no Contact record to reach its finding.',
+        },
+        {
+          term: 'Amount populated, not Amount above a threshold',
+          detail:
+            'The requirement is that a value is recorded. A zero Amount passes: it is a populated value, and treating it as absent would mean inventing a monetary threshold no governed decision states.',
+        },
+      ],
+    },
+    safeguard: {
+      kind: 'detective',
+      title: 'No automated safeguard is implemented for this condition',
+      body: 'NorthstarIQ detects it for operational review. Detective by deliberate decision, not by omission: handoff evidence is legitimately assembled after a win, so a validation rule would refuse the save of a real commercial outcome until unrelated administrative work finished, and would be worked around rather than obeyed. No Flow, validation rule, custom field or Record Type was built for it, and stating that is more useful than implying a control the project did not build.',
+      tech: ['Detection only', 'Opportunity', 'OpportunityContactRole'],
+    },
+    verification: [
+      'A Closed Won Opportunity carrying an Account, an Amount and at least one contact role passes',
+      'Each element missing on its own is reported, and names the element that is absent',
+      'An Opportunity missing more than one element is reported ONCE, with every missing element named',
+      'An Amount of zero passes — populated is the requirement, not a threshold',
+      'Open and Closed Lost Opportunities are outside the population and are never scored by it',
+    ],
+    verificationSource:
+      '⚠️ SOURCE IMPLEMENTED · LOCALLY VALIDATED · NOT REGISTERED · NOT ACTIVE IN ASSESSMENT. Application unit tests against fixture records only. The detector executes in no assessment, so there is NO Salesforce integration runtime evidence, NO live pass-path evidence and NO live fail-path evidence for it — none of which may be claimed until the control is registered and actually run.',
+  },
 };
 
 /**

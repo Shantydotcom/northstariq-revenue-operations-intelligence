@@ -114,7 +114,24 @@ export function opportunity(overrides: Partial<OpportunityRecord> = {}): Opportu
     // that carried one by default would make the "outside" population untestable.
     Loss_Reason__c: null,
     Account: { Name: `Fictional Co ${seq}` },
+    AccountId: `001000000000${String(seq).padStart(4, '0')}`,
+    /*
+     * Null by default, which is what Salesforce actually returns for an
+     * Opportunity carrying no contact roles — an empty list is not the shape
+     * the API produces. Defaulting to the real empty shape keeps the Revenue
+     * Handoff fail path reachable without every other fixture opting in.
+     */
+    OpportunityContactRoles: null,
     ...overrides,
+  };
+}
+
+/** One contact role, in the shape the Opportunity subquery returns. */
+export function contactRoles(count: number): { records: { Id: string }[] } {
+  return {
+    records: Array.from({ length: count }, (_, i) => ({
+      Id: `00K000000000${String(i + 1).padStart(4, '0')}`,
+    })),
   };
 }
 
