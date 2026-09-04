@@ -3,7 +3,7 @@
 | | |
 |---|---|
 | **Purpose** | How this project proves that what it built actually works |
-| **Status** | 🟢 **Strategy defined · Increments 1-4 executed with recorded results** — 8/8 · 9/9 · 6/6 · 15/15 · 9/9 · 2/2 · 10/10 · 11/11 · 9/9 · 11/11 Salesforce, and the application unit suite passing in full. **Assessment Model v2 is active.** The suite total is deliberately not quoted here — run `npm test` in `web/` for the current figure; the per-increment Salesforce results above are dated evidence and do not move. **The ~190-record synthetic dataset is not generated**, so no scenario has run against the designed population. |
+| **Status** | 🟢 **Strategy defined · Increments 1-4 executed with recorded results** — 8/8 · 9/9 · 6/6 · 15/15 · 9/9 · 2/2 · 10/10 · 11/11 · 9/9 · 11/11 Salesforce, and the application unit suite passing in full. **Assessment Model v3 is active.** The suite total is deliberately not quoted here — run `npm test` in `web/` for the current figure; the per-increment Salesforce results above are dated evidence and do not move. **The ~190-record synthetic dataset is not generated**, so no scenario has run against the designed population. |
 | **Related** | [`requirements.md`](requirements.md) · [`architecture.md`](architecture.md) · [`security-model.md`](security-model.md) |
 
 ---
@@ -1789,6 +1789,118 @@ individually runtime-exercised.
 
 **Bulk behaviour was not re-tested here.** These matrices are single-record governance tests; bulk
 safety rests on the earlier increments' evidence.
+
+## 2x. Step 8 — Closed Lost outcome integrity, executed 2026-09-02 / 2026-09-03
+
+Six kinds of evidence, kept apart on purpose. **Metadata validity is not deployment, deployment is
+not behaviour, and a control that passed is not a control whose failure path was ever exercised.**
+
+### 2x-1. Automated deterministic validation — `closed-lost-reason`
+
+`web/test/closed-lost-reason.test.ts`, **14 deterministic tests**, fixtures only, no network, no org.
+They cover the population boundary (`IsClosed && !IsWon`), the failing predicate (null and empty
+string), Closed Won and open Opportunities as *outside*, the evidence and not-evaluated tables,
+severity, category, and the control's registration status. Full suite at Step 8 close: **324/324**,
+`tsc --noEmit` clean, repository validator 50/0/0.
+
+**CLOSED LOST DETECTOR LOGIC — AUTOMATED TEST VALIDATED.**
+
+### 2x-2. Check-only metadata validation
+
+Check-only proves the metadata is **deployable**. It proves nothing about behaviour.
+
+| Deployment Id | What was validated | Result |
+|---|---|---|
+| `0Afaj00000j2rj3CAA` | Validation Rule, field, layout, permissions — after a `description` length correction | ✅ Passed |
+| `0Afaj00000j3SIpCAM` | Profile layout-assignment correction | ✅ Passed |
+| `0Afaj00000j4q7mCAA` | Quick Action registered in the layout's `platformActionList` | ✅ Passed |
+| `0Afaj00000j5HvxCAE` | Constrained Quick Action — hidden `StageName`, visible Loss Reason only | ✅ Passed |
+| `0Afaj00000j561GCAQ` · `0Afaj00000j5CppCAE` · `0Afaj00000j4vahCAA` | Opportunity Path foundation | ❌ **Failed — all three.** `PathAssistant.recordTypeName` could not resolve a usable master/default record-type context. **These are failures, never deployments.** |
+
+⚠️ **The `ValidationRule.description` limit is 255 characters, not the 1000 that `CustomField`
+allows.** The first attempt failed at 807; the text was trimmed to 174 and only that element changed.
+
+### 2x-3. Real metadata deployment
+
+| Deployment Id | Components |
+|---|---|
+| `0Afaj00000j2RDYCA2` | `Loss_Reason__c` · `Closed_Lost_Requires_Governed_Reason` · Opportunity layout · `NIQ_Revenue_Seller` · `NIQ_Integration_Read` |
+| `0Afaj00000j3XFGCA2` | Profile layout assignment — the seller's Details tab would not render without it |
+| `0Afaj00000j4mBZCAY` | Layout `platformActionList` carrying the Close Lost action |
+| `0Afaj00000j5C54CAE` | Constrained `Opportunity.Close_Lost` Quick Action |
+
+**No Opportunity Record Type and no BusinessProcess was created at any point.**
+
+### 2x-4. Seller-persona runtime validation via Salesforce Administrator Login As
+
+⚠️ **This is the evidence identity, stated exactly: SELLER-PERSONA RUNTIME VALIDATION VIA SALESFORCE
+ADMINISTRATOR LOGIN AS. It is *not* direct seller credential authentication.** Four attempts to
+authenticate the seller directly all resolved to the administrator through browser session reuse, and
+the `northstariq-seller` CLI alias **resolves to the administrator** — it was never used as seller
+evidence.
+
+| # | Case | Fixture | Observed |
+|---|---|---|---|
+| 1 | Seller layout and presentation | — | Opportunity Details rendered; **Loss Reason visible and editable beside Stage**; exactly the four governed values offered — **no `Other`, no `Price`, no free text** |
+| 2 | Governed close | `006aj00000cxQobAAE` `NIQ-S8-A-Governed-Loss-Lifecycle` | **Close Lost → No Decision → Save committed.** Persisted: Stage `Closed Lost`, Loss Reason `No Decision`. `OpportunityHistory` recorded the **seller-authored stage transition** |
+| 3 | Blank close refused | `006aj00000cx9uJAAQ` | Close Lost with **no** reason — **Validation Rule blocked the transaction.** Stage remained `Qualification`, `IsClosed = false`, `IsWon = false`, **no committed change and no history row** |
+| 4 | **QA-4 — evidence preservation** | `006aj00000cxQobAAE` | Seller set Loss Reason to `--None--` while Stage stayed `Closed Lost`. **Save refused by the authored Validation Rule.** Server verification: Stage `Closed Lost`, `IsClosed = true`, `IsWon = false`, **`LastModifiedDate` unchanged, `SystemModstamp` unchanged, `OpportunityHistory` still 4 rows** |
+
+⚠️ **`OpportunityHistory` does not record the custom Loss Reason value**, and is never cited as proof
+that it was preserved. QA-4's preservation claim rests on three things together: the seller UI, the
+Validation Rule's refusal, and the **absence of any committed transaction**.
+
+⚠️ **The administrator cannot independently query `Loss_Reason__c`** — no profile field-level access,
+deliberately (see [`security-model.md`](security-model.md)). No verification recorded here is
+supported by an administrator read of that field.
+
+### 2x-5. Integration-principal read-only runtime validation — the detector pass path
+
+Executed through the **real NorthstarIQ assessment identity**, the real Opportunity query contract,
+real field-level security and the real record mapping — not a fixture harness.
+
+| Observed | Value |
+|---|---|
+| Opportunities in the org | **37** — 17 open · 19 Closed Won · **1 Closed Lost** |
+| Integration readback, fixture A | `StageName = Closed Lost` · `IsClosed = true` · `IsWon = false` · `Loss_Reason__c = No Decision` |
+| Detector result | `orgPopulation = 37` · `evaluated = 1` · `failing = 0` · `notEvaluated = 36` |
+| Accounting | **1 + 36 = 37** — every Opportunity is either judged or explained |
+| Evidence rows | **0 — correct.** The evidence table holds **failing** records only, so a control with nothing failing has nothing to show. **This is not a validation gap.** |
+
+⚠️ **This was not a Model v3 run.** The detector was invoked directly, **before** registration and
+before v3 activation.
+
+**CLOSED LOST DETECTOR SALESFORCE INTEGRATION — RUNTIME VALIDATED.**
+**CLOSED LOST DETECTOR PASS PATH — RUNTIME VALIDATED.**
+
+### 2x-6. What was NOT runtime tested, and why
+
+**Declining to manufacture the missing fixture is itself part of the evidence.**
+
+| Case | Status | Why |
+|---|---|---|
+| Detector **fail path** — a Closed Lost Opportunity carrying a blank reason | ⬜ **DETERMINISTIC TEST VALIDATED ONLY** | No legitimate such record exists, because the preventive safeguard works. Producing one would have meant deactivating the Validation Rule to manufacture the very failure the control prevents. **Not done.** |
+| **QA-3** — governed reason A → B while Closed Lost | ⬜ **Not separately executed** | Source and truth-table reasoning only |
+| **QA-5** — reopening a Closed Lost Opportunity | 🟡 **INCIDENTAL EVIDENCE only** | A seller-authored reopen occurred outside any controlled test. **Not upgraded to a validated case.** |
+| **QA-6** — re-closing blank after a reopen | ⬜ **Not separately executed** | The existing blank-close refusals cover the same safeguard semantics; stopped at diminishing returns |
+| **Test 4** — a historical pre-governance blank record edited for an unrelated reason | ⬜ **NOT RUNTIME TESTABLE** | Cannot be created safely once the safeguard is active. **No such fixture was manufactured.** |
+| **Assessment Model v3** end to end against the org | ⬜ **Not executed** | No v3 assessment has been run; **no v3 overall score exists** |
+
+### 2x-7. One finding worth keeping
+
+The standard **Close This Opportunity** modal exposed **Stage only**. A Loss Reason typed into the
+underlying Details form and left unsaved was **not carried into that close transaction**, so the
+Validation Rule correctly refused the save. **This was a presentation-layer transaction-boundary
+issue, not a Validation Rule defect** — and the response was to give the seller a constrained Quick
+Action that submits stage and reason together, **not to weaken the safeguard**.
+
+### 2x-8. Unrelated limitation, carried rather than closed
+
+An `INVALID_FIELD` error in an Opportunity **Related** area was observed during Step 8 and
+investigated far enough to establish that it is unconnected to Closed Lost governance.
+**NON-BLOCKING ENVIRONMENTAL LIMITATION** — not owned, not fixed, not a Step 8 blocker.
+
+---
 
 ## 3. Dataset Specification
 

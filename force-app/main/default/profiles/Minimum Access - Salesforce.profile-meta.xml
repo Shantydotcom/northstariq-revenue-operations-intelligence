@@ -2,7 +2,9 @@
 <!--
     Minimum Access - Salesforce remains the representative Seller's base profile.
 
-    This file declares ONE thing: the Lead page-layout assignment.
+    This file declares ONE KIND of thing: page-layout assignments. Lead first, then
+    Opportunity - the identical dependency recurred when Step 8 granted Opportunity
+    object access through the same permission set.
 
     Why it must live on the profile: page-layout assignment is PROFILE-scoped in
     Salesforce. A permission set cannot assign a layout. Granting Lead object access
@@ -17,5 +19,8 @@
 <Profile xmlns="http://soap.sforce.com/2006/04/metadata">
     <layoutAssignments>
         <layout>Lead-Lead Layout</layout>
+    </layoutAssignments>
+    <layoutAssignments>
+        <layout>Opportunity-Opportunity Layout</layout>
     </layoutAssignments>
 </Profile>

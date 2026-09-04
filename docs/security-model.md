@@ -462,6 +462,42 @@ it, and §4b establishes that its principal could not write it if it tried.
 
 ---
 
+### Closed Lost reason — the seller writes it, the assessment reads it, the admin cannot see it
+
+Step 8 added **one** field to the access model, `Opportunity.Loss_Reason__c`, and split it three ways.
+
+| Principal | `Opportunity` object | `Loss_Reason__c` |
+|---|---|---|
+| `NIQ_Revenue_Seller` | Read ✅ · Edit ✅ · Create ❌ · Delete ❌ · View All ❌ · Modify All ❌ | `readable=true`, **`editable=true`** |
+| `NIQ_Integration_Read` | Read ✅ · **View All ✅** · Edit ❌ · Create ❌ · Delete ❌ · Modify All ❌ | `readable=true`, **`editable=false`** |
+| `NIQ_Revenue_Operations` | **No `Opportunity` access** — unchanged by Step 8 | **Not granted** |
+| Administrator profile | Licence and profile baseline | **No field-level access — deliberately** |
+
+**The seller may write it because selecting the value *is* the governed act**, exactly as
+`Sales_Rejection_Reason__c` is the one writable field of the seller decision. It is a **restricted**
+picklist, so Salesforce refuses any value outside the vocabulary before the Validation Rule sees it.
+**Object access was not broadened to grant it:** no create, no delete, no View All, no Modify All was
+added to `NIQ_Revenue_Seller` by Step 8.
+
+**The integration principal reads and cannot write** — `editable=false`, consistent with every other
+field it touches. **The assessment reads Salesforce and never writes to it.** Its `viewAllRecords` on
+`Opportunity` is the same pattern already established in §4b: an assessment that sees only a subset of
+records would report a population it cannot defend, and read-breadth without write capability is the
+narrowest way to make the denominator honest.
+
+**The administrator profile was deliberately given no access to this field**, and that is a
+governance choice rather than an oversight or a defect. Its consequence is concrete and was accepted:
+**administrator SOQL cannot independently confirm a `Loss_Reason__c` value**, so Step 8 verifications
+that turn on the field's content rest on the seller UI, the Validation Rule's refusal, and the
+absence of a committed transaction — never on an administrator read that was not possible.
+[`testing-strategy.md`](testing-strategy.md) §2x records where that limit applies.
+
+**One profile change was unavoidable, and it is not a widening of access.** Page-layout assignment is
+**profile-scoped in Salesforce — a permission set cannot assign a layout** — so the seller's profile
+received the `Opportunity-Opportunity Layout` assignment beside the existing Lead one. It grants no
+object, field, record or administrative capability. **No Record Type was introduced**, no
+organization-wide default moved, no sharing rule was added, and no role was created.
+
 ## 5. Queues — Superseded by the implemented design
 
 **Candidate design — 2 queues:** `Routing_Exception_Queue` for unassignable records;

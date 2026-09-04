@@ -368,7 +368,7 @@ test('every check accounts for its whole starting population', () => {
   }
 });
 
-test('runAllChecks runs exactly the eleven implemented checks, in order', () => {
+test('runAllChecks runs exactly the twelve implemented checks, in order', () => {
   const results = runAllChecks(
     [lead()],
     [opportunity()],
@@ -393,6 +393,7 @@ test('runAllChecks runs exactly the eleven implemented checks, in order', () => 
       'ambiguous-match',
       'missing-territory',
       'stale-opportunities',
+      'closed-lost-reason',
       'lifecycle-progression',
       'mql-integrity',
       'sales-acceptance-sql',
@@ -748,7 +749,10 @@ test('the six original definitions are untouched by everything added since', () 
 
   const results = runAllChecks(leads, opps, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
   const original = results.filter(
-    (r) => r.category !== 'Lifecycle Governance' && r.id !== 'segment-consistency',
+    (r) =>
+      r.category !== 'Lifecycle Governance' &&
+      r.id !== 'segment-consistency' &&
+      r.id !== 'closed-lost-reason',
   );
 
   assert.equal(original.length, 6);
@@ -955,7 +959,7 @@ test('conversion integrity is scored under Model v2, inside Lifecycle Governance
   const leads = [claimsOnly(), lead(), lead({ LeadSource: 'Web' })];
   const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
 
-  assert.equal(results.length, 11, 'eleven scored controls - Model v2');
+  assert.equal(results.length, 12, 'twelve scored controls - Model v3');
   const conversion = results.find((r) => r.id === 'lifecycle-conversion');
   assert.ok(conversion, 'the lifecycle control is part of the scored run');
   assert.equal(conversion.evaluated, 1, 'the one Lead claiming conversion');

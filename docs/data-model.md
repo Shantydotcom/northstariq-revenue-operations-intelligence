@@ -11,7 +11,7 @@
 ## ⚠️ Status of Every Field in This Document
 
 **22 custom fields are deployed and in source control**, alongside **4 Custom Metadata Types holding 26 configuration records** (§2b — configuration, not CRM data). — Lead 14 (validated across Increments 2-4),
-Account 4 (deployed; `Normalized_Domain__c` validated), User 3 (**deployed, unconsumed**). The status
+Account 4 (deployed; `Normalized_Domain__c` validated), User 3 (**deployed, unconsumed**), Opportunity 1 (Step 8, deployed and runtime validated). ⚠️ **The totals in this paragraph predate the lifecycle increments and are not re-derived here — the source tree governs the count.** The status
 column below is current; [`implementation-log.md`](implementation-log.md) records each transition.
 
 | Status | Meaning |
@@ -126,6 +126,35 @@ increments added the qualification, acceptance and conversion evidence fields re
 >
 > They remain deployed from the approved design but are currently unconsumed. **They are not evidence
 > that round robin exists.**
+
+### Opportunity — 1 built (Step 8)
+
+| API name | Type | Purpose | Serves | Status |
+|---|---|---|---|---|
+| `Loss_Reason__c` | Picklist — **restricted**, 4 values | **THE SELLER INPUT** recording *why* a pursuit was lost. Selecting a value **is** the act of recording the loss, so no companion checkbox exists. | `BR-22`, `PD-17`, `PD-18` | ✅ **VALIDATED (2026-09-03)** — deployed, and the governed close, the blocked blank close and the blocked clearing were each observed at runtime |
+
+**The vocabulary is exactly four values, and Salesforce owns membership.** `Lost to Competitor` ·
+`No Decision` · `Not ICP` · `Product Gap`. **No `Other`, no `Price`, no free text** — `PD-18` records
+why each exclusion was made and why neither is a universal claim. Because the picklist is
+**restricted**, Salesforce refuses any value outside the vocabulary *before* the Validation Rule or
+the assessment ever sees it, so **membership is never re-tested elsewhere**: the NorthstarIQ detector
+checks only that a reason is **present**. One vocabulary, one authority.
+
+**`required = false` at the field layer, on purpose.** The requirement is **conditional** — it applies
+on entry to Closed Lost, not to every Opportunity — so field-level requiredness would be the wrong
+mechanism and would block open Opportunities that owe no reason. The condition lives in the
+`Closed_Lost_Requires_Governed_Reason` Validation Rule instead.
+
+**Authority split.** Salesforce stays authoritative for *whether* the Opportunity is lost
+(`IsClosed = true AND IsWon = false`); this field governs only *why*. **`trackHistory = false`** —
+native `OpportunityHistory` records the stage transition and its actor, and **does not record this
+custom field's value**; no provenance field was added, because bounded verification did not need one.
+
+**Assessment read dependency.** The `closed-lost-reason` control reads this field over the
+Opportunity query contract, through the integration principal's read-only field-level access. **The
+assessment never writes it.** Each value routes to a different upstream owner: `Not ICP` feeds
+targeting and MQL qualification, `Product Gap` feeds product management, `Lost to Competitor` feeds
+competitive response, `No Decision` feeds qualification discipline.
 
 ### Resolved at org inspection
 

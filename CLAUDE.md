@@ -319,6 +319,13 @@ Lead → MQL → SAL → SQL → Conversion → Opportunity
 One lifecycle, identical everywhere it appears. Do not substitute an alternative funnel. Operational
 processes exist around the lifecycle; they do not replace its milestones.
 
+**After Opportunity the lifecycle branches, and the branch never rejoins** — `Closed Won → Revenue
+Handoff`, or `Closed Lost → Loss Intelligence`, which is terminal. **Closed Lost never flows into
+Revenue.** **Forecast is not a stage**; it is a lens over open Opportunities. The authoritative model,
+including what each segment is governed by, lives in `docs/requirements.md` §2 Lifecycle — this
+section governs only how the six pre-conversion milestones are represented in the experience, which
+is unchanged.
+
 ### Experience boundaries
 
 Each page owns one job, and no page absorbs another's.
@@ -602,6 +609,12 @@ At that point:
 **STOP documentation reconciliation and return to the functional build.**
 
 Do not turn a bounded implementation task into a repository-wide documentation audit.
+
+### Material Scope Change → Semantic Impact Check
+
+When a roadmap, lifecycle, capability, system boundary, authoritative term, or business outcome is materially added or changed, do not assume existing requirements automatically govern the new scope. Before implementation, perform a bounded semantic impact check across the affected business requirements, source-of-truth boundaries, data/evidence requirements, controls, terminology, analytics, and portfolio claims. Identify undefined transitions, contradictory older decisions, misleading lifecycle notation, and requirements that were valid under the prior scope but are now incomplete. Preserve valid prior decisions rather than silently rewriting them. Resolve material gaps through an explicit business decision before implementation.
+
+A prior requirement may remain factually correct while becoming incomplete because the scope around it changed.
 
 ### Discovery during validation
 

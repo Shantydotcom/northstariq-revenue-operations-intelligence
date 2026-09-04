@@ -163,6 +163,14 @@ export interface OpportunityRecord {
   Amount: number | null;
   IsClosed: boolean;
   IsWon: boolean;
+  /*
+   * THE SELLER INPUT recording why a pursuit was lost.
+   *
+   * Read, never written - the assessment is read-only. Because the picklist is
+   * RESTRICTED, any non-blank value is already a governed vocabulary member, so
+   * no control re-tests membership. Blank on a lost Opportunity is the finding.
+   */
+  Loss_Reason__c: string | null;
   Account: { Name: string | null } | null;
 }
 
@@ -345,7 +353,7 @@ LIMIT 500
 `.trim().replace(/\s+/g, ' ');
 
 export const OPPORTUNITY_SOQL = `
-SELECT Id, Name, StageName, CloseDate, Amount, IsClosed, IsWon, Account.Name
+SELECT Id, Name, StageName, CloseDate, Amount, IsClosed, IsWon, Loss_Reason__c, Account.Name
 FROM Opportunity
 ORDER BY CloseDate ASC
 LIMIT 500

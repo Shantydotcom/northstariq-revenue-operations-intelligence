@@ -976,6 +976,72 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
     evidenceIsDirectory: true,
   },
 
+  'closed-lost-reason': {
+    label: 'Closed Lost Without a Governed Reason',
+    checkName: 'Closed Lost Reason Governance',
+    blurb: 'Lost Opportunities that record no governed reason for the loss.',
+    headlinePredicate: 'Closed Lost Opportunities record no governed loss reason.',
+    queueDescription: 'Closed Lost Opportunities with no loss reason recorded.',
+    populationNoun: 'Closed Lost Opportunities',
+    denominator: true,
+    unit: 'opportunities',
+    why: 'A lost deal that records no reason teaches the business nothing. Win/loss analysis, competitive response and upstream targeting correction all depend on knowing why a pursuit ended — and none of the three is answerable from the closed and won flags alone, which say only *that* it was lost.',
+    control:
+      'A Closed Lost Opportunity should carry exactly one governed loss reason — Lost to Competitor, No Decision, Not ICP or Product Gap. The vocabulary is deliberately small: each value routes to a different upstream owner, so a reason is an instruction about where to look, not a label.',
+    recheck:
+      'A governed loss reason is recorded on the Opportunity. Re-running the assessment re-reads the value the record carries now.',
+    finding: (f, e) =>
+      `${f} of ${e} Closed Lost Opportunities carry no governed loss reason.`,
+    explain: {
+      inScope:
+        'because Salesforce reports them as closed and not won, so a loss reason was owed',
+      notClaimed: 'are open, or were won, so no loss reason was ever owed',
+      notEvaluated:
+        'are either still open — no loss has been declared — or were Closed Won, where a loss reason would be meaningless',
+      proves:
+        'A pass means a governed reason is present. It does not mean the reason is the *right* one: whether a seller categorised a loss correctly is a judgement this control cannot falsify and never claims to.',
+    },
+    sourceEvidence: {
+      intro:
+        'Where the vocabulary comes from, and why presence is the only thing judged.',
+      pairs: [
+        {
+          term: 'Governed vocabulary — a restricted picklist',
+          detail:
+            'Four values, ratified as a NorthstarIQ portfolio decision: Lost to Competitor · No Decision · Not ICP · Product Gap. The picklist is RESTRICTED, so Salesforce refuses anything outside the vocabulary before any rule or assessment runs — which is why no control re-tests membership. There is deliberately no "Other": every value maps to a distinct operational question.',
+        },
+        {
+          term: 'The seller records it, not automation',
+          detail:
+            'Selecting a value IS the act of recording the loss, so no companion checkbox exists to disagree with it. Nothing chooses the reason on the seller\u2019s behalf — automation that guessed a loss cause would be manufacturing the very judgement the control exists to capture.',
+        },
+        {
+          term: 'Salesforce owns the outcome; NorthstarIQ owns the cause',
+          detail:
+            'Whether an Opportunity is lost is decided by its stage: IsClosed and IsWon are derived from the stage configuration and cannot disagree with it. This control never re-derives or contradicts them — it asks only whether the record explains *why*.',
+        },
+      ],
+    },
+    safeguard: {
+      kind: 'preventive',
+      title: 'Salesforce refuses to close an Opportunity as lost without a reason',
+      body: 'A validation rule blocks the save when an Opportunity enters Closed Lost with no loss reason, and blocks erasing a reason that already exists while it stays Closed Lost. It is deliberately a validation rule rather than automation: a rule can only refuse a save, so it is structurally incapable of choosing the reason for the seller. Enforcement is PROSPECTIVE — an Opportunity lost before the rule existed was never blocked and is never backfilled, so a finding here does not by itself mean the rule failed. DEPLOYED AND RUNTIME VALIDATED — both refusals were observed against the org. A constrained Close Lost quick action gives the seller one transaction that submits the stage and the reason together, and the rule stays the independent enforcement whichever way the save arrives.',
+      tech: [
+        'Opportunity.Loss_Reason__c',
+        'Closed_Lost_Requires_Governed_Reason',
+      ],
+    },
+    verification: [
+      'A governed close committed: the stage and the loss reason were saved in one transaction, and Salesforce recorded the seller-authored stage transition',
+      'Both refusals were observed — closing as lost with no reason, and clearing a reason that already existed while the Opportunity stayed Closed Lost — each leaving the record and its timestamps unmoved',
+      'Formula semantics were checked against the ten approved behaviours at source level, including that a historical Closed Lost with no reason stays editable and that an existing reason cannot be blanked',
+      'Detector behaviour is covered by application tests against fixture records',
+    ],
+    verificationSource:
+      'Application unit tests against fixture records, plus deployed-org runtime validation on 2026-09-03 under SELLER-PERSONA RUNTIME VALIDATION VIA SALESFORCE ADMINISTRATOR LOGIN AS — never direct seller credentials. ⚠️ The PASS path is runtime validated; the FAIL path is deterministic-test validated only. During that validation the observed population held one Closed Lost Opportunity and it carried a governed reason, so no record with a blank reason existed to exercise the failing path — because the safeguard prevents one.',
+    evidencePath:
+      'force-app/main/default/objects/Opportunity/validationRules/Closed_Lost_Requires_Governed_Reason.validationRule-meta.xml',
+  },
   'stale-opportunities': {
     label: 'Stale Open Pipeline',
     blurb: 'Open Opportunities with a close date in the past.',

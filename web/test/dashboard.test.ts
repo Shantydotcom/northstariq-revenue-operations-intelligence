@@ -180,7 +180,7 @@ test('the first-run scope is the real model, and states no per-area count', () =
     assert.ok(a.name.length > 0 && a.question.length > 0, a.category);
     assert.ok(!('checks' in a), 'no static check-to-area mapping may be invented here');
   }
-  assert.equal(CHECK_IDS.length, 11, 'the control count the first-run state states');
+  assert.equal(CHECK_IDS.length, 12, 'the control count the first-run state states');
 });
 
 /* ------------------------------------------------------------- no scoring */

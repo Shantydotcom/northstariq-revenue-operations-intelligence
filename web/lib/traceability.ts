@@ -30,6 +30,10 @@ export type UsageType =
   | 'Custom Metadata'
   | 'Queue'
   | 'Report'
+  /* A declarative save-time safeguard. Distinct from Flow: it can only REFUSE a
+   * save, never write a value - which is why it is the right mechanism where
+   * automation must not manufacture a user's decision. */
+  | 'Validation rule'
   /* A governed picklist taxonomy. Distinct from Custom Metadata: it
    * constrains a standard field's values rather than holding rule rows. */
   | 'Standard value set';
@@ -487,6 +491,31 @@ export const TRACEABILITY: Record<CheckId, Traceability> = {
     ],
   },
 
+  'closed-lost-reason': {
+    fields: ['IsClosed', 'IsWon', 'StageName', 'Loss_Reason__c', 'CloseDate', 'Amount'],
+    usages: [
+      {
+        object: 'Opportunity',
+        field: 'Loss_Reason__c',
+        name: 'Loss_Reason__c',
+        type: 'Standard value set',
+        purpose:
+          'Source Evidence — the governed loss vocabulary, restricted to four values so Salesforce refuses anything outside it before a rule or the assessment runs. Presence of a value is what this control judges; membership is guaranteed by the picklist and never re-tested.',
+        evidencePath:
+          'force-app/main/default/objects/Opportunity/fields/Loss_Reason__c.field-meta.xml',
+      },
+      {
+        object: 'Opportunity',
+        field: 'Loss_Reason__c',
+        name: 'Closed_Lost_Requires_Governed_Reason',
+        type: 'Validation rule',
+        purpose:
+          'The preventive safeguard: blocks entry to Closed Lost without a reason, and blocks erasing a reason that already exists. Prospective only — records lost before it existed are detected here, not blocked retrospectively. Deployed, and runtime validated: both refusals were observed against the org.',
+        evidencePath:
+          'force-app/main/default/objects/Opportunity/validationRules/Closed_Lost_Requires_Governed_Reason.validationRule-meta.xml',
+      },
+    ],
+  },
   'stale-opportunities': {
     fields: ['IsClosed', 'CloseDate', 'StageName', 'Amount'],
     usages: [],

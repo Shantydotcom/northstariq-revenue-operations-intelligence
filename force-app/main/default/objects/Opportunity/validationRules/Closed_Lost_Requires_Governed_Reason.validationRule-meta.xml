@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ValidationRule xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Closed_Lost_Requires_Governed_Reason</fullName>
+    <active>true</active>
+    <description>PD-17, PD-18. Requires a governed loss reason on entry to Closed Lost and blocks erasing an existing one. Prospective: a historical Closed Lost with no reason stays editable.</description>
+    <errorConditionFormula>AND(
+  ISPICKVAL(StageName, &quot;Closed Lost&quot;),
+  ISBLANK(TEXT(Loss_Reason__c)),
+  OR(
+    ISNEW(),
+    ISCHANGED(StageName),
+    NOT(ISBLANK(TEXT(PRIORVALUE(Loss_Reason__c))))
+  )
+)</errorConditionFormula>
+    <errorDisplayField>Loss_Reason__c</errorDisplayField>
+    <errorMessage>Select a Loss Reason before closing this Opportunity as lost: Lost to Competitor, No Decision, Not ICP, or Product Gap. An existing Loss Reason may be changed to another value, but not cleared while the Opportunity stays Closed Lost.</errorMessage>
+</ValidationRule>

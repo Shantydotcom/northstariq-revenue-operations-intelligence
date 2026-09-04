@@ -23,17 +23,28 @@ import type {
 /**
  * The scoring model that produced a result.
  *
- * Defined here because this file IS the model: the area list below and the
- * three rules under it are what the version names. One constant, read by the
- * result, the UI and the export - no component writes the string itself.
+ * A version names three things TOGETHER: the active control set, the assessment
+ * area composition, and the scoring and eligibility rules. Any one of the three
+ * moving is a new model, because any one of the three can move the numbers. One
+ * constant, read by the result, the UI and the export - no component writes the
+ * string itself.
  *
  * v1 was five areas and seven controls, and scored a control with nothing
  * evaluated as 100. v2 is six areas and eleven controls, and leaves such a
  * control unscored. Both the weighting and the eligibility changed, so v1 and
  * v2 overall scores are not comparable - which is precisely why a result
  * carries this.
+ *
+ * v3 is six areas and twelve controls. It adds `closed-lost-reason` to Pipeline
+ * Hygiene, moving that area from one active control to two. The scoring formula
+ * and the zero-evaluated eligibility rule are UNCHANGED from v2: this is a
+ * composition change, not a new algorithm. But an area scores as the mean of its
+ * scored controls, so Pipeline Hygiene - and through it overall health - can
+ * land differently on identical Salesforce data. v2 and v3 results are not
+ * claimed to always differ; they are simply not guaranteed comparable, because
+ * the active assessment definition behind them is not the same one.
  */
-export const MODEL_VERSION = 'v2';
+export const MODEL_VERSION = 'v3';
 
 /** Display order for the Overview. */
 /**

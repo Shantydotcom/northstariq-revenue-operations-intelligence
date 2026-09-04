@@ -258,7 +258,7 @@ test('the control is scored under Model v2 and is part of the assessment', () =>
     CHECK_IDS.includes('mql-integrity'),
     'CHECK_IDS is the API allow-list and the scored set - this control is in it',
   );
-  assert.equal(CHECK_IDS.length, 11, 'Assessment Model v2: eleven scored controls');
+  assert.equal(CHECK_IDS.length, 12, 'Assessment Model v3: twelve scored controls');
   const results = runAllChecks(
     [lead()],
     [opportunity()],
@@ -267,7 +267,7 @@ test('the control is scored under Model v2 and is part of the assessment', () =>
     GOVERNANCE,
     NO_HISTORY,
   );
-  assert.equal(results.length, 11, 'Assessment Model v2 runs exactly eleven controls');
+  assert.equal(results.length, 12, 'Assessment Model v3 runs exactly twelve controls');
   const mine = results.find((r) => r.id === 'mql-integrity');
   assert.ok(mine, 'the control executes as part of the ordinary assessment');
   assert.equal(mine.category, 'Lifecycle Governance');

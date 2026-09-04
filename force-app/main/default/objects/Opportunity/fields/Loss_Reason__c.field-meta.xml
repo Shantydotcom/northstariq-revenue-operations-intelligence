@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<CustomField xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>Loss_Reason__c</fullName>
+    <description>BR-15, PD-17, PD-18. THE SELLER INPUT recording why a pursuit was lost: selecting a value IS the act of recording the loss, so no companion checkbox exists. RESTRICTED picklist - Salesforce refuses any value outside the governed vocabulary before a validation rule or the assessment sees it, so membership is never re-tested elsewhere. Each value routes to a different upstream owner: Not ICP feeds targeting and MQL qualification, Product Gap feeds product management, Lost to Competitor feeds competitive response, No Decision feeds qualification discipline. NO Other and NO Price - PD-18 records why each is excluded, and why neither exclusion is a universal claim. NOT universally required at the field layer: the requirement is conditional on entering Closed Lost. Salesforce stays authoritative on WHETHER the Opportunity is lost; this field governs only WHY.</description>
+    <externalId>false</externalId>
+    <inlineHelpText>Why this Opportunity was lost. Required when the stage becomes Closed Lost.</inlineHelpText>
+    <label>Loss Reason</label>
+    <required>false</required>
+    <trackHistory>false</trackHistory>
+    <trackTrending>false</trackTrending>
+    <type>Picklist</type>
+    <valueSet>
+        <restricted>true</restricted>
+        <valueSetDefinition>
+            <sorted>false</sorted>
+            <value>
+                <fullName>Lost to Competitor</fullName>
+                <default>false</default>
+                <label>Lost to Competitor</label>
+            </value>
+            <value>
+                <fullName>No Decision</fullName>
+                <default>false</default>
+                <label>No Decision</label>
+            </value>
+            <value>
+                <fullName>Not ICP</fullName>
+                <default>false</default>
+                <label>Not ICP</label>
+            </value>
+            <value>
+                <fullName>Product Gap</fullName>
+                <default>false</default>
+                <label>Product Gap</label>
+            </value>
+        </valueSetDefinition>
+    </valueSet>
+</CustomField>

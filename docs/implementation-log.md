@@ -3987,6 +3987,188 @@ Step 7 field-level security split, and the four runtime matrices — and correct
 become false, including a Flow version pinned at v13 and a claim that no further Salesforce increment
 was planned.
 
+### 2026-09-03 — Increment 8.5Z: Assessment Model v3, because the active control set changed
+
+```
+Requirement:   PD-22 (portfolio decision). Model-version semantics, decided in
+               Increment 8.5Y discovery. PD-17 and PD-18 remain the business
+               authority for the control itself.
+Repository:    MOD  web/lib/score.ts, web/lib/export-model.ts
+               MOD  test/model-v2.test.ts, score.test.ts, checks.test.ts,
+                    closed-lost-reason.test.ts, lifecycle-progression.test.ts,
+                    mql-integrity.test.ts, sales-acceptance-sql.test.ts,
+                    seller-decision-timeliness.test.ts
+               MOD  docs/architecture.md, docs/testing-strategy.md,
+                    docs/requirements.md (PD-22), docs/implementation-log.md
+Salesforce:    0 metadata changes. 0 deployments. 0 record mutations. 0 queries.
+Validation:    324/324 unit tests, tsc clean, repository validator 50/0/0,
+               git diff --check clean. LOCAL ONLY - no v3 assessment has been
+               run against the org.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**Registering `closed-lost-reason` moved the active model from eleven controls to twelve,
+and Pipeline Hygiene from one active control to two.** That is the whole of the change,
+and it is enough to need a new model version.
+
+**Nothing about the scoring changed.** The formula is the same, the six areas are the same,
+and a control that evaluated no record is still Not Scored rather than 100. What changed is
+composition: Pipeline Hygiene used to *be* `stale-opportunities`, and is now the mean of
+two controls. Because an area scores as the mean of its scored controls and overall health
+as the mean of the scored areas, that area — and through it the overall number — can land
+differently **on identical Salesforce data**. Not *will*: `closed-lost-reason` scoring the
+same as `stale-opportunities`, or evaluating nothing at all, leaves the number where it was.
+The claim is only that v2 and v3 results are **not guaranteed comparable**, which is the
+one thing `MODEL_VERSION` exists to say.
+
+**So historical v2 evidence is frozen, not rewritten.** This repository already records a
+live Model v2 run — *overall 60, 6 areas, 11 controls, 8 findings* — in dated entries above.
+Reusing `v2` would have left that result and a future twelve-control `v2` claiming the same
+assessment definition, with nothing in either artifact to tell them apart. The findings
+export writes the label into a downloadable file, so the ambiguity would have outlived the
+session that produced it. **No dated v1 or v2 entry was edited by this increment.**
+
+**`MODEL_VERSION` moved `v2` → `v3`, and its definition comment stopped being ambiguous.**
+It had said the version names "the area list and the three rules", while also asserting
+"v2 is six areas and eleven controls" — two different definitions in one comment. It now
+states that a version names the active control set, the area composition, and the scoring
+and eligibility rules **together**.
+
+**The payload-shape version did not move.** `northstariq.assessment.v4` in
+`assessment-store.ts` versions the *shape* of the stored result, which did not change.
+Bumping it would have discarded live tab state to signal something it does not signal.
+
+**Still one constant.** No model registry, no assessment history, no version negotiation,
+no v2/v3 comparison view, no new dependency — the same boundary the 2026-08-28 entry drew.
+
+⚠️ **Model v3 is locally validated, not runtime validated.** No assessment was run against
+the org in this increment, so no v3 overall score exists. The Step 8 runtime evidence for
+`closed-lost-reason` — Salesforce integration and detector pass path — stands on its own
+dated entries and is unaffected; its **fail path remains deterministic-test validated only**.
+
+### 2026-09-04 — Step 8 consolidated: an Opportunity may be lost, but not silently
+
+```
+Requirement:   PD-17, PD-18 (ratified). PD-22 for the model-version decision.
+               BR-22 for the Opportunity funnel measurement it serves.
+Salesforce:    1 custom field, 1 Validation Rule, 1 Quick Action, 1 layout,
+               2 permission sets, 1 profile layout assignment.
+               4 real deployments, 4 passing check-onlys, 3 failed check-onlys.
+               0 Record Types. 0 BusinessProcess. 0 Flows. 0 Apex.
+Repository:    1 detective control, 14 deterministic tests, registered into
+               the assessment model. MODEL_VERSION v2 -> v3.
+Validation:    324/324 unit tests, tsc clean, repository validator 50/0/0.
+               Runtime evidence recorded in testing-strategy.md §2x.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**The requirement, and its deliberate limit.** `PD-17` ratified that an Opportunity entering Closed
+Lost must carry a governed reason, **prospectively** — pre-governance losses are detected, never
+retroactively blocked or backfilled. `PD-18` fixed the vocabulary at exactly four values:
+`Lost to Competitor` · `No Decision` · `Not ICP` · `Product Gap`. **No `Other`, no `Price`, no free
+text.** Salesforce remains authoritative for *whether* a deal is lost; NorthstarIQ governs only *why*.
+
+**One field, and Salesforce owns the vocabulary.** `Opportunity.Loss_Reason__c` is a **restricted**
+picklist, so any value outside the four is refused before a rule or the assessment sees it — which is
+why the NorthstarIQ detector checks only that a reason is *present* and never re-validates
+membership. **One vocabulary, one authority, no second source of truth.**
+
+**A Validation Rule, not a Flow, and not a required field.** The requirement is a refusal, never a
+value the system could choose for the seller, so the minimum declarative mechanism that expresses it
+is a Validation Rule. Field-level requiredness would have been wrong in a different way: the
+obligation is *conditional* on entering the lost stage, and open Opportunities owe nothing.
+`Closed_Lost_Requires_Governed_Reason` refuses entry to Closed Lost with no reason and refuses
+**clearing** an existing one, while leaving reason A → B, reopening, and unrelated edits to historical
+blank records alone. ⚠️ The first deployment failed on a 807-character description: **the
+`ValidationRule.description` limit is 255, not the 1000 `CustomField` allows.**
+
+**Deployment, then the layout defect nobody would predict.** The field, rule, layout and permission
+sets deployed cleanly (`0Afaj00000j2RDYCA2`). The seller's Opportunity **Details tab then failed to
+render** — because **page-layout assignment is profile-scoped in Salesforce, and a permission set
+cannot assign a layout.** The seller's profile received the Opportunity layout assignment
+(`0Afaj00000j3XFGCA2`). No access was widened to fix a rendering problem.
+
+**Then the standard close modal turned out to be the real obstacle.** *Close This Opportunity*
+exposes **Stage only**, and a Loss Reason typed into the underlying Details form and left unsaved is
+**not carried into that close transaction** — so the Validation Rule correctly refused a save that
+genuinely had no reason. **A presentation-layer transaction boundary, not a rule defect.** The
+safeguard was not touched.
+
+**The Quick Action took three attempts, and the second one taught the most.** A `Close Lost` Update
+action was authored and deployed, but did not appear: it had been registered in `quickActionList`,
+which is **Salesforce Classic's publisher**. Lightning reads **`platformActionList`**, and where a
+layout declares one, Lightning renders that list exclusively (`0Afaj00000j4mBZCAY`). The action then
+appeared but exposed Stage as a free choice. The final form constrains it
+(`0Afaj00000j5C54CAE`): **`StageName = Closed Lost` as a hidden `fieldOverrides` literal, with
+`Loss_Reason__c` the single visible input.** Invoke → choose why → Save, both fields in one
+transaction. **The Quick Action is transaction UX; the Validation Rule remains the independent
+enforcement — the two are never conflated.**
+
+**Seller runtime validation, under an identity stated honestly.** Four attempts to authenticate the
+seller directly all resolved to the administrator through browser session reuse, so validation
+proceeded as **SELLER-PERSONA RUNTIME VALIDATION VIA SALESFORCE ADMINISTRATOR LOGIN AS** — never
+described as direct seller credential authentication. Observed: the four governed values and nothing
+else in the picker · the governed close committing Stage `Closed Lost` and Loss Reason `No Decision`
+together, with `OpportunityHistory` recording the seller-authored stage transition · and a blank
+close **refused**, leaving the Opportunity at `Qualification` with no committed change and no history
+row.
+
+**QA-4 asked the harder question: does a refusal preserve evidence?** With the Opportunity already
+Closed Lost / `No Decision`, the seller set the reason to `--None--` and saved. **Refused.** Server
+verification found Stage `Closed Lost`, `IsClosed = true`, `IsWon = false`, **`LastModifiedDate` and
+`SystemModstamp` unchanged, and `OpportunityHistory` still 4 rows.** ⚠️ **`OpportunityHistory` does
+not record the custom field's value**, so it is never cited as proof of preservation; the claim rests
+on the seller UI, the refusal, and the absence of a committed transaction. ⚠️ **The administrator was
+deliberately granted no field-level access to `Loss_Reason__c`**, so no verification here rests on an
+administrator read of it — a governance choice with an accepted evidentiary cost, not a defect.
+
+**An independent detective control, because a safeguard's success is not proof of compliance.**
+`closed-lost-reason` reports Closed Lost Opportunities carrying no governed reason — evaluator-facing
+**Closed Lost Reason Governance**, formal finding label **Closed Lost Without a Governed Reason**,
+Pipeline Hygiene, Medium. Population `IsClosed && !IsWon`; failing when the reason is null or empty;
+everything else *outside*. 14 deterministic tests.
+
+**Its pass path was validated through the real assessment identity**, not a harness: 37 Opportunities
+— 17 open, 19 Closed Won, 1 Closed Lost — `evaluated = 1`, `failing = 0`, `notEvaluated = 36`, and
+**1 + 36 = 37**. Evidence rows: **0, correctly** — the evidence table holds failing records only.
+⚠️ **The fail path remains deterministic-test validated only.** No legitimate Closed Lost record with
+a blank reason exists, because the safeguard works, and manufacturing one would have meant
+deactivating the Validation Rule to produce the failure the control prevents. **It was not done. The
+impossibility is itself evidence.**
+
+**Registration moved the model, so the model version moved.** `closed-lost-reason` joined `CHECK_IDS`
+and `runAllChecks` as the **second Pipeline Hygiene control**, taking the active set from eleven to
+twelve. Because an area scores as the mean of its scored controls, Pipeline Hygiene — and through it
+overall health — can now land differently on identical Salesforce data. `MODEL_VERSION` moved
+**v2 → v3** under `PD-22`; the scoring formula and zero-evaluated eligibility are unchanged, and the
+historical v2 baseline (*6 areas, 11 controls, overall 60*) stays frozen as the evidence it is.
+
+**Opportunity Path was evaluated as the progression UX and deliberately deferred.** A candidate Path
+covering all ten active stages, with Loss Reason as the only Closed Lost key field, failed check-only
+three times (`0Afaj00000j561GCAQ`, `0Afaj00000j5CppCAE`, `0Afaj00000j4vahCAA`) because
+`PathAssistant.recordTypeName` is required and resolves against real Record Type records — and this
+org holds **0 Opportunity Record Types and 0 BusinessProcess records**. Introducing a Record Type
+solely to enable a presentation layer was judged unjustified for a focused MVP. ⚠️ **The evidence
+supports only the narrow claim that this metadata approach could not deploy without resolving the
+record-type context — not that Salesforce Path always requires Record Types.**
+**OPPORTUNITY PATH FOUNDATION — BLOCKED / DEFERRED**, candidate source retained and undeployed.
+
+**Evidence limitations, stated rather than closed by wording.** The detector fail path is
+deterministic-test validated only · QA-3 (reason A → B) was reasoned, not executed · QA-5 (reopen) is
+**incidental evidence** and was not upgraded · QA-6 (reclose blank) was stopped at diminishing
+returns · a historical pre-governance blank record cannot be created safely once the safeguard is
+active, and none was manufactured · **no Model v3 assessment has been run, so no v3 overall score
+exists** · an unrelated Opportunity **Related**-area `INVALID_FIELD` error remains a
+**NON-BLOCKING ENVIRONMENTAL LIMITATION** · and the `northstariq-seller` CLI alias **resolves to the
+administrator** and was never used as seller evidence.
+
+**Step 8 status.** The Closed Lost governance requirement is ratified, the restricted vocabulary is
+deployed, the preventive safeguard is deployed and refuses at runtime, the seller transaction UX is
+deployed and commits at runtime, the independent detective control is implemented, registered and
+runtime-validated on its pass path, and the assessment model is **v3 — implemented and locally
+validated, not runtime validated.** **STEP 8 — COMPLETE**, with every limitation above recorded
+rather than resolved by phrasing.
+
 ## Implementation Status
 
 > ### ⚠️ SCOPE — the table below is the Increment 1–4 foundation, not the current build

@@ -2259,6 +2259,113 @@ export function sellerDecisionTimeliness(
   );
 }
 
+/* ------------------------------------------------------------------ 13 */
+/**
+ * Which Closed Lost Opportunities currently lack a governed loss reason?
+ *
+ * IT DOES NOT REPRODUCE THE VALIDATION RULE. The safeguard decides what may be
+ * *written* at the moment an Opportunity enters Closed Lost; this reads what a
+ * record *carries now*. Re-implementing the rule's transition predicate would
+ * prove only that the rule works prospectively - which is already guaranteed -
+ * and would say nothing about the population the rule cannot reach.
+ *
+ * THAT POPULATION IS THE POINT. Opportunities lost before the safeguard existed
+ * were never blocked and were never backfilled, so they can legitimately appear
+ * here. A finding is therefore **not** evidence that the Validation Rule failed.
+ *
+ * NO TEMPORAL CLASSIFICATION. The control asks one bounded question and does not
+ * split findings into pre- and post-governance: doing so would need Opportunity
+ * stage history, and the ratified scope deliberately keeps native history out of
+ * the runtime detector.
+ *
+ * MEMBERSHIP IS NOT RE-TESTED. `Loss_Reason__c` is a RESTRICTED picklist, so any
+ * non-blank value is already one of the governed four. Presence is the whole
+ * question; correctness of the seller's judgement is unfalsifiable and is never
+ * claimed.
+ */
+export function closedLostReason(opps: OpportunityRecord[]): CheckResult {
+  const dash = (v: string | null) => (v === null || v === '' ? '—' : v);
+
+  // Lost, by Salesforce's own stage-derived invariants - never re-derived here.
+  const population = opps.filter((o) => o.IsClosed && !o.IsWon);
+  const failing = population.filter((o) => o.Loss_Reason__c === null || o.Loss_Reason__c === '');
+
+  const notEvaluated: NotEvaluatedRecord[] = opps
+    .filter((o) => !(o.IsClosed && !o.IsWon))
+    .map((o) => ({
+      kind: 'outside' as const,
+      row: {
+        Name: o.Name,
+        StageName: dash(o.StageName),
+        Outcome: o.IsClosed ? 'Closed Won' : 'Open',
+        Reason: o.IsClosed
+          ? `Closed Lost reason governance — this Opportunity was won, so no loss reason was ever owed; it was not included in this control's score.`
+          : `Closed Lost reason governance — this Opportunity is still open at stage "${dash(
+              o.StageName,
+            )}", so no loss has been declared and no reason is owed yet; it was not included in this control's score.`,
+        Id: o.Id,
+      },
+    }));
+
+  return build(
+    {
+      id: 'closed-lost-reason',
+      title: 'Closed Lost Without a Governed Reason',
+      category: 'Pipeline Hygiene',
+      severity: 'Medium',
+      businessQuestion:
+        'When a deal is lost, does the record say why — in language the business can act on?',
+      businessImpact:
+        'A lost deal that records no reason teaches the business nothing. Win/loss analysis, competitive response and upstream targeting correction all depend on knowing why a pursuit ended, and none of the three is answerable from the closed and won flags alone.',
+      failureDetail:
+        failing.length === 0
+          ? ''
+          : `${failing.length} Closed Lost ${
+              failing.length === 1 ? 'Opportunity carries' : 'Opportunities carry'
+            } no governed loss reason, so the reason the pursuit ended is unrecorded`,
+      population: `${population.length} Closed Lost Opportunities`,
+      orgPopulation: opps.length,
+      orgPopulationNoun: 'Opportunities',
+      evaluated: population.length,
+      failing: failing.length,
+      evidenceColumns: [
+        { key: 'Name', label: 'Opportunity' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'AccountName', label: 'Account' },
+        { key: 'StageName', label: 'Stage' },
+        /*
+         * The one proving column. Blank IS the finding, so it is shown rather
+         * than hidden - a reader can see the absence that the control reports.
+         */
+        { key: 'Loss Reason', label: 'Loss Reason', proving: true },
+        { key: 'CloseDate', label: 'Close Date', mono: true },
+        { key: 'Amount', label: 'Amount', mono: true },
+        { key: 'Result', label: 'Result' },
+      ],
+      notEvaluatedColumns: [
+        { key: 'Name', label: 'Opportunity' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'StageName', label: 'Stage' },
+        { key: 'Outcome', label: 'Outcome' },
+        { key: 'Reason', label: "Why wasn't this record evaluated?" },
+      ],
+    },
+    failing.map((o) => ({
+      Name: o.Name,
+      AccountName: o.Account?.Name ?? '—',
+      StageName: dash(o.StageName),
+      'Loss Reason': '— (none recorded)',
+      CloseDate: dash(o.CloseDate),
+      Amount: o.Amount === null ? '—' : o.Amount,
+      Result:
+        'Closed Lost with no governed loss reason — the outcome is recorded, the cause is not',
+      Id: o.Id,
+    })),
+    notEvaluated,
+    population.map(refOf),
+  );
+}
+
 /** The requirements each active sales policy switches on, for the investigation trail. */
 export {
   acceptanceRequirementLabels as salesAcceptanceRequirements,
@@ -2319,6 +2426,7 @@ export function runAllChecks(
     ambiguousMatch(leads),
     missingTerritory(leads),
     staleOpportunities(opps, today),
+    closedLostReason(opps),
     /*
      * Lifecycle Governance, in lifecycle order rather than implementation
      * order: progression, then the three stage claims a Lead makes as it
@@ -2360,6 +2468,7 @@ export const CHECK_IDS: CheckId[] = [
   'ambiguous-match',
   'missing-territory',
   'stale-opportunities',
+  'closed-lost-reason',
   'lifecycle-progression',
   'mql-integrity',
   'sales-acceptance-sql',

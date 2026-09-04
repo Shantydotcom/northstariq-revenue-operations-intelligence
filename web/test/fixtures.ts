@@ -110,6 +110,9 @@ export function opportunity(overrides: Partial<OpportunityRecord> = {}): Opportu
     Amount: 50000,
     IsClosed: false,
     IsWon: false,
+    // Null by default: an open Opportunity is owed no loss reason, and a fixture
+    // that carried one by default would make the "outside" population untestable.
+    Loss_Reason__c: null,
     Account: { Name: `Fictional Co ${seq}` },
     ...overrides,
   };

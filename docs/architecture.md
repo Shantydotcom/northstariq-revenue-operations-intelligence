@@ -326,7 +326,10 @@ Breached (Late Response). Nothing writes it, so it carries zero mutation risk an
 
 ### Lifecycle transitions — implemented (`BR-15`, `PD-09`, `PD-12`)
 
-The governed lifecycle is **Lead → MQL → SAL → SQL → Salesforce Lead Conversion → Opportunity**.
+The governed **Lead** lifecycle is **Lead → MQL → SAL → SQL → Salesforce Lead Conversion →
+Opportunity**, and this section governs those Lead-side transitions only. After conversion the
+lifecycle branches at the Opportunity outcome; the authoritative model is in
+[`requirements.md`](requirements.md) §2 Lifecycle and is not restated here.
 `Opportunity` is **not** a Lead Status, and `SQL` is **not** conversion: conversion is the platform
 boundary where a Lead becomes an Account, a Contact and an optional Opportunity.
 
@@ -486,7 +489,7 @@ reads the active acceptance policy, the acceptance actor, time and basis, `MQL_B
 Status history, and judges whether a SAL claim is substantiated — without recreating what acceptance
 means. ✅ **IMPLEMENTED and VALIDATED (2026-08-27)**. It was introduced **unscored** — absent from
 `CHECK_IDS` and `runAllChecks`, leaving Assessment Model v1 unchanged — and has since been
-**registered**: it is in `CHECK_IDS` and runs with the rest under Model v2.
+**registered**: it is in `CHECK_IDS` and has been scored since Model v2.
 
 **Rejection was out of scope here, and has since been built.** `Closed - Not Converted` is reachable
 from every stage including MQL, but it is a **disqualification**, not a recorded *Sales rejection of a
@@ -621,6 +624,60 @@ requirement invented ahead of the platform's own model would be methodology cosp
 
 **Evidence survives the boundary.** All four stages' evidence was verified intact on a Lead taken
 through native conversion from SQL, so a converted record still answers all four questions.
+
+### Closed Lost reason governance — implemented without a Flow (`PD-17`, `PD-18`)
+
+**Salesforce stays authoritative on *whether* an Opportunity is lost. NorthstarIQ governs *why*.**
+The lost state is the platform's own `IsClosed = true AND IsWon = false`; nothing here recomputes it.
+
+**No Flow was written, and that is the design.** The requirement is "refuse a save that has no
+reason" — a refusal, never a value the system could choose for the seller. A Validation Rule is the
+minimum declarative mechanism that expresses exactly that, so descending to a Flow would have added
+an execution path with nothing to execute.
+
+| Layer | Artifact | What it owns |
+|---|---|---|
+| Vocabulary | `Opportunity.Loss_Reason__c` — **restricted** picklist, four values | Membership. Salesforce refuses anything outside the vocabulary before a rule or the assessment sees it, so **membership is never re-tested anywhere else**. |
+| Enforcement | `Closed_Lost_Requires_Governed_Reason` — Validation Rule, active | Refuses entry to Closed Lost with no reason, and refuses **clearing** a reason that already exists while the Opportunity stays Closed Lost. |
+| Seller transaction | `Opportunity.Close_Lost` — object-specific **Update** Quick Action | Presentation and transaction boundary only. `StageName = Closed Lost` is a hidden `fieldOverrides` literal; `Loss_Reason__c` is the single visible input. |
+| Detection | `closed-lost-reason` — NorthstarIQ detective control | Reports Closed Lost Opportunities that carry no governed reason. Read-only; it writes nothing. |
+
+**The rule is prospective, deliberately.** It fires on entry to the lost stage, on a change of stage,
+or on an attempt to blank an existing reason. A pre-governance Closed Lost record with no reason
+stays **editable for unrelated changes** — retroactively blocking work on historical records would
+punish sellers for a policy that did not exist when the deal closed. Those records are **detected**,
+not blocked. Reason A → B stays open, and **reopening is not blocked by this rule.**
+
+**The Quick Action exists because of a transaction boundary, not a rule defect.** The standard *Close
+This Opportunity* modal exposes Stage only; a Loss Reason typed into the underlying Details form and
+left unsaved is **not carried into that close transaction**, so the Validation Rule correctly refused
+the save. The answer was to give the seller a transaction that submits both fields together — **not
+to weaken the safeguard**. The two layers stay independent: the Quick Action makes the governed close
+easy, and the Validation Rule remains the enforcement that holds however the save arrives.
+
+**Access is split three ways, at the narrowest scope that works.** The seller reads and edits the
+reason because selecting it *is* the governed act. The assessment principal reads it and cannot write
+it. The administrator profile was deliberately granted **no** field-level access — a governance
+choice, not a defect, and the reason a Step 8 verification could not be confirmed by administrator
+SOQL. [`security-model.md`](security-model.md) owns the matrix.
+
+**One profile change was required and is easy to mis-attribute.** Page-layout assignment is
+**profile-scoped in Salesforce — a permission set cannot assign a layout** — so the seller's profile
+received the Opportunity layout assignment. **No Opportunity Record Type was introduced**, and none is
+planned.
+
+**Opportunity Path was evaluated as the progression UX and deliberately deferred.** A candidate Path
+covering all ten active stages, with Loss Reason as the only Closed Lost key field, could not pass
+check-only: `PathAssistant.recordTypeName` is required and resolves against real Record Type records,
+and this org holds **0 Opportunity Record Types and 0 BusinessProcess records**. Creating a Record
+Type solely to enable a presentation layer was judged unjustified for a focused MVP. **The evidence
+supports only the narrow claim that this metadata approach could not deploy without resolving the
+record-type context — not that Salesforce Path always requires Record Types.** The candidate source
+is retained, undeployed. **OPPORTUNITY PATH FOUNDATION — BLOCKED / DEFERRED.**
+
+**The control is registered in Assessment Model v3**, as the second Pipeline Hygiene control. The
+scoring rules did not change; the active control set did. [`requirements.md`](requirements.md)
+`PD-22` owns that decision.
 
 ### Four lifecycle governance questions — an interpretation, not four controls
 
@@ -957,7 +1014,7 @@ application assesses what the org did. Nothing here writes to Salesforce.
                               ▼
  ┌────────────────────────────────────────────────────────────┐
  │  ASSESSMENT · CONTROL LOGIC · SCORING                      │
- │  Assessment Model v2: controls grouped into six Revenue    │
+ │  Assessment Model v3: controls grouped into six Revenue    │
  │  Operations areas. lib/checks is the control registry.     │
  │  Pure functions over records already fetched               │
  │  Outcomes are Passed / Failed / Unable to determine        │
@@ -1022,7 +1079,7 @@ or a raw Salesforce error.
 | Salesforce integration boundary | ✅ **Implemented** — typed, guarded, read-only by construction |
 | Disconnected / not-configured path | ✅ **Verified locally** — every page renders and **no results are invented** |
 | Error and failure paths | ✅ **Verified locally** — classified into safe codes; the status probe cannot 500 |
-| Check and scoring logic | ✅ **Verified against fixtures** — 181/181 unit tests, no network. **Assessment Model v2**: 11 controls, 6 areas. |
+| Check and scoring logic | ✅ **Verified against fixtures** — 324/324 unit tests, no network. **Assessment Model v3**: 12 controls, 6 areas. |
 | Salesforce Connected App / OAuth credentials | ✅ **Configured** — the Client Credentials Flow reaches the org. Credentials live in `web/.env.local`, which is git-ignored; org-side configuration is **not inspected** in this repository. |
 | Live authentication, live SOQL, live assessment | ✅ **Validated — read path only (2026-08-24)** — HTTP 200, 81 records assessed, 6 findings returned. |
 | **Salesforce control behaviour judged by those findings** | ⬜ **Not validated by this application.** It reports what the org recorded; it exercises no control. |

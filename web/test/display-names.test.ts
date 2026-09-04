@@ -27,6 +27,7 @@ const AREA_DISPLAY: Record<string, string> = {
 };
 
 const CHECK_DISPLAY: Partial<Record<CheckId, string>> = {
+  'closed-lost-reason': 'Closed Lost Reason Governance',
   'lifecycle-progression': 'Stage Progression',
   'mql-integrity': 'MQL Qualification',
   'sales-acceptance-sql': 'Sales Handoff & Qualification',
@@ -87,6 +88,7 @@ test('a display name is never the thing anything is keyed on', () => {
 test('detector ids are unchanged', () => {
   assert.deepEqual([...CHECK_IDS].sort(), [
     'ambiguous-match',
+    'closed-lost-reason',
     'lifecycle-conversion',
     'lifecycle-progression',
     'missing-firmographics',

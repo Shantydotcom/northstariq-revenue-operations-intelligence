@@ -1,5 +1,5 @@
 /**
- * Assessment Model v2, end to end over fixtures.
+ * Assessment Model v3, end to end over fixtures.
  *
  * The other suites test each control against its own governed definition. This
  * one tests the MODEL: what happens to an area and to overall health when some
@@ -48,16 +48,16 @@ const lifecycleArea = () =>
 
 /* ------------------------------------------------------------- activation */
 
-test('Model v2 reports six assessment areas and eleven controls', () => {
+test('Model v3 reports six assessment areas and twelve controls', () => {
   const a = assess();
   assert.equal(a.categoryScores.length, 6);
-  assert.equal(a.controls.length, 11);
+  assert.equal(a.controls.length, 12);
   assert.ok(a.categoryScores.some((c) => c.category === 'Lifecycle Governance'));
 });
 
 test('the result names the model that produced it', () => {
   const a = assess();
-  assert.equal(a.modelVersion, 'v2');
+  assert.equal(a.modelVersion, 'v3');
   assert.equal(a.modelVersion, MODEL_VERSION, 'one constant, not a string per consumer');
 });
 
@@ -139,7 +139,7 @@ test('a downloaded file says which model produced it', () => {
   const [run] = findingsExport(assess());
   const rows = new Map(run.rows.map((r) => [String(r[0]), r[1]]));
 
-  assert.equal(rows.get('Assessment model'), 'Model v2');
+  assert.equal(rows.get('Assessment model'), 'Model v3');
   assert.equal(rows.get('Assessment areas reported'), 6);
   assert.equal(rows.get('Assessment areas scored'), 6);
   assert.ok(

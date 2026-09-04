@@ -212,7 +212,7 @@ test('an assessment over a clean org reports full health and no findings', () =>
     'all six assessment areas are always reported, scored or not',
   );
   assert.equal(assessment.modelVersion, MODEL_VERSION);
-  assert.equal(assessment.modelVersion, 'v2');
+  assert.equal(assessment.modelVersion, 'v3');
 
   /*
    * Two clean Leads that never left the entry stage: the five original areas

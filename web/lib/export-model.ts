@@ -96,7 +96,7 @@ function runSheet(result: AssessmentResult): Sheet {
       ['Findings', result.findingCount],
       ['High priority findings', result.highSeverityCount],
       ['Scoring method', 'Control score = round(100 x (1 - failing / evaluated)). A control that evaluated no record is Not Scored, never 100 or 0. Area = unweighted mean of its SCORED controls. Overall health = unweighted mean of the SCORED areas.'],
-      ['Model comparability', 'Model v2 adds Lifecycle Governance and changes zero-evaluated controls from an automatic 100 to Not Scored. Assessment area weighting and scoring eligibility both changed, so v1 and v2 overall scores are not directly comparable.'],
+      ['Model comparability', 'Model v2 adds Lifecycle Governance and changes zero-evaluated controls from an automatic 100 to Not Scored. Assessment area weighting and scoring eligibility both changed, so v1 and v2 overall scores are not directly comparable. Model v3 adds Closed Lost Reason Governance to Pipeline Hygiene, moving that area from one active control to two. The scoring rules are unchanged from v2, but the active control set changed from eleven controls to twelve, so v2 and v3 results are not the same assessment definition and must not be read as one.'],
       ['Source', 'NorthstarIQ read-only assessment. Salesforce data is synthetic; NorthstarIQ is a fictional company.'],
       ['Limitation', 'A finding reports what the org recorded. It is not a test of the Salesforce automation that produced it.'],
     ],
