@@ -255,7 +255,7 @@ and no status is restated here.
 | `Opportunity → Closed Lost → Loss Intelligence` | `PD-17`, `PD-18` |
 | `Opportunity → Closed Won → Revenue Handoff` | `PD-21` |
 | Downstream revenue process | **Outside NorthstarIQ.** A future finance, billing or ERP system — named as a boundary, deliberately not designed and not introduced by any decision here |
-| Forecast Integrity *(open Opportunities, not a stage)* | Candidate — no requirement, no decision, no control |
+| Forecast Integrity *(open Opportunities, not a stage)* | Candidate — no requirement and no control. **Analysed 2026-09-04; deferred pending `OD-08`.** |
 
 #### `BR-15` — A single governed lifecycle taxonomy exists, and transitions are recorded with timestamp and cause
 
