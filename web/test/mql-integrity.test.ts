@@ -17,7 +17,15 @@ import {
   type MqlPolicy,
 } from '../lib/checks/mql-policy.ts';
 import type { MqlPolicyRecord } from '../lib/soql.ts';
-import { GOVERNANCE, GOVERNED, NO_HISTORY, READINESS_SOURCES, lead, opportunity } from './fixtures.ts';
+import {
+  FORECAST_PERIOD,
+  GOVERNANCE,
+  GOVERNED,
+  lead,
+  NO_HISTORY,
+  opportunity,
+  READINESS_SOURCES,
+} from './fixtures.ts';
 
 const ELIGIBLE = ['Strategic', 'Enterprise', 'Mid-Market'];
 const BASIS_V11 =
@@ -258,7 +266,7 @@ test('the control is scored under Model v2 and is part of the assessment', () =>
     CHECK_IDS.includes('mql-integrity'),
     'CHECK_IDS is the API allow-list and the scored set - this control is in it',
   );
-  assert.equal(CHECK_IDS.length, 12, 'Assessment Model v3: twelve scored controls');
+  assert.equal(CHECK_IDS.length, 14, 'Assessment Model v4: fourteen scored controls');
   const results = runAllChecks(
     [lead()],
     [opportunity()],
@@ -266,8 +274,9 @@ test('the control is scored under Model v2 and is part of the assessment', () =>
     READINESS_SOURCES,
     GOVERNANCE,
     NO_HISTORY,
+    FORECAST_PERIOD,
   );
-  assert.equal(results.length, 12, 'Assessment Model v3 runs exactly twelve controls');
+  assert.equal(results.length, 14, 'Assessment Model v4 runs exactly fourteen controls');
   const mine = results.find((r) => r.id === 'mql-integrity');
   assert.ok(mine, 'the control executes as part of the ordinary assessment');
   assert.equal(mine.category, 'Lifecycle Governance');

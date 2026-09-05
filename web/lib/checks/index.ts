@@ -2378,10 +2378,10 @@ export {
  * Revenue Handoff Integrity — does a won deal carry the evidence a downstream
  * revenue process would need in order to act on it?
  *
- * ⚠️ SOURCE IMPLEMENTED, DELIBERATELY NOT REGISTERED. Absent from `CHECK_IDS`
- * and from `runAllChecks`, so it executes in no assessment, produces no score
- * and leaves Model v3 exactly as it was validated. Activation is a separate
- * decision, because activation is the step that moves a published number.
+ * ACTIVE SINCE MODEL v4. Registered in `CHECK_IDS` and run by `runAllChecks`,
+ * so it is scored like every other control. ⚠️ Registration is a REPOSITORY
+ * fact: it has not yet executed against Salesforce, so no runtime, live
+ * pass-path or live fail-path evidence exists for it.
  *
  * THE EVIDENCE SET IS FIXED BY PD-21 AND IS NOT EXTENSIBLE HERE. Three
  * elements, no more: an Account relationship, a populated Amount, and at least
@@ -2588,9 +2588,12 @@ export function revenueHandoffIntegrity(opps: OpportunityRecord[]): CheckResult 
  * Forecast Commitment Integrity — does a deal promoted into the forecast carry
  * the evidence that makes the commitment usable?
  *
- * ⚠️ SOURCE IMPLEMENTED, DELIBERATELY NOT REGISTERED. Absent from `CHECK_IDS`
- * and from `runAllChecks`, so it executes in no assessment, produces no score
- * and leaves Model v3 exactly as it was validated.
+ * ACTIVE SINCE MODEL v4. Registered in `CHECK_IDS` and run by `runAllChecks`.
+ * ⚠️ Registration is a REPOSITORY fact: it has not yet executed against
+ * Salesforce, so no runtime, live pass-path or live fail-path evidence exists.
+ * Read-only discovery observed ZERO open Opportunities at Best Case or Commit,
+ * so on the current dataset this control reports Not Scored — no applicable
+ * records — which is a boundary working as intended, never a pass.
  *
  * THE POPULATION IS A STATE, NOT AN INFERENCE. Every open stage in this org
  * derives `ForecastCategoryName = Pipeline`, so `Best Case` and `Commit`
@@ -2851,6 +2854,15 @@ export function runAllChecks(
   lifecycle: LifecycleGovernance,
   /** Status transitions Salesforce still retains. Bounded and incomplete. */
   statusHistory: LeadStatusHistoryRecord[],
+  /**
+   * The fiscal quarter containing the assessment date, already resolved.
+   *
+   * Resolved by `assessment.ts` from the org's own `Period` records and passed
+   * in, so every check here stays a pure function over data already fetched.
+   * An unresolvable period never reaches this point: `resolveForecastPeriod`
+   * refuses first.
+   */
+  forecastPeriod: ForecastPeriod,
 ): CheckResult[] {
   return [
     missingFirmographics(leads, routingReadinessSources),
@@ -2859,8 +2871,15 @@ export function runAllChecks(
     slaRisk(leads),
     ambiguousMatch(leads),
     missingTerritory(leads),
+    /*
+     * Pipeline Hygiene, in the order an Opportunity meets them: open pipeline
+     * date health, then the two outcome branches, then the forecast lens over
+     * open records. Model v4 took this area from two active controls to four.
+     */
     staleOpportunities(opps, today),
     closedLostReason(opps),
+    revenueHandoffIntegrity(opps),
+    forecastCommitmentIntegrity(opps, forecastPeriod),
     /*
      * Lifecycle Governance, in lifecycle order rather than implementation
      * order: progression, then the three stage claims a Lead makes as it
@@ -2888,11 +2907,16 @@ export function runAllChecks(
 }
 
 /**
- * The scored set, and the API allow-list. Assessment Model v2: eleven.
+ * The scored set, and the API allow-list. Assessment Model v4: fourteen.
  *
  * Order matters twice - it is the order `runAllChecks` returns and the order
- * a reader meets the controls - so the four lifecycle controls stay in
- * lifecycle order after the seven that preceded them.
+ * a reader meets the controls - so the four Pipeline Hygiene controls stay
+ * together and the four lifecycle controls stay in lifecycle order after them.
+ *
+ * ⚠️ MEMBERSHIP HERE IS WHAT ACTIVATES A CONTROL. The `CheckId` union in
+ * `types.ts` is wider: it also holds `seller-decision-timeliness`, which is
+ * implemented, detective and deliberately unscored. Implemented and active
+ * are not the same fact.
  */
 export const CHECK_IDS: CheckId[] = [
   'missing-firmographics',
@@ -2903,6 +2927,8 @@ export const CHECK_IDS: CheckId[] = [
   'missing-territory',
   'stale-opportunities',
   'closed-lost-reason',
+  'revenue-handoff-integrity',
+  'forecast-commitment-integrity',
   'lifecycle-progression',
   'mql-integrity',
   'sales-acceptance-sql',

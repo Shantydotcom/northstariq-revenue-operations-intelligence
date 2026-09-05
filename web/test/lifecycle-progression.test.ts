@@ -21,7 +21,14 @@ import {
   transitionAllowed,
 } from '../lib/checks/lifecycle-graph.ts';
 import type { LeadStatusHistoryRecord, LifecycleTransitionRecord } from '../lib/soql.ts';
-import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, lead, opportunity } from './fixtures.ts';
+import {
+  FORECAST_PERIOD,
+  GOVERNANCE,
+  lead,
+  NO_HISTORY,
+  opportunity,
+  READINESS_SOURCES,
+} from './fixtures.ts';
 
 /** The deployed v1.0 policy: 10 active transitions. */
 const POLICY_RECORDS: LifecycleTransitionRecord[] = (
@@ -346,7 +353,7 @@ test('the control is scored under Model v2 and is part of the assessment', () =>
     CHECK_IDS.includes('lifecycle-progression'),
     'CHECK_IDS is the API allow-list and the scored set - this control is in it',
   );
-  assert.equal(CHECK_IDS.length, 12, 'Assessment Model v3: twelve scored controls');
+  assert.equal(CHECK_IDS.length, 14, 'Assessment Model v4: fourteen scored controls');
   const results = runAllChecks(
     [lead()],
     [opportunity()],
@@ -354,8 +361,9 @@ test('the control is scored under Model v2 and is part of the assessment', () =>
     READINESS_SOURCES,
     GOVERNANCE,
     NO_HISTORY,
+    FORECAST_PERIOD,
   );
-  assert.equal(results.length, 12, 'Assessment Model v3 runs exactly twelve controls');
+  assert.equal(results.length, 14, 'Assessment Model v4 runs exactly fourteen controls');
   const mine = results.find((r) => r.id === 'lifecycle-progression');
   assert.ok(mine, 'the control executes as part of the ordinary assessment');
   assert.equal(mine.category, 'Lifecycle Governance');

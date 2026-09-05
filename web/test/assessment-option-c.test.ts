@@ -29,7 +29,15 @@ import {
   stageMark,
 } from '../lib/lifecycle-journey.ts';
 import { recordUrl } from '../lib/record-url.ts';
-import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, TODAY, lead, opportunity } from './fixtures.ts';
+import {
+  FORECAST_PERIOD,
+  GOVERNANCE,
+  lead,
+  NO_HISTORY,
+  opportunity,
+  READINESS_SOURCES,
+  TODAY,
+} from './fixtures.ts';
 import type { CheckId } from '../lib/types.ts';
 
 /**
@@ -58,7 +66,7 @@ const OPPS = [opportunity(), opportunity({ IsClosed: true }), opportunity({ Clos
 
 const assess = () =>
   buildAssessment(
-    runAllChecks(LEADS, OPPS, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY),
+    runAllChecks(LEADS, OPPS, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD),
     LEADS.length + OPPS.length,
     ['Lead', 'Opportunity'],
     RAN_AT,
@@ -353,7 +361,7 @@ test('the outside predicate is the one written for that control', () => {
 /* -------------------------------------------------- retained record rows - */
 
 test('a retained record carries the fields a named column needs', () => {
-  const result = runAllChecks(LEADS, OPPS, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
+  const result = runAllChecks(LEADS, OPPS, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD);
   for (const r of result) {
     for (const ref of [...r.checkedSample.records, ...r.passingSample.records]) {
       assert.ok(ref.id.length > 0, `${r.id}: a record with no id cannot be opened in Salesforce`);
@@ -367,7 +375,7 @@ test('a retained record carries the fields a named column needs', () => {
 });
 
 test('naming a record changed no count', () => {
-  const result = runAllChecks(LEADS, OPPS, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
+  const result = runAllChecks(LEADS, OPPS, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD);
   for (const r of result) {
     assert.equal(r.checkedSample.total, r.evaluated, `${r.id}`);
     assert.equal(r.passingSample.total, r.evaluated - r.failing, `${r.id}`);

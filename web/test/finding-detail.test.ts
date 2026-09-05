@@ -24,7 +24,15 @@ import {
   staleOpportunities,
 } from '../lib/checks/index.ts';
 import { buildAssessment } from '../lib/score.ts';
-import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, TODAY, lead, opportunity } from './fixtures.ts';
+import {
+  FORECAST_PERIOD,
+  GOVERNANCE,
+  lead,
+  NO_HISTORY,
+  opportunity,
+  READINESS_SOURCES,
+  TODAY,
+} from './fixtures.ts';
 import type { CheckId } from '../lib/types.ts';
 
 const LIFECYCLE: CheckId[] = [
@@ -222,6 +230,7 @@ test('the two unscored lifecycle controls generate no finding to detail', () => 
       READINESS_SOURCES,
       GOVERNANCE,
       NO_HISTORY,
+      FORECAST_PERIOD,
     ),
     3,
     ['Lead', 'Opportunity'],
@@ -252,6 +261,7 @@ test('an unscored control explains itself without claiming a pass or a failure',
       READINESS_SOURCES,
       GOVERNANCE,
       NO_HISTORY,
+      FORECAST_PERIOD,
     ),
     1,
     ['Lead'],
@@ -311,6 +321,7 @@ test('every control marks the evidence its determination actually turns on', () 
     READINESS_SOURCES,
     GOVERNANCE,
     NO_HISTORY,
+    FORECAST_PERIOD,
   );
 
   for (const c of checks) {

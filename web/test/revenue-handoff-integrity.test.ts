@@ -4,13 +4,14 @@
  * Fixtures only: no network, no Salesforce, no clock dependence.
  *
  * WHAT THESE TESTS PROVE, AND WHAT THEY DO NOT. They prove how the detector
- * reads persisted Opportunity evidence, and that it stays out of the active
- * assessment. They prove NOTHING about Salesforce: this control has never
- * executed against the org, so there is no integration-runtime evidence, no
+ * reads persisted Opportunity evidence, and that it is registered and reached
+ * by the assessment. They prove NOTHING about Salesforce: no assessment has yet
+ * been run against the org, so there is no integration-runtime evidence, no
  * live pass-path evidence and no live fail-path evidence for it. The evidence
  * state after this increment is exactly:
  *
- *   SOURCE IMPLEMENTED · LOCALLY VALIDATED · NOT REGISTERED · NOT ACTIVE
+ *   REGISTERED · ACTIVE (Model v4) · LOCALLY VALIDATED ·
+ *   NOT SALESFORCE RUNTIME VALIDATED
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -28,6 +29,7 @@ import { TRACEABILITY } from '../lib/traceability.ts';
 import type { OpportunityRecord } from '../lib/soql.ts';
 import {
   contactRoles,
+  FORECAST_PERIOD,
   GOVERNANCE,
   GOVERNED,
   lead,
@@ -275,18 +277,18 @@ test('the detector states no safeguard exists — it must not imply prevention',
   assert.equal(p.safeguard.remediation, undefined);
 });
 
-/* ------------------------------------ 8. NOT REGISTERED / NOT ACTIVE */
-test('the control is implemented, detective and deliberately unregistered', () => {
+/* ------------------------------------ 8. REGISTERED AND ACTIVE (Model v4) */
+test('the control is registered and active under Model v4', () => {
   assert.ok(
-    !CHECK_IDS.includes('revenue-handoff-integrity' as never),
-    'absent from CHECK_IDS, so no assessment executes it and no score moves',
+    CHECK_IDS.includes('revenue-handoff-integrity'),
+    'present in CHECK_IDS, so the assessment executes it',
   );
-  assert.equal(CHECK_IDS.length, 12, 'Assessment Model v3 stays at twelve scored controls');
-  assert.equal(MODEL_VERSION, 'v3', 'source implementation does not advance the model');
-  assert.equal(CATEGORIES.length, 6, 'six assessment areas, unchanged');
+  assert.equal(CHECK_IDS.length, 14, 'Assessment Model v4: fourteen scored controls');
+  assert.equal(MODEL_VERSION, 'v4', 'activation advances the model exactly once');
+  assert.equal(CATEGORIES.length, 6, 'six assessment areas, unchanged — no area was added');
 });
 
-test('runAllChecks does not execute it', () => {
+test('runAllChecks emits Revenue Handoff Integrity, scored like any other control', () => {
   const results = runAllChecks(
     [lead({ Status: 'MQL' })],
     [won(), won({ AccountId: null, Amount: null, OpportunityContactRoles: null })],
@@ -294,15 +296,17 @@ test('runAllChecks does not execute it', () => {
     [GOVERNED],
     GOVERNANCE,
     NO_HISTORY,
+    FORECAST_PERIOD,
   );
-  assert.equal(results.length, 12, 'twelve controls run, not thirteen');
-  assert.ok(
-    !results.some((r) => r.id === 'revenue-handoff-integrity'),
-    'the detector produces no result inside an assessment run',
-  );
+  assert.equal(results.length, 14, 'fourteen controls run');
+  const r = results.find((x) => x.id === 'revenue-handoff-integrity');
+  assert.ok(r, 'the detector produces a result inside an assessment run');
+  assert.equal(r.category, 'Pipeline Hygiene');
+  assert.equal(r.evaluated, 2, 'both Closed Won Opportunities were judged');
+  assert.equal(r.failing, 1, 'the one missing every element');
 });
 
-test('its identifier is type-complete even though it is inactive', () => {
+test('its identifier is type-complete', () => {
   assert.ok(PRESENTATION['revenue-handoff-integrity'], 'presentation record exists');
   assert.ok(TRACEABILITY['revenue-handoff-integrity'], 'traceability record exists');
 });
@@ -311,12 +315,13 @@ test('traceability states the evidence position honestly and claims no runtime e
   const t = TRACEABILITY['revenue-handoff-integrity'];
   assert.deepEqual(t.usages, [], 'no Salesforce configuration backs this control');
   const none = t.noneEstablished ?? '';
-  assert.match(none, /NOT REGISTERED/);
-  assert.match(none, /NOT ACTIVE IN ASSESSMENT/);
+  assert.match(none, /REGISTERED AND ACTIVE SINCE MODEL v4/);
+  assert.match(none, /NOT SALESFORCE RUNTIME VALIDATED/);
   assert.match(none, /never executed against Salesforce/i);
 
   const source = PRESENTATION['revenue-handoff-integrity'].verificationSource;
-  assert.match(source, /SOURCE IMPLEMENTED/);
+  assert.match(source, /REGISTERED AND ACTIVE SINCE MODEL v4/);
+  assert.match(source, /NOT SALESFORCE RUNTIME VALIDATED/);
   assert.match(source, /NO Salesforce integration runtime evidence/i);
   assert.doesNotMatch(source, /deployed/i);
 });

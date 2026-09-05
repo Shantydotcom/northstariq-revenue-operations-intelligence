@@ -2,6 +2,7 @@ import 'server-only';
 
 import { query, SalesforceError } from './salesforce.ts';
 import {
+  FORECAST_PERIOD_SOQL,
   LEAD_SOQL,
   LEAD_STATUS_HISTORY_SOQL,
   LIFECYCLE_TRANSITION_SOQL,
@@ -16,6 +17,7 @@ import {
   type LifecycleTransitionRecord,
   type MqlPolicyRecord,
   type OpportunityRecord,
+  type PeriodRecord,
   type RoutingReadinessSourceRecord,
   type SalesAcceptancePolicyRecord,
   type SegmentEligibilityRecord,
@@ -29,6 +31,7 @@ import {
   salesAcceptanceSqlIntegrity,
 } from './checks/index.ts';
 import { resolveMqlPolicy } from './checks/mql-policy.ts';
+import { type ForecastPeriod, resolveForecastPeriod } from './checks/forecast-period.ts';
 import { buildLifecycleGraph } from './checks/lifecycle-graph.ts';
 import {
   resolveSalesAcceptancePolicy,
@@ -40,7 +43,7 @@ import type { AssessmentResult, CheckId, CheckResult } from './types.ts';
 /**
  * One assessment run.
  *
- * Eight SOQL reads, eleven pure checks, deterministic scoring. Nothing is
+ * Ten SOQL reads, fourteen pure checks, deterministic scoring. Nothing is
  * persisted - there is no database on the free tier, and an assessment that
  * always reflects the live org is more honest than a stale stored one.
  *
@@ -51,19 +54,26 @@ import type { AssessmentResult, CheckId, CheckResult } from './types.ts';
  * what lets a policy change take effect without a deployment. Custom Metadata
  * reads do not consume SOQL query rows, so the cost of asking is small.
  *
- * The ninth read, Lead Status history, is the one genuinely partial input:
- * field history is bounded and never records a Lead's first status, which is
- * why the controls that consume it report absence as unmeasurable.
+ * Lead Status history is the one genuinely partial input: field history is
+ * bounded and never records a Lead's first status, which is why the controls
+ * that consume it report absence as unmeasurable.
+ *
+ * The fiscal-period read is configuration of a different kind - Salesforce's
+ * own fiscal calendar rather than a governed policy record - and it is the
+ * only read whose resolution can refuse. `Period` is queried instead of
+ * `Opportunity.FiscalYear`/`FiscalQuarter`, which discovery found stale
+ * against their own Close Dates in this org.
  */
 
 const OBJECTS = ['Lead', 'Opportunity'];
 
-async function fetchRecords(): Promise<{
+async function fetchRecords(now: Date): Promise<{
   leads: LeadRecord[];
   opportunities: OpportunityRecord[];
   routingReadinessSources: string[];
   lifecycle: LifecycleGovernance;
   statusHistory: LeadStatusHistoryRecord[];
+  forecastPeriod: ForecastPeriod;
 }> {
   // Independent reads - run them together rather than in series.
   const [
@@ -76,6 +86,7 @@ async function fetchRecords(): Promise<{
     acceptancePolicies,
     sqlPolicies,
     statusHistory,
+    periods,
   ] = await Promise.all([
     query<LeadRecord>(LEAD_SOQL),
     query<OpportunityRecord>(OPPORTUNITY_SOQL),
@@ -86,6 +97,7 @@ async function fetchRecords(): Promise<{
     query<SalesAcceptancePolicyRecord>(SALES_ACCEPTANCE_POLICY_SOQL),
     query<SqlPolicyRecord>(SQL_POLICY_SOQL),
     query<LeadStatusHistoryRecord>(LEAD_STATUS_HISTORY_SOQL),
+    query<PeriodRecord>(FORECAST_PERIOD_SOQL),
   ]);
 
   const routingReadinessSources = sources
@@ -127,12 +139,38 @@ async function fetchRecords(): Promise<{
     sqlPolicy: resolveSqlQualificationPolicy(sqlPolicies),
   };
 
-  return { leads, opportunities, routingReadinessSources, lifecycle, statusHistory };
+  /*
+   * The forecast period, resolved once per run from the org's own fiscal
+   * calendar.
+   *
+   * THROWS rather than continues when no quarter contains the assessment date,
+   * or when more than one does - the same refusal the three policy resolvers
+   * above make, and for the same reason: PD-23 judges a Close Date against a
+   * period end, so an unreadable period is a diagnostic failure, never a
+   * population that all passes. Inventing a quarter would put a wrong period
+   * end behind every verdict the control reached.
+   */
+  const forecastPeriod = resolveForecastPeriod(periods, now.toISOString().slice(0, 10));
+
+  return {
+    leads,
+    opportunities,
+    routingReadinessSources,
+    lifecycle,
+    statusHistory,
+    forecastPeriod,
+  };
 }
 
 export async function runAssessment(now: Date): Promise<AssessmentResult> {
-  const { leads, opportunities, routingReadinessSources, lifecycle, statusHistory } =
-    await fetchRecords();
+  const {
+    leads,
+    opportunities,
+    routingReadinessSources,
+    lifecycle,
+    statusHistory,
+    forecastPeriod,
+  } = await fetchRecords(now);
   const results = runAllChecks(
     leads,
     opportunities,
@@ -140,6 +178,7 @@ export async function runAssessment(now: Date): Promise<AssessmentResult> {
     routingReadinessSources,
     lifecycle,
     statusHistory,
+    forecastPeriod,
   );
   return buildAssessment(
     results,
@@ -151,8 +190,14 @@ export async function runAssessment(now: Date): Promise<AssessmentResult> {
 
 /** Detail for one check, including its evidence rows. */
 export async function runCheck(id: CheckId, now: Date): Promise<CheckResult | null> {
-  const { leads, opportunities, routingReadinessSources, lifecycle, statusHistory } =
-    await fetchRecords();
+  const {
+    leads,
+    opportunities,
+    routingReadinessSources,
+    lifecycle,
+    statusHistory,
+    forecastPeriod,
+  } = await fetchRecords(now);
   return (
     runAllChecks(
       leads,
@@ -161,6 +206,7 @@ export async function runCheck(id: CheckId, now: Date): Promise<CheckResult | nu
       routingReadinessSources,
       lifecycle,
       statusHistory,
+      forecastPeriod,
     ).find((r) => r.id === id) ?? null
   );
 }

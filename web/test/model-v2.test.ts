@@ -1,5 +1,5 @@
 /**
- * Assessment Model v3, end to end over fixtures.
+ * Assessment Model v4, end to end over fixtures.
  *
  * The other suites test each control against its own governed definition. This
  * one tests the MODEL: what happens to an area and to overall health when some
@@ -13,10 +13,18 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { runAllChecks } from '../lib/checks/index.ts';
-import { buildAssessment, MODEL_VERSION } from '../lib/score.ts';
+import { CHECK_IDS, runAllChecks } from '../lib/checks/index.ts';
+import { buildAssessment, CATEGORIES, MODEL_VERSION } from '../lib/score.ts';
 import { evidenceExport, findingsExport, notEvaluatedExport } from '../lib/export-model.ts';
-import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, TODAY, lead, opportunity } from './fixtures.ts';
+import {
+  FORECAST_PERIOD,
+  GOVERNANCE,
+  lead,
+  NO_HISTORY,
+  opportunity,
+  READINESS_SOURCES,
+  TODAY,
+} from './fixtures.ts';
 
 /** A Lead the lifecycle safeguard actually ran on: it carries the stage stamp. */
 const governed = () =>
@@ -37,6 +45,7 @@ const assess = () =>
       READINESS_SOURCES,
       GOVERNANCE,
       NO_HISTORY,
+      FORECAST_PERIOD,
     ),
     3,
     ['Lead', 'Opportunity'],
@@ -48,16 +57,82 @@ const lifecycleArea = () =>
 
 /* ------------------------------------------------------------- activation */
 
-test('Model v3 reports six assessment areas and twelve controls', () => {
+test('Model v4 reports six assessment areas and fourteen controls', () => {
   const a = assess();
   assert.equal(a.categoryScores.length, 6);
-  assert.equal(a.controls.length, 12);
+  assert.equal(a.controls.length, 14);
   assert.ok(a.categoryScores.some((c) => c.category === 'Lifecycle Governance'));
+});
+
+/* -------------------------------------------------- Model v4 composition */
+
+test('Pipeline Hygiene carries all four active controls under v4', () => {
+  const area = assess().categoryScores.find((c) => c.category === 'Pipeline Hygiene')!;
+  assert.deepEqual(area.checkIds, [
+    'stale-opportunities',
+    'closed-lost-reason',
+    'revenue-handoff-integrity',
+    'forecast-commitment-integrity',
+  ]);
+  assert.equal(CATEGORIES.length, 6, 'no assessment area was added');
+});
+
+test('every control registered before v4 is still registered', () => {
+  for (const id of [
+    'missing-firmographics',
+    'segment-consistency',
+    'routing-exceptions',
+    'sla-risk',
+    'ambiguous-match',
+    'missing-territory',
+    'stale-opportunities',
+    'closed-lost-reason',
+    'lifecycle-progression',
+    'mql-integrity',
+    'sales-acceptance-sql',
+    'lifecycle-conversion',
+  ] as const) {
+    assert.ok(CHECK_IDS.includes(id), `${id} must remain active`);
+  }
+});
+
+test('a control with no applicable records is Not Scored, never a fake 100', () => {
+  /*
+   * The v2 eligibility rule, now reached by a control whose population is
+   * legitimately EMPTY rather than unmeasurable. Every fixture Opportunity
+   * sits on the Pipeline default, so no forecast commitment exists to judge.
+   */
+  const c = assess().controls.find((x) => x.id === 'forecast-commitment-integrity')!;
+  assert.equal(c.evaluated, 0, 'nothing was in the governed population');
+  assert.equal(c.score, null, 'no score, because no verdict was reached');
+  assert.notEqual(c.score, 100, 'absence of evidence is never reported as perfect');
+  assert.equal(c.scoreReason, 'no-applicable-records', 'a boundary, not an evidence gap');
+  assert.equal(c.unmeasurableCount, 0, 'no record it applies to lacked evidence');
+});
+
+test('unscored controls are excluded from the area mean rather than counted', () => {
+  /*
+   * The fixture holds ONE OPEN Opportunity, so three of the four Pipeline
+   * Hygiene controls have empty populations by construction: there is no
+   * Closed Lost record, no Closed Won record, and no forecast commitment.
+   * Only open pipeline date health judges anything.
+   *
+   * Under Model v1 those three would each have contributed 100 and reported the
+   * area as perfect on the strength of evidence that does not exist.
+   */
+  const area = assess().categoryScores.find((c) => c.category === 'Pipeline Hygiene')!;
+  assert.deepEqual(
+    area.coverage,
+    { scored: 1, total: 4 },
+    'four controls reported, one produced a score',
+  );
+  assert.equal(area.score, 100, 'the mean of the ONE control that reached a verdict');
+  assert.equal(area.checkIds.length, 4, 'all four are still reported, scored or not');
 });
 
 test('the result names the model that produced it', () => {
   const a = assess();
-  assert.equal(a.modelVersion, 'v3');
+  assert.equal(a.modelVersion, 'v4');
   assert.equal(a.modelVersion, MODEL_VERSION, 'one constant, not a string per consumer');
 });
 
@@ -139,7 +214,7 @@ test('a downloaded file says which model produced it', () => {
   const [run] = findingsExport(assess());
   const rows = new Map(run.rows.map((r) => [String(r[0]), r[1]]));
 
-  assert.equal(rows.get('Assessment model'), 'Model v3');
+  assert.equal(rows.get('Assessment model'), 'Model v4');
   assert.equal(rows.get('Assessment areas reported'), 6);
   assert.equal(rows.get('Assessment areas scored'), 6);
   assert.ok(
@@ -156,6 +231,7 @@ test('an unscored control exports as Not Scored, never as a number', () => {
     READINESS_SOURCES,
     GOVERNANCE,
     NO_HISTORY,
+    FORECAST_PERIOD,
   );
   const mql = results.find((r) => r.id === 'mql-integrity')!;
 
@@ -172,4 +248,38 @@ test('an unscored control exports as Not Scored, never as a number', () => {
   const calc = String(rows.get('Calculation'));
   assert.ok(calc.startsWith('Not scored'), calc);
   assert.ok(!calc.includes('/ 1)'), 'no divide-by-one stand-in for an absent denominator');
+});
+
+test('every control activated in v4 exports the Salesforce object it evaluates', () => {
+  /*
+   * An ACTIVE control must stay traceable to the evidence source it reads. Both
+   * v4 additions carry an empty `usages` list, so they reach the export through
+   * the branch that resolves the object from the mapping rather than from a
+   * dependency row - and an unmapped id would export an em dash.
+   */
+  const results = assess();
+  const at = TODAY.toISOString();
+
+  for (const id of ['revenue-handoff-integrity', 'forecast-commitment-integrity'] as const) {
+    const check = results.controls.find((c) => c.id === id)!;
+    const full = runAllChecks(
+      [governed(), claimsConverted()],
+      [opportunity()],
+      TODAY,
+      READINESS_SOURCES,
+      GOVERNANCE,
+      NO_HISTORY,
+      FORECAST_PERIOD,
+    ).find((r) => r.id === id)!;
+
+    assert.ok(check, `${id} is an active control`);
+    for (const sheets of [
+      evidenceExport(full, at, undefined),
+      notEvaluatedExport(full, at, undefined),
+    ]) {
+      const rows = new Map(sheets[0].rows.map((r) => [String(r[0]), r[1]]));
+      assert.equal(rows.get('Salesforce Object'), 'Opportunity', `${id} export object`);
+      assert.notEqual(rows.get('Salesforce Object'), '—', `${id} must not export an em dash`);
+    }
+  }
 });

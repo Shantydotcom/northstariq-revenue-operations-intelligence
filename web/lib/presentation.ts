@@ -1076,9 +1076,9 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
   },
 
   /*
-   * SOURCE IMPLEMENTED, NOT REGISTERED. Present so the detector's presentation
-   * is complete and reviewable, exactly as `seller-decision-timeliness` is.
-   * Nothing here reaches a screen until the control is added to CHECK_IDS.
+   * REGISTERED AND ACTIVE SINCE MODEL v4. Reached by the assessment like any
+   * other control. Registration is a repository fact - it carries no runtime
+   * evidence, which the verification source below states explicitly.
    */
   'revenue-handoff-integrity': {
     label: 'Closed Won Without Complete Handoff Evidence',
@@ -1147,13 +1147,13 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
       'Open and Closed Lost Opportunities are outside the population and are never scored by it',
     ],
     verificationSource:
-      '⚠️ SOURCE IMPLEMENTED · LOCALLY VALIDATED · NOT REGISTERED · NOT ACTIVE IN ASSESSMENT. Application unit tests against fixture records only. The detector executes in no assessment, so there is NO Salesforce integration runtime evidence, NO live pass-path evidence and NO live fail-path evidence for it — none of which may be claimed until the control is registered and actually run.',
+      '⚠️ REGISTERED AND ACTIVE SINCE MODEL v4 · SOURCE IMPLEMENTED · LOCALLY VALIDATED · NOT SALESFORCE RUNTIME VALIDATED. Application unit tests against fixture records only. Registration is a REPOSITORY fact: the control has not yet executed against the org, so there is NO Salesforce integration runtime evidence, NO live pass-path evidence and NO live fail-path evidence for it — none of which may be claimed until an assessment is actually run against Salesforce.',
   },
 
   /*
-   * SOURCE IMPLEMENTED, NOT REGISTERED. Present so the detector's presentation
-   * is complete and reviewable. Nothing here reaches a screen until the control
-   * is added to CHECK_IDS.
+   * REGISTERED AND ACTIVE SINCE MODEL v4. Reached by the assessment like any
+   * other control. Registration is a repository fact - it carries no runtime
+   * evidence, which the verification source below states explicitly.
    */
   'forecast-commitment-integrity': {
     label: 'Forecast Commitments Without Supporting Evidence',
@@ -1230,7 +1230,7 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
       'A missing or ambiguous fiscal quarter refuses to resolve rather than assuming a period',
     ],
     verificationSource:
-      '⚠️ SOURCE IMPLEMENTED · LOCALLY VALIDATED · NOT REGISTERED · NOT ACTIVE IN ASSESSMENT. Application unit tests against fixture records only. The detector executes in no assessment, so there is NO Salesforce integration runtime evidence, NO live pass-path evidence and NO live fail-path evidence for it. Read-only discovery on 2026-09-04 observed ZERO open Opportunities at Best Case or Commit in this org, so the governed population is currently empty and no organic record can exercise either path.',
+      '⚠️ REGISTERED AND ACTIVE SINCE MODEL v4 · SOURCE IMPLEMENTED · LOCALLY VALIDATED · NOT SALESFORCE RUNTIME VALIDATED. Application unit tests against fixture records only. Registration is a REPOSITORY fact: the control has not yet executed against the org, so there is NO Salesforce integration runtime evidence, NO live pass-path evidence and NO live fail-path evidence for it. Read-only discovery on 2026-09-04 observed ZERO open Opportunities at Best Case or Commit in this org, so the governed population is currently empty and no organic record can exercise either path.',
   },
 };
 

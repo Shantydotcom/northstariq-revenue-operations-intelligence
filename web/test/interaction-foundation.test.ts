@@ -4,7 +4,15 @@ import assert from 'node:assert/strict';
 import { ambiguousMatch, missingFirmographics, runAllChecks, staleOpportunities } from '../lib/checks/index.ts';
 import { buildAssessment } from '../lib/score.ts';
 import { applyAreaFilter, areaFilterHref, isCategory, readAreaFilter } from '../lib/area-filter.ts';
-import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, TODAY, lead, opportunity } from './fixtures.ts';
+import {
+  FORECAST_PERIOD,
+  GOVERNANCE,
+  lead,
+  NO_HISTORY,
+  opportunity,
+  READINESS_SOURCES,
+  TODAY,
+} from './fixtures.ts';
 import type { CheckResult, FindingSummary } from '../lib/types.ts';
 
 /** The queue routing parks a Lead in when it refuses to guess an owner. */
@@ -37,7 +45,7 @@ const OPPS = [
 ];
 
 const runAll = (): CheckResult[] =>
-  runAllChecks(LEADS, OPPS, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
+  runAllChecks(LEADS, OPPS, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD);
 
 /* ------------------------------------------------ retained record identity */
 

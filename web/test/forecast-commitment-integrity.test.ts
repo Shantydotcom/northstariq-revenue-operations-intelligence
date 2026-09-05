@@ -5,15 +5,17 @@
  * period is passed in explicitly, so nothing here reads a real calendar.
  *
  * WHAT THESE TESTS PROVE, AND WHAT THEY DO NOT. They prove how the detector
- * reads persisted Opportunity state and how the period resolver refuses an
- * unusable fiscal calendar. They prove NOTHING about Salesforce: this control
- * has never executed against the org, so there is no integration-runtime, live
- * pass-path or live fail-path evidence for it. Read-only discovery on
- * 2026-09-04 observed ZERO open Opportunities at Best Case or Commit, so the
- * governed population is currently empty in the live org.
+ * reads persisted Opportunity state, how the period resolver refuses an
+ * unusable fiscal calendar, and that the control is registered and reached by
+ * the assessment. They prove NOTHING about Salesforce: no assessment has yet
+ * been run against the org, so there is no integration-runtime, live pass-path
+ * or live fail-path evidence for it. Read-only discovery on 2026-09-04 observed
+ * ZERO open Opportunities at Best Case or Commit, so the governed population is
+ * currently empty in the live org and reports Not Scored.
  *
  * Evidence state after this increment:
- *   SOURCE IMPLEMENTED · LOCALLY VALIDATED · NOT REGISTERED · NOT ACTIVE
+ *   REGISTERED · ACTIVE (Model v4) · LOCALLY VALIDATED ·
+ *   NOT SALESFORCE RUNTIME VALIDATED
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -34,6 +36,7 @@ import { TRACEABILITY } from '../lib/traceability.ts';
 import type { OpportunityRecord, PeriodRecord } from '../lib/soql.ts';
 import {
   FISCAL_Q3_2026,
+  FORECAST_PERIOD,
   GOVERNANCE,
   GOVERNED,
   lead,
@@ -328,18 +331,18 @@ test('no preventive safeguard is implied', () => {
   assert.equal(p.safeguard.remediation, undefined);
 });
 
-/* ------------------------------ 9. NOT REGISTERED / NOT ACTIVE */
-test('the control is implemented, detective and deliberately unregistered', () => {
+/* ------------------------------ 9. REGISTERED AND ACTIVE (Model v4) */
+test('the control is registered and active under Model v4', () => {
   assert.ok(
-    !CHECK_IDS.includes('forecast-commitment-integrity' as never),
-    'absent from CHECK_IDS, so no assessment executes it and no score moves',
+    CHECK_IDS.includes('forecast-commitment-integrity'),
+    'present in CHECK_IDS, so the assessment executes it',
   );
-  assert.equal(CHECK_IDS.length, 12, 'Assessment Model v3 stays at twelve scored controls');
-  assert.equal(MODEL_VERSION, 'v3', 'source implementation does not advance the model');
-  assert.equal(CATEGORIES.length, 6, 'six assessment areas, unchanged');
+  assert.equal(CHECK_IDS.length, 14, 'Assessment Model v4: fourteen scored controls');
+  assert.equal(MODEL_VERSION, 'v4', 'activation advances the model exactly once');
+  assert.equal(CATEGORIES.length, 6, 'six assessment areas, unchanged — no area was added');
 });
 
-test('runAllChecks does not emit Forecast Commitment Integrity', () => {
+test('runAllChecks emits Forecast Commitment Integrity, scored like any other control', () => {
   const results = runAllChecks(
     [lead({ Status: 'MQL' })],
     [committed(), committed({ Amount: null, CloseDate: '2026-12-31' })],
@@ -347,20 +350,38 @@ test('runAllChecks does not emit Forecast Commitment Integrity', () => {
     [GOVERNED],
     GOVERNANCE,
     NO_HISTORY,
+    FORECAST_PERIOD,
   );
-  assert.equal(results.length, 12, 'twelve controls run, not thirteen');
-  assert.ok(
-    !results.some((r) => r.id === 'forecast-commitment-integrity'),
-    'the detector produces no result inside an assessment run',
-  );
+  assert.equal(results.length, 14, 'fourteen controls run');
+  const r = results.find((x) => x.id === 'forecast-commitment-integrity');
+  assert.ok(r, 'the detector produces a result inside an assessment run');
+  assert.equal(r.category, 'Pipeline Hygiene');
+  assert.equal(r.evaluated, 2, 'both promoted Opportunities were judged');
+  assert.equal(r.failing, 1, 'the one missing an Amount and dated late');
 });
 
-test('neither unregistered Opportunity control is active', () => {
-  assert.ok(!CHECK_IDS.includes('forecast-commitment-integrity' as never));
-  assert.ok(!CHECK_IDS.includes('revenue-handoff-integrity' as never));
+test('the forecast period reaches the control through the assessment path', () => {
+  /*
+   * Proves the period is not re-derived inside the detector: a different
+   * resolved period changes the verdict on the same records.
+   */
+  const late = [committed({ CloseDate: '2026-10-15' })];
+  const q3 = runAllChecks([], late, TODAY, [GOVERNED], GOVERNANCE, NO_HISTORY, FORECAST_PERIOD);
+  const q4 = runAllChecks([], late, TODAY, [GOVERNED], GOVERNANCE, NO_HISTORY, {
+    startDate: '2026-10-01',
+    endDate: '2026-12-31',
+  });
+  const of = (rs: typeof q3) => rs.find((x) => x.id === 'forecast-commitment-integrity')!;
+  assert.equal(of(q3).failing, 1, 'dated after the Q3 period end');
+  assert.equal(of(q4).failing, 0, 'inside the Q4 period');
 });
 
-test('its identifier is type-complete even though it is inactive', () => {
+test('both Step 9 Opportunity controls are active', () => {
+  assert.ok(CHECK_IDS.includes('forecast-commitment-integrity'));
+  assert.ok(CHECK_IDS.includes('revenue-handoff-integrity'));
+});
+
+test('its identifier is type-complete', () => {
   assert.ok(PRESENTATION['forecast-commitment-integrity'], 'presentation record exists');
   assert.ok(TRACEABILITY['forecast-commitment-integrity'], 'traceability record exists');
 });
@@ -369,12 +390,13 @@ test('traceability states the evidence position honestly and claims no runtime e
   const t = TRACEABILITY['forecast-commitment-integrity'];
   assert.deepEqual(t.usages, [], 'no Salesforce configuration backs this control');
   const none = t.noneEstablished ?? '';
-  assert.match(none, /NOT REGISTERED/);
-  assert.match(none, /NOT ACTIVE IN ASSESSMENT/);
+  assert.match(none, /REGISTERED AND ACTIVE SINCE MODEL v4/);
+  assert.match(none, /NOT SALESFORCE RUNTIME VALIDATED/);
   assert.match(none, /never executed against Salesforce/i);
 
   const source = PRESENTATION['forecast-commitment-integrity'].verificationSource;
-  assert.match(source, /SOURCE IMPLEMENTED/);
+  assert.match(source, /REGISTERED AND ACTIVE SINCE MODEL v4/);
+  assert.match(source, /NOT SALESFORCE RUNTIME VALIDATED/);
   assert.match(source, /NO Salesforce integration runtime evidence/i);
   assert.doesNotMatch(source, /deployed/i);
 });

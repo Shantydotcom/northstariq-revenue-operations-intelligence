@@ -15,7 +15,15 @@ import {
   severityCounts,
   topPriorities,
 } from '../lib/dashboard.ts';
-import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, TODAY, lead, opportunity } from './fixtures.ts';
+import {
+  FORECAST_PERIOD,
+  GOVERNANCE,
+  lead,
+  NO_HISTORY,
+  opportunity,
+  READINESS_SOURCES,
+  TODAY,
+} from './fixtures.ts';
 import type { AssessmentResult } from '../lib/types.ts';
 
 /**
@@ -43,7 +51,7 @@ const OPPS = [opportunity(), opportunity({ IsClosed: true }), opportunity({ Clos
 
 const assess = (): AssessmentResult =>
   buildAssessment(
-    runAllChecks(LEADS, OPPS, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY),
+    runAllChecks(LEADS, OPPS, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD),
     LEADS.length + OPPS.length,
     ['Lead', 'Opportunity'],
     RAN_AT,
@@ -180,7 +188,7 @@ test('the first-run scope is the real model, and states no per-area count', () =
     assert.ok(a.name.length > 0 && a.question.length > 0, a.category);
     assert.ok(!('checks' in a), 'no static check-to-area mapping may be invented here');
   }
-  assert.equal(CHECK_IDS.length, 12, 'the control count the first-run state states');
+  assert.equal(CHECK_IDS.length, 14, 'the control count the first-run state states');
 });
 
 /* ------------------------------------------------------------- no scoring */

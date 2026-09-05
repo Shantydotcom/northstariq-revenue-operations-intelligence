@@ -32,6 +32,9 @@ const CHECK_DISPLAY: Partial<Record<CheckId, string>> = {
   'mql-integrity': 'MQL Qualification',
   'sales-acceptance-sql': 'Sales Handoff & Qualification',
   'lifecycle-conversion': 'Opportunity Conversion',
+  /* Model v4 additions - both name the CONTROL separately from the FINDING. */
+  'revenue-handoff-integrity': 'Revenue Handoff Integrity',
+  'forecast-commitment-integrity': 'Forecast Commitment Integrity',
 };
 
 test('every assessment area has the approved evaluator-facing name', () => {
@@ -89,11 +92,13 @@ test('detector ids are unchanged', () => {
   assert.deepEqual([...CHECK_IDS].sort(), [
     'ambiguous-match',
     'closed-lost-reason',
+    'forecast-commitment-integrity',
     'lifecycle-conversion',
     'lifecycle-progression',
     'missing-firmographics',
     'missing-territory',
     'mql-integrity',
+    'revenue-handoff-integrity',
     'routing-exceptions',
     'sales-acceptance-sql',
     'segment-consistency',

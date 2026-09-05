@@ -119,7 +119,7 @@ test('the control is implemented, detective and registered', () => {
     CHECK_IDS.includes('closed-lost-reason'),
     'CHECK_IDS is the API allow-list and the scored set - this control is in it',
   );
-  assert.equal(CHECK_IDS.length, 12, 'Assessment Model v3: twelve scored controls');
+  assert.equal(CHECK_IDS.length, 14, 'Assessment Model v4: fourteen scored controls');
 });
 
 /* ------------------------- 5. the Salesforce artifacts, structurally */

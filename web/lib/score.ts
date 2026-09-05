@@ -43,8 +43,24 @@ import type {
  * land differently on identical Salesforce data. v2 and v3 results are not
  * claimed to always differ; they are simply not guaranteed comparable, because
  * the active assessment definition behind them is not the same one.
+ *
+ * v4 is six areas and FOURTEEN controls. It activates the two Step 9 controls
+ * that were already implemented and locally validated but deliberately held
+ * unregistered: `revenue-handoff-integrity` (PD-21) and
+ * `forecast-commitment-integrity` (PD-23). Both join Pipeline Hygiene, taking
+ * that area from two active controls to four. The scoring formula and the
+ * zero-evaluated eligibility rule are again UNCHANGED - v4 is a composition
+ * change, not a new algorithm - and no area was added.
+ *
+ * ⚠️ v3 AND v4 ARE NOT COMPARABLE, and the difference is not cosmetic.
+ * `revenue-handoff-integrity` judges a non-empty population, so it contributes
+ * a real score to Pipeline Hygiene and through it to overall health.
+ * `forecast-commitment-integrity` currently judges NO record, so it is Not
+ * Scored and is excluded from the mean rather than counted as 100 - the same
+ * eligibility rule v2 introduced, now reached by a control whose population is
+ * legitimately empty rather than unmeasurable.
  */
-export const MODEL_VERSION = 'v3';
+export const MODEL_VERSION = 'v4';
 
 /** Display order for the Overview. */
 /**

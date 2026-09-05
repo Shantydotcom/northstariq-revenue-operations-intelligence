@@ -30,6 +30,12 @@ const SALESFORCE_OBJECT: Record<string, string> = {
   'ambiguous-match': 'Lead',
   'missing-territory': 'Lead',
   'stale-opportunities': 'Opportunity',
+  /* Model v4 additions. Both judge Opportunity records, and both carry an
+   * empty `usages` list - which is exactly the dependency-sheet branch that
+   * reads this map, so without them an ACTIVE control would export its
+   * Salesforce object as an em dash. */
+  'revenue-handoff-integrity': 'Opportunity',
+  'forecast-commitment-integrity': 'Opportunity',
   'lifecycle-conversion': 'Lead',
   'mql-integrity': 'Lead',
   'lifecycle-progression': 'Lead',

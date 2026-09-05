@@ -14,7 +14,15 @@ import {
   slaRisk,
   staleOpportunities,
 } from '../lib/checks/index.ts';
-import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, TODAY, lead, opportunity } from './fixtures.ts';
+import {
+  FORECAST_PERIOD,
+  GOVERNANCE,
+  lead,
+  NO_HISTORY,
+  opportunity,
+  READINESS_SOURCES,
+  TODAY,
+} from './fixtures.ts';
 import { categoryScores, overallHealth, toFindings } from '../lib/score.ts';
 
 const EXCEPTION_QUEUE = { Name: 'NIQ Routing Exception', Type: 'Queue' };
@@ -352,7 +360,7 @@ test('every check accounts for its whole starting population', () => {
   ];
   const opps = [opportunity(), opportunity({ IsClosed: true, StageName: 'Closed Won' })];
 
-  for (const result of runAllChecks(leads, opps, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY)) {
+  for (const result of runAllChecks(leads, opps, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD)) {
     assert.equal(
       result.evaluated + result.notEvaluatedCount,
       result.orgPopulation,
@@ -368,7 +376,7 @@ test('every check accounts for its whole starting population', () => {
   }
 });
 
-test('runAllChecks runs exactly the twelve implemented checks, in order', () => {
+test('runAllChecks runs exactly the fourteen implemented checks, in order', () => {
   const results = runAllChecks(
     [lead()],
     [opportunity()],
@@ -376,6 +384,7 @@ test('runAllChecks runs exactly the twelve implemented checks, in order', () => 
     READINESS_SOURCES,
     GOVERNANCE,
     NO_HISTORY,
+    FORECAST_PERIOD,
   );
 
   /*
@@ -394,6 +403,8 @@ test('runAllChecks runs exactly the twelve implemented checks, in order', () => 
       'missing-territory',
       'stale-opportunities',
       'closed-lost-reason',
+      'revenue-handoff-integrity',
+      'forecast-commitment-integrity',
       'lifecycle-progression',
       'mql-integrity',
       'sales-acceptance-sql',
@@ -425,8 +436,8 @@ test('missing territory is unchanged by the routing-readiness correction', () =>
     lead({ LeadSource: 'Web', Match_Status__c: null, Territory__c: null }),
   ];
 
-  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY).find((r) => r.id === 'missing-territory');
-  const b = runAllChecks(leads, [], TODAY, ['Purchased List'], GOVERNANCE, NO_HISTORY).find((r) => r.id === 'missing-territory');
+  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD).find((r) => r.id === 'missing-territory');
+  const b = runAllChecks(leads, [], TODAY, ['Purchased List'], GOVERNANCE, NO_HISTORY, FORECAST_PERIOD).find((r) => r.id === 'missing-territory');
 
   assert.equal(a?.evaluated, 3);
   assert.equal(a?.failing, 2);
@@ -441,8 +452,8 @@ test('ambiguous account match is unchanged by the routing-readiness correction',
     lead({ Match_Status__c: null }),
   ];
 
-  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY).find((r) => r.id === 'ambiguous-match');
-  const b = runAllChecks(leads, [], TODAY, ['Purchased List'], GOVERNANCE, NO_HISTORY).find((r) => r.id === 'ambiguous-match');
+  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD).find((r) => r.id === 'ambiguous-match');
+  const b = runAllChecks(leads, [], TODAY, ['Purchased List'], GOVERNANCE, NO_HISTORY, FORECAST_PERIOD).find((r) => r.id === 'ambiguous-match');
 
   assert.equal(a?.evaluated, 2);
   assert.equal(a?.failing, 1);
@@ -747,12 +758,16 @@ test('the six original definitions are untouched by everything added since', () 
   ];
   const opps = [opportunity(), opportunity({ IsClosed: true })];
 
-  const results = runAllChecks(leads, opps, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
+  const results = runAllChecks(leads, opps, TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD);
   const original = results.filter(
     (r) =>
       r.category !== 'Lifecycle Governance' &&
       r.id !== 'segment-consistency' &&
-      r.id !== 'closed-lost-reason',
+      r.id !== 'closed-lost-reason' &&
+      /* Model v4 additions - excluded for the same reason as closed-lost-reason:
+       * this test guards the ORIGINAL six against drift, not the current set. */
+      r.id !== 'revenue-handoff-integrity' &&
+      r.id !== 'forecast-commitment-integrity',
   );
 
   assert.equal(original.length, 6);
@@ -776,7 +791,7 @@ test('missing routing data still reads its sources from Salesforce configuration
    */
   const leads = [lead({ LeadSource: 'Web' }), lead({ LeadSource: 'Trade Show' })];
   const byId = (sources: string[]) =>
-    runAllChecks(leads, [], TODAY, sources, GOVERNANCE, NO_HISTORY).find((r) => r.id === 'missing-firmographics');
+    runAllChecks(leads, [], TODAY, sources, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD).find((r) => r.id === 'missing-firmographics');
 
   assert.equal(byId(['Web'])?.evaluated, 1);
   assert.equal(byId(['Trade Show'])?.evaluated, 1);
@@ -787,10 +802,10 @@ test('missing routing data still reads its sources from Salesforce configuration
 test('segment consistency is unaffected by the routing readiness configuration', () => {
   const leads = [segmented(500, 'Mid-Market', 'SMB', { LeadSource: 'Purchased List' })];
 
-  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY).find(
+  const a = runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD).find(
     (r) => r.id === 'segment-consistency',
   );
-  const b = runAllChecks(leads, [], TODAY, ['Trade Show'], GOVERNANCE, NO_HISTORY).find(
+  const b = runAllChecks(leads, [], TODAY, ['Trade Show'], GOVERNANCE, NO_HISTORY, FORECAST_PERIOD).find(
     (r) => r.id === 'segment-consistency',
   );
 
@@ -957,9 +972,9 @@ test('conversion integrity is scored under Model v2, inside Lifecycle Governance
    * perfect one. With Not Scored expressible, it joins the assessment.
    */
   const leads = [claimsOnly(), lead(), lead({ LeadSource: 'Web' })];
-  const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
+  const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD);
 
-  assert.equal(results.length, 12, 'twelve scored controls - Model v3');
+  assert.equal(results.length, 14, 'fourteen scored controls - Model v4');
   const conversion = results.find((r) => r.id === 'lifecycle-conversion');
   assert.ok(conversion, 'the lifecycle control is part of the scored run');
   assert.equal(conversion.evaluated, 1, 'the one Lead claiming conversion');
@@ -980,7 +995,7 @@ test('Lifecycle Governance is reported sixth and the five original areas are unm
    * overall figure is the mean of whatever actually scored.
    */
   const leads = [lead(), lead({ NumberOfEmployees: null })];
-  const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY);
+  const results = runAllChecks(leads, [opportunity()], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD);
 
   const areas = categoryScores(results);
   assert.deepEqual(

@@ -6,6 +6,7 @@ import type {
   PeriodRecord,
 } from '../lib/soql.ts';
 import type { LifecycleGovernance } from '../lib/checks/index.ts';
+import type { ForecastPeriod } from '../lib/checks/forecast-period.ts';
 import { buildLifecycleGraph } from '../lib/checks/lifecycle-graph.ts';
 
 /**
@@ -140,6 +141,17 @@ export function opportunity(overrides: Partial<OpportunityRecord> = {}): Opportu
 export const FISCAL_Q3_2026: PeriodRecord = {
   StartDate: '2026-07-01',
   EndDate: '2026-09-30',
+};
+
+/**
+ * The same quarter, already resolved - what `runAllChecks` actually takes.
+ *
+ * `TODAY` (2026-08-23) falls inside it, so every assessment fixture runs
+ * against a period that genuinely contains its own assessment date.
+ */
+export const FORECAST_PERIOD: ForecastPeriod = {
+  startDate: FISCAL_Q3_2026.StartDate,
+  endDate: FISCAL_Q3_2026.EndDate,
 };
 
 /** One contact role, in the shape the Opportunity subquery returns. */

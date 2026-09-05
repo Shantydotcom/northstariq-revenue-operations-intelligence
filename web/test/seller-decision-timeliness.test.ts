@@ -292,7 +292,7 @@ test('the control is implemented, detective and deliberately unscored', () => {
     !CHECK_IDS.includes('seller-decision-timeliness' as never),
     'absent from CHECK_IDS and runAllChecks, so the validated assessment model is unchanged',
   );
-  assert.equal(CHECK_IDS.length, 12, 'Assessment Model v3 stays at twelve scored controls');
+  assert.equal(CHECK_IDS.length, 14, 'Assessment Model v4: fourteen scored controls');
   // No score is introduced anywhere in this control's own output surface.
   const r = sellerDecisionTimeliness([committed({ Acceptance_Status__c: 'Overdue' })], V12);
   assert.equal(typeof r.failing, 'number');

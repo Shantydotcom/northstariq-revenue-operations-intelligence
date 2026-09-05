@@ -29,8 +29,8 @@ export type Category =
  * Membership here means the detector exists in source and carries complete
  * presentation and traceability records. It does NOT mean the control runs:
  * `CHECK_IDS` is the API allow-list and the active set, and a check absent
- * from it executes in no assessment and moves no score. Three members are
- * currently in that state by design.
+ * from it executes in no assessment and moves no score. One member is
+ * currently in that state by design: `seller-decision-timeliness`.
  *
  * Whether a REGISTERED check produces a score is a third, separate question,
  * answered per run: one that judged no record is Not Scored rather than

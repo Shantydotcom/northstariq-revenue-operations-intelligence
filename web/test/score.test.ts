@@ -12,7 +12,15 @@ import {
 import { checkScore } from '../lib/checks/index.ts';
 import { healthLabel, meterClass } from '../lib/score-bands.ts';
 import { runAllChecks } from '../lib/checks/index.ts';
-import { GOVERNANCE, NO_HISTORY, READINESS_SOURCES, TODAY, lead, opportunity } from './fixtures.ts';
+import {
+  FORECAST_PERIOD,
+  GOVERNANCE,
+  lead,
+  NO_HISTORY,
+  opportunity,
+  READINESS_SOURCES,
+  TODAY,
+} from './fixtures.ts';
 import type { CategoryScore, CheckResult } from '../lib/types.ts';
 
 function stub(over: Partial<CheckResult>): CheckResult {
@@ -201,6 +209,7 @@ test('an assessment over a clean org reports full health and no findings', () =>
     READINESS_SOURCES,
     GOVERNANCE,
     NO_HISTORY,
+    FORECAST_PERIOD,
   );
   const assessment = buildAssessment(results, 3, ['Lead', 'Opportunity'], TODAY.toISOString());
 
@@ -212,7 +221,7 @@ test('an assessment over a clean org reports full health and no findings', () =>
     'all six assessment areas are always reported, scored or not',
   );
   assert.equal(assessment.modelVersion, MODEL_VERSION);
-  assert.equal(assessment.modelVersion, 'v3');
+  assert.equal(assessment.modelVersion, 'v4');
 
   /*
    * Two clean Leads that never left the entry stage: the five original areas
@@ -245,7 +254,7 @@ test('the assessment total is traceable from records to overall health', () => {
   ];
 
   const assessment = buildAssessment(
-    runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY),
+    runAllChecks(leads, [], TODAY, READINESS_SOURCES, GOVERNANCE, NO_HISTORY, FORECAST_PERIOD),
     2,
     ['Lead', 'Opportunity'],
     TODAY.toISOString(),
