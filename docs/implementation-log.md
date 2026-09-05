@@ -4270,6 +4270,133 @@ Forecast as a lifecycle stage. **Forecast is a lens over open Opportunity state,
 now has an active control executing against the org, including `Closed Won → Revenue Handoff`, which
 was the last segment without one. Gate 3 requires its own bounded review.
 
+### 2026-09-05 — Gate 3 closed: the Salesforce revenue lifecycle is governed, assessed and evidenced
+
+```
+Requirement:   No new requirement. Closes a ROADMAP MILESTONE on evidence
+               already established across Steps 3-9.
+Salesforce:    NOTHING. No query, no mutation, no metadata, no permission,
+               no deployment, no fixture. Read-only review only.
+Repository:    Documentation only. 0 code files, 0 test files, 0 controls,
+               0 model changes. MODEL_VERSION stays v4.
+Validation:    Read-only Gate 3 closeout review. Twelve-point decision test
+               satisfied; bounded semantic impact check PASS on all eight
+               dimensions. No new evidence created.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**What this is, and what it is not.** Gate 3 is a **NorthstarIQ roadmap and portfolio milestone** —
+a statement that the Salesforce phase has proven what it set out to prove. It is **not** a
+repository-wide phase-gate framework, and it deliberately does not reintroduce the phase-gate
+apparatus this project removed on 2026-08-21. There is no gate document, no gate machinery, and no
+`Gate 1`/`Gate 2` retrofit. One dated entry records it, and the dated entries remain the authority
+for current state.
+
+**Why it closes.** Twelve things are demonstrated by evidence that already exists: **(1)** Lead
+qualification and **(3)** lifecycle progression are governed by Custom Metadata policy and enforced
+by a before-save Flow · **(2)** sales acceptance and SQL progression are governed, with the
+commitment pinned so a later policy change cannot move it · **(4)** conversion integrity is
+independently evaluated against the platform's own unwritable `IsConverted` · **(5)** Opportunity
+progression is represented by one bounded control, and **no Salesforce Stage became a NorthstarIQ
+capability** · **(6)** Closed Lost carries governed loss evidence behind a runtime-validated
+preventive safeguard · **(7)** Closed Won carries a defined Revenue Handoff integrity boundary ·
+**(8)** forecast inputs have a bounded evidence-integrity policy derived from the org's own stage
+configuration rather than invented methodology · **(9)** NorthstarIQ assesses Salesforce through its
+intended least-privilege **read-only** integration · **(10)** findings connect business controls to
+specific Salesforce records · **(11)** preventive safeguards and detective controls are explicitly
+distinguished, including where **no safeguard exists and the control says so** · **(12)** remediation
+and verification have a real implemented precedent, and the known limitations stay visible.
+
+**The lifecycle, stated technically rather than as shorthand.**
+
+```text
+Lead → MQL → SAL → SQL → Conversion → Opportunity → Opportunity Progression
+                                                          │
+                                        ┌─────────────────┴─────────────────┐
+                                  Closed Won                          Closed Lost
+                                        │                                   │
+                                Revenue Handoff                    Loss Intelligence
+                                                                       (terminal)
+```
+
+**Forecast Integrity is a governance lens over Opportunity state — it is not a stage**, and no record
+transitions into it. **Closed Won is not recognized revenue.** **Closed Lost is terminal and does not
+flow to Revenue.** Roadmap shorthand that places Forecast inside the sequence is a business story,
+never the technical model.
+
+**The chain the Salesforce phase actually demonstrates.** Business requirement → governed policy →
+Salesforce configuration → security → preventive automation where appropriate → independent detective
+control → specific evidence → runtime validation → investigation → **human** remediation →
+NorthstarIQ verification. `PD-18` is the clearest end-to-end instance: a restricted picklist refuses
+any value outside the four before a rule runs, so the detector tests **presence only** and never
+re-validates membership — one authority, no second source of truth.
+
+**The remediation precedent is a real defect, not a hypothetical.** `F-7`: the qualification gate ran
+ahead of the enrichment chain that derives its own inputs, failing in both directions. NorthstarIQ
+found it and surfaced the evidence · a human investigated the root cause · a **human** changed
+Salesforce, connector-only — eight connectors retargeted, 149 non-connector elements unchanged · the
+deployed metadata was re-retrieved and compared to approved source at zero differences · nine
+controlled runtime cases were rerun · NorthstarIQ verified the result · version 12 was retained as
+the rollback target. **NorthstarIQ did not perform the Salesforce mutation, and has no write path
+that could.**
+
+**Assessment Model v4, as executed 2026-09-05.** 116 records assessed — 79 Leads, 37 Opportunities ·
+14 active controls · 6 areas · overall health **80** · 11 findings, 5 High. Pipeline Hygiene: 4
+active controls, **3 of 4 scored**, area **41**. ⚠️ These values describe **this Developer Edition
+dataset at that run** — they are not universal CRM health, and **v3 and v4 are not comparable**: the
+active control composition differs, and no v3 assessment was ever run.
+
+**The outcome branch, and what each side means.** **Closed Lost** → governed `Loss_Reason__c` from a
+four-value restricted vocabulary, a preventive safeguard runtime validated in both refusal
+directions, and an active independent detector. It means **loss intelligence and outcome evidence —
+never Revenue.** **Closed Won** → Revenue Handoff Integrity, which at runtime evaluated **19 and
+failed 19**: **19 missing governed Salesforce `OpportunityContactRole` evidence**, 1 missing Account
+relationship, 1 missing `Amount` — overlapping counts across **19 unique records, never 21**. ⚠️ The
+Account/`Amount` record is `NIQ-S8-B-Closed-Won-Unaffected` and is **`SYNTHETIC`**; the other 18 are
+contact-role-only on organic sample data. **Live fail-path validated; no live pass-path evidence.**
+Missing contact-role evidence is a statement about the **record**, never that no customer contact
+exists. **Closed Won Value is the Opportunity `Amount` at close — not recognized revenue.**
+
+**The forecast boundary.** Forecast Commitment Integrity is ratified, registered, active and
+**Salesforce integration runtime validated**. Its runtime population was **0** — `Closed` 19 ·
+`Pipeline` 17 · `Omitted` 1 · **`Best Case` 0 · `Commit` 0** — so it reported **NOT SCORED — NO
+APPLICABLE RECORDS**: not a pass, not a failure, not 100. **No live pass path and no live fail
+path**, and **no synthetic forecast record was created to manufacture one.** An empty governed
+population is evidence about the boundary. Gate 3 does **not** prove Forecast Accuracy, forecast
+prediction, historical forecast movement, scenario planning, seller-judgement correctness, quota
+management or forecast-submission governance; all remain outside this foundation.
+
+**Limitations that remain true after closure, carried rather than solved.** Revenue Handoff has **no
+live pass path** · Forecast Commitment has **neither live path**, its population being empty · the
+forecast period's exact bounds were **not exposed** in the runtime payload, only that exactly one
+quarter resolved · **no evaluated Closed Won Opportunity carried an `OpportunityContactRole`** · the
+`NIQ-S8-B` Account/`Amount` evidence is **`SYNTHETIC`** · the Closed Lost detector fail path is
+**deterministic-test validated only** · seller-decision limits persist — **actor ≠ `OwnerId`**,
+weekend-aware approximation, **not** Business Hours aware, **not** holiday aware, overdue path not
+runtime observed · seller-persona evidence used **Administrator Login As, never direct seller
+credentials** · `BR-14`, `BR-16` and `BR-17` remain **Deferred (P2)** and `PROB-018` remains
+**partially addressed** · historical verification-query reproducibility stays incomplete for several
+earlier increments, with Step 9 satisfying the current standard · the pre-existing `export-model`
+mapping gaps for `closed-lost-reason` and `seller-decision-timeliness` remain · display evidence
+stays capped at 10 rows while aggregate counts retain full totals · and all of this is **Developer
+Edition portfolio-MVP evidence, not production-scale validation.** **None of these is a blocker after
+closure, and none becomes a remediation task here.**
+
+**Claims that remain prohibited.** Closed Won equals recognized, booked or contracted revenue ·
+NorthstarIQ calculates or validates revenue recognition · no customer contact exists merely because
+contact-role evidence is absent · Revenue Handoff live pass-path validation · Forecast Commitment
+passed, clean, healthy or 100, or having any live path · Forecast Accuracy, movement or prediction ·
+seller forecast judgement validated · runtime-observed forecast-period bounds · v4 better or worse
+than v3 · overall 80 as universal CRM health · enterprise production readiness · stakeholder
+approval. **There are no stakeholders — every decision here is a Portfolio Decision.**
+
+**GATE 3 — SALESFORCE REVENUE LIFECYCLE PROVEN: COMPLETE.** The Salesforce revenue-lifecycle
+foundation is closed on the evidence above, with every limitation recorded rather than resolved by
+phrasing.
+
+**NEXT ROADMAP PHASE — Multi-System Evidence / Automation. NEXT STEP — Step 10, Minimal Multi-System
+Evidence Contract. STATUS — NOT STARTED**, and deliberately not designed here.
+
 ## Implementation Status
 
 > ### ⚠️ SCOPE — the table below is the Increment 1–4 foundation, not the current build
