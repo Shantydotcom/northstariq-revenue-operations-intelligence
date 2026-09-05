@@ -4,6 +4,7 @@
  * Deliberately small: enough to render Overview, Findings, Finding Detail and
  * Integrations, and nothing more. No generalised rules-engine schema.
  */
+import type { EvidenceSourceId } from './evidence-source.ts';
 
 export type Severity = 'High' | 'Medium' | 'Low';
 
@@ -178,6 +179,19 @@ export interface BreakdownLine {
  */
 export interface CheckResult {
   id: CheckId;
+  /**
+   * WHICH SYSTEM THIS EVIDENCE CAME FROM.
+   *
+   * Carried on the result rather than supplied by whatever renders it, so
+   * provenance travels with the evidence through the API, the exports and the
+   * Finding Detail page instead of being reconstructed at each destination -
+   * and so it cannot be lost by a caller that forgets to pass it.
+   *
+   * Every control today reads Salesforce, so `build` sets this once. It is a
+   * field rather than a constant because the moment a second source exists,
+   * "which system is this?" stops having a global answer.
+   */
+  source: EvidenceSourceId;
   title: string;
   category: Category;
   severity: Severity;

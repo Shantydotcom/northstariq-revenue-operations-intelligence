@@ -11,7 +11,7 @@ import {
   populationCounts,
   samplingNote,
 } from '@/lib/assessment-view';
-import { recordUrl } from '@/lib/record-url';
+import { evidenceRecordUrl } from '@/lib/evidence-source';
 import RecordTable from './RecordTable';
 import type { CheckResult, ControlSummary, EvidenceColumn, EvidenceRow } from '@/lib/types';
 
@@ -282,7 +282,7 @@ function PopulationBody({
       <RecordTable
         columns={view.columns}
         rows={view.rows}
-        hrefs={view.rows.map((r) => recordUrl(instanceHost, String(r.Id ?? '')))}
+        hrefs={view.rows.map((r) => evidenceRecordUrl(detail.source, instanceHost, String(r.Id ?? '')))}
         label={`${POPULATION_LABEL[population].toLowerCase()} records`}
       />
       {population === 'failed' ? (

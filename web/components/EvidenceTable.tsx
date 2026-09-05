@@ -1,4 +1,4 @@
-import { recordUrl } from '@/lib/salesforce';
+import { evidenceRecordUrl, type EvidenceSourceId } from '@/lib/evidence-source';
 import RecordTable from './RecordTable';
 import type { EvidenceColumn, EvidenceRow } from '@/lib/types';
 
@@ -17,12 +17,20 @@ import type { EvidenceColumn, EvidenceRow } from '@/lib/types';
 export default function EvidenceTable({
   columns,
   rows,
+  source,
   instanceHost,
   label,
   exportBase,
 }: {
   columns: EvidenceColumn[];
   rows: EvidenceRow[];
+  /**
+   * Which system these records came from, taken from the result being shown.
+   *
+   * Passed rather than assumed: the link rule differs per source, and evidence
+   * that cannot say where it came from is evidence a reader cannot verify.
+   */
+  source: EvidenceSourceId;
   /** When known, the record's name becomes a deep link into the connected org. */
   instanceHost?: string;
   /** Names what is being filtered, for the filter input's accessible label. */
@@ -34,7 +42,7 @@ export default function EvidenceTable({
     <RecordTable
       columns={columns}
       rows={rows}
-      hrefs={rows.map((row) => recordUrl(instanceHost, String(row.Id ?? '')))}
+      hrefs={rows.map((row) => evidenceRecordUrl(source, instanceHost, String(row.Id ?? '')))}
       label={label}
       exportBase={exportBase}
     />

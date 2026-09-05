@@ -1,3 +1,4 @@
+import type { EvidenceSourceId } from '../evidence-source.ts';
 import type {
   BreakdownLine,
   CheckId,
@@ -208,6 +209,8 @@ function leadRow(
 function build(
   base: Omit<
     CheckResult,
+    /* Supplied below, not by each detector - see the `source` argument. */
+    | 'source'
     | 'score'
     | 'scoreReason'
     | 'healthy'
@@ -232,6 +235,15 @@ function build(
    */
   evaluatedRecords: RecordRef[],
   breakdowns: { failure?: BreakdownLine[]; exclusion?: BreakdownLine[] } = {},
+  /**
+   * Which system produced the records this control judged.
+   *
+   * Defaulted because every control in this file reads Salesforce, so stating
+   * it fourteen times would only create fourteen places to get it wrong. A
+   * control reading a different source passes its own, and the default never
+   * silently mis-attributes it: the argument is the only way `source` is set.
+   */
+  source: EvidenceSourceId = 'salesforce',
 ): CheckResult {
   const unmeasurableCount = notEvaluated.filter((n) => n.kind === 'unmeasurable').length;
   const retained = notEvaluated.slice(0, NOT_EVALUATED_LIMIT);
@@ -244,6 +256,8 @@ function build(
   const passingRecords = evaluatedRecords.filter((r) => !failingIds.has(r.id));
   return {
     ...base,
+    /* Attribution travels with the result - see the `source` argument. */
+    source,
     score: score(base.evaluated, base.failing),
     scoreReason: scoreReason(base.evaluated, unmeasurableCount),
     /*

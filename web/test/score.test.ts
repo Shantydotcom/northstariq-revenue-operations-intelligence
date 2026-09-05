@@ -26,6 +26,7 @@ import type { CategoryScore, CheckResult } from '../lib/types.ts';
 function stub(over: Partial<CheckResult>): CheckResult {
   return {
     id: 'missing-firmographics',
+    source: 'salesforce',
     title: 'stub',
     category: 'Routing',
     severity: 'Medium',

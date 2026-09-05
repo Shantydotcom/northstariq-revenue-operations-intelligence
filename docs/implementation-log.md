@@ -4397,6 +4397,57 @@ phrasing.
 **NEXT ROADMAP PHASE — Multi-System Evidence / Automation. NEXT STEP — Step 10, Minimal Multi-System
 Evidence Contract. STATUS — NOT STARTED**, and deliberately not designed here.
 
+### 2026-09-05 — Step 10: the smallest thing a second evidence source actually needs
+
+```
+Requirement:   No new business requirement. An architecture contract so a
+               second CRM can supply evidence without changing what any
+               existing control means.
+Salesforce:    NOTHING. No query, no mutation, no metadata, no permission,
+               no deployment. The Salesforce foundation is scope-frozen.
+Repository:    1 new module, 1 new test file, 6 small edits. No new
+               dependency, no page, no registry, no framework.
+Validation:    401/401 tests (7 new), tsc clean, production build clean,
+               repository validator 50/0/0. MODEL_VERSION unchanged at v4.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**What was actually missing.** Inspection found the architecture already largely
+source-neutral: detectors are pure functions over records someone else fetched, and
+`RecordTable` renders links it is handed rather than links it builds. Two things were
+not. A `CheckResult` carried **no statement of which system produced it** — harmless
+with one source, and silent erasure of provenance with two. And building an
+investigation link assumed one URL shape, one host and one id format.
+
+**The contract is those two things and nothing else.** `EvidenceSourceId` — a union,
+so a source with no link rule is a compile error rather than an unlinkable finding —
+and `evidenceRecordUrl(source, tenant, recordId, objectType?)`, whose Salesforce
+branch delegates to the existing `record-url.ts` rule **unchanged**. `CheckResult`
+gains `source`, stamped once in `build()`, so attribution travels with the evidence
+through the API, the exports and Finding Detail instead of being reconstructed at
+each destination.
+
+**Normalisation stops at attribution and reachability.** NorthstarIQ does not
+normalise the records themselves. A Salesforce Lead and a HubSpot contact are not the
+same object, and a shared record schema would misrepresent both. `objectType` is
+accepted because HubSpot record URLs embed it and Salesforce Lightning URLs do not —
+unused on the Salesforce branch by design, not by oversight.
+
+**Salesforce behaviour is unchanged, and the diff shows it.** `score.ts`, `soql.ts`,
+`assessment.ts` and `force-app/` are untouched. No control population, predicate,
+failure condition, calculation or assessment outcome changed; all 394 pre-existing
+tests pass unmodified. `instanceHost` threading was deliberately **kept** — removing
+it would have been a thirteen-file refactor of completed work to serve an abstraction.
+
+**⚠️ A contract is not evidence.** Step 10 creates **no runtime evidence for any
+source**. No HubSpot source, adapter, connection, credential, fixture, control or UI
+exists — `EvidenceSourceId` has exactly one member, and a test asserts that. Nothing
+here upgrades any existing evidence classification: Revenue Handoff still has no live
+pass path, Forecast Commitment still reports Not Scored on an empty population, and
+every Gate 3 limitation stands unchanged.
+
+**STEP 10 — SOURCE IMPLEMENTED · LOCALLY VALIDATED.** Step 11 remains NOT STARTED.
+
 ## Implementation Status
 
 > ### ⚠️ SCOPE — the table below is the Increment 1–4 foundation, not the current build

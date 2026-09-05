@@ -3,7 +3,7 @@ import 'server-only';
 import type { AssessmentResult, CheckResult } from './types.ts';
 import { AREAS, PRESENTATION, formatObservedAt } from './presentation.ts';
 import { TRACEABILITY, ABSENT_TYPES } from './traceability.ts';
-import { recordUrl } from './salesforce.ts';
+import { evidenceRecordUrl } from './evidence-source.ts';
 import type { Sheet } from './export.ts';
 
 /**
@@ -189,7 +189,7 @@ export function evidenceExport(
         const v = row[c.key];
         return v === null || v === undefined ? '' : (v as string | number);
       }),
-      recordUrl(instanceHost, String(row.Id ?? '')) ?? '',
+      evidenceRecordUrl(check.source, instanceHost, String(row.Id ?? '')) ?? '',
     ]),
   };
 
@@ -268,7 +268,7 @@ export function notEvaluatedExport(
         const v = row[c.key];
         return v === null || v === undefined ? '' : (v as string | number);
       }),
-      recordUrl(instanceHost, String(row.Id ?? '')) ?? '',
+      evidenceRecordUrl(check.source, instanceHost, String(row.Id ?? '')) ?? '',
     ]),
   };
 

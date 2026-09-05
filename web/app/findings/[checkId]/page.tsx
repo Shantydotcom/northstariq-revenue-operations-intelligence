@@ -225,6 +225,7 @@ export default async function FindingDetailPage({
           <EvidenceTable
             columns={check.evidenceColumns}
             rows={check.evidence}
+            source={check.source}
             instanceHost={status.instanceHost}
             label="failing records"
             exportBase={check.evidence.length > 0 ? `/api/export/evidence/${check.id}` : undefined}
@@ -271,6 +272,7 @@ export default async function FindingDetailPage({
             <EvidenceTable
               columns={check.notEvaluatedColumns}
               rows={check.notEvaluatedRows}
+              source={check.source}
               instanceHost={status.instanceHost}
               label="records not evaluated"
               exportBase={`/api/export/not-evaluated/${check.id}`}
