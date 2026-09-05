@@ -1902,6 +1902,137 @@ investigated far enough to establish that it is unconnected to Closed Lost gover
 
 ---
 
+## 2y. Step 9 — Forecast Integrity and Revenue Handoff, executed 2026-09-05
+
+**One assessment run, and the evidence classes it does and does not produce.** A single Model v4
+assessment executed through the application's own Salesforce path. It establishes that the
+integration contract works; it establishes a live *failure* path for one control and **no live path
+at all** for the other, because that control's governed population is empty in this org. Those are
+three different facts and they are kept apart below.
+
+### 2y-1. Automated deterministic validation
+
+Fixtures only, no network, no org.
+
+| Suite | Tests |
+|---|---|
+| `web/test/revenue-handoff-integrity.test.ts` | **28** |
+| `web/test/forecast-commitment-integrity.test.ts` | **37** — including both period-resolver refusals (zero matches, multiple matches) |
+| Full repository suite | **394 passing, 0 failing** · `tsc --noEmit` clean · repository validator 50/0/0 |
+
+Both controls' predicates are covered in **both directions** by these tests. That is what carries the
+pass path for Forecast Commitment, since no live record can.
+
+### 2y-2. The runtime execution
+
+| | |
+|---|---|
+| Path | NorthstarIQ application → `POST /api/assessment/run` → `runAssessment()` → Salesforce REST read |
+| Principal | The application's **OAuth 2.0 Client Credentials integration identity** — not the administrator CLI, not Login As, not a seller |
+| `ranAt` | **2026-09-05T02:30:15.895Z** |
+| Result | **HTTP 200, first attempt, no retry** |
+| Model | **v4** — 14 active controls, 6 areas, 116 records assessed (79 Leads, 37 Opportunities) |
+
+Two subsequent read-only `GET /api/findings/{id}` calls exercised the product's finding path for both
+controls; both returned 200.
+
+**Criterion 4 of §7 is satisfied for this increment.** Every query the run issued is a static string
+literal in `web/lib/soql.ts` under source control — `OPPORTUNITY_SOQL` and `FORECAST_PERIOD_SOQL` are
+re-runnable artifacts, not queries typed once and lost.
+
+### 2y-3. Salesforce read contract
+
+Salesforce fails a SOQL query outright on an inaccessible or invalid field, so a 200 returning 37
+Opportunity records proves readability for the whole select list. This is grounded in the execution,
+not in the source.
+
+`ForecastCategoryName` · `ForecastCategory` · `Amount` · `CloseDate` · `AccountId` · `IsClosed` ·
+`IsWon` · the `OpportunityContactRoles` subquery · the `Period` query — **all executed successfully**.
+Zero authentication, field-access or API errors in the server log. **No permission change was
+required or made**, and the run confirms the integration principal already held everything needed.
+
+### 2y-4. Revenue Handoff Integrity — live fail path exercised
+
+Population `IsClosed = true AND IsWon = true` → **19 Closed Won Opportunities**.
+
+| | |
+|---|---|
+| Evaluated · failing · outside · unmeasurable | **19 · 19 · 18 · 0** |
+| Score | **0** (`scoreReason` null — a real verdict, not an absence) |
+| Finding | **High**, 19 affected of 19 evaluated, ranked first of 11 findings |
+
+Failure reasons **overlap by design** — one record may be missing more than one element, so these
+counts are a breakdown, not a partition:
+
+| Reason | Count |
+|---|---|
+| No Account relationship | **1** |
+| No Amount | **1** |
+| **Missing governed Salesforce contact-role evidence** | **19** |
+| **Unique failing records** | **19** — the breakdown sums to 21 and must never be read as 21 records |
+
+⚠️ **The single Account/Amount failure is `NIQ-S8-B-Closed-Won-Unaffected` — `SYNTHETIC`**, a Step 8
+fixture created for a different purpose. The other **18** failures are contact-role-only, on organic
+sample data.
+
+**What the contact-role finding claims, exactly.** That 19 Opportunities carry no
+`OpportunityContactRole` — the governed Salesforce evidence of who the customer is on the deal. It is
+**not** a claim that no customer contact exists, and **not** any claim about recognized revenue.
+
+### 2y-5. Forecast Commitment Integrity — no live path, and that is the finding
+
+Population `IsClosed = false AND ForecastCategoryName IN ('Best Case','Commit')` → **0 records**.
+
+| | |
+|---|---|
+| Evaluated · failing · outside · unmeasurable | **0 · 0 · 37 · 0** |
+| Score | **`null`** |
+| `scoreReason` | **`no-applicable-records`** |
+| Finding raised | **None** |
+
+**NOT SCORED — NO APPLICABLE RECORDS.** This is **not a pass**, **not a failure**, and **not 100**.
+The control found nothing in its governed population, and the model excluded it from the area mean
+rather than crediting it.
+
+Live `ForecastCategoryName` distribution, observed by the application through the integration
+principal — all 37 Opportunities accounted for:
+
+| Value | Count |
+|---|---|
+| `Closed` | 19 |
+| `Pipeline` | 17 |
+| `Omitted` | 1 |
+| **`Best Case`** | **0** |
+| **`Commit`** | **0** |
+
+**No record was created, promoted or modified to populate this control.** An empty governed
+population is evidence about the boundary, not a defect to engineer away.
+
+### 2y-6. Forecast period resolution
+
+The run **proves** that the `Period` query executed, that **exactly one** applicable Salesforce
+fiscal quarter resolved for the assessment date, and that the evaluation received a valid resolved
+period. `resolveForecastPeriod` throws on zero matches *and* on more than one, either of which would
+have surfaced as a failed run — so a 200 is the proof. Neither refusal branch was encountered.
+
+⚠️ **The specific quarter bounds are NOT runtime-observed.** The assessment payload does not carry
+them. Earlier read-only discovery recorded `2026-07-01 → 2026-09-30`, and that remains **discovery
+context, not evidence from this run.**
+
+### 2y-7. What this run did not establish
+
+1. **No Revenue Handoff live pass path** — 0 of 19 passed, so no live record demonstrates it.
+2. **No Forecast Commitment live pass path and no live fail path** — the population is empty.
+3. **Forecast period start/end unobserved** in the payload (§2y-6).
+4. The `OpportunityContactRoles` subquery **executed**, but **no evaluated Closed Won Opportunity
+   carried a role**, so a non-null subquery result was not observed on this population.
+5. Evidence rows are **capped at 10 for display** while counts stay complete — existing documented
+   behaviour, which is why the Account/Amount record falls outside the visible window.
+6. **Forecast Accuracy remains unestablished** and out of scope: it needs period and submission
+   history this org does not hold, and belongs to later analytics work.
+
+---
+
 ## 3. Dataset Specification
 
 | Object | Count | Purpose |

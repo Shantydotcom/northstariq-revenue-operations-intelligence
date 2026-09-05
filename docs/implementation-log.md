@@ -4169,6 +4169,107 @@ runtime-validated on its pass path, and the assessment model is **v3 — impleme
 validated, not runtime validated.** **STEP 8 — COMPLETE**, with every limitation above recorded
 rather than resolved by phrasing.
 
+### 2026-09-05 — Step 9 consolidated: the forecast is only as good as the records behind it
+
+```
+Requirement:   PD-21 (ratified), PD-23 (ratified). PD-22 for the model-version
+               decision. PD-19 binds the revenue terminology. PD-20 keeps the
+               past-dated open pipeline defect where it already belonged.
+               OD-08 narrowed rather than replaced.
+Salesforce:    NOTHING CREATED, DEPLOYED OR MODIFIED. 0 fields, 0 Flows,
+               0 Validation Rules, 0 Record Types, 0 CMDT, 0 permission
+               changes, 0 records touched, 0 fixtures. Read-only throughout.
+Repository:    2 detective controls, 65 deterministic tests, 1 fiscal-period
+               resolver. Both registered. MODEL_VERSION v3 -> v4, 12 -> 14
+               active controls, 6 areas unchanged.
+Validation:    394/394 unit tests, tsc clean, repository validator 50/0/0.
+               ONE Model v4 assessment executed against the org 2026-09-05.
+               Runtime evidence recorded in testing-strategy.md §2y.
+Commit:        NOT COMMITTED - held for human review
+```
+
+**Two requirements, and what each refused to decide.** `PD-21` fixed the Revenue Handoff evidence set
+at three elements — an Account relationship, a populated `Amount`, and at least one
+`OpportunityContactRole` — and named the boundary: NorthstarIQ governs the *handoff*, never
+recognized revenue. `PD-23` fixed the Forecast Commitment evidence set at two — a populated `Amount`
+and a `Close Date` inside the fiscal quarter being assessed — and governs only Opportunities promoted
+into `Best Case` or `Commit`. **Neither invented methodology.** No Stage threshold, no Probability
+threshold, no minimum Amount; a zero `Amount` is populated, and an override is never itself a defect.
+
+**The org's own configuration made the forecast population deterministic.** Every open stage in this
+org derives `ForecastCategoryName = Pipeline`, so `Best Case` and `Commit` cannot arise from the
+configured defaults — a record carrying one has been promoted away from that default. That is what
+supplies a population gate without inferring anyone's intent. The detector reads that a record *is*
+promoted; it never claims who promoted it, when, or why.
+
+**The fiscal calendar is read, not computed.** `resolveForecastPeriod` resolves the quarter containing
+the assessment date from Salesforce's own `Period` records, and **refuses** — on zero matches and on
+more than one — rather than inventing a period end that every subsequent verdict would inherit.
+`Opportunity.FiscalYear` and `FiscalQuarter` are deliberately not consulted: discovery found them
+stale against their own Close Dates on the sample records.
+
+**One assessment run, and three different kinds of evidence.** Executed 2026-09-05T02:30:15.895Z
+through `POST /api/assessment/run` as the **integration principal** — not the administrator CLI, not
+Login As. HTTP 200, first attempt, no retry. 116 records assessed, 14 controls, 6 areas.
+
+| Control | Population | Evaluated | Failing | Score |
+|---|---|---|---|---|
+| `revenue-handoff-integrity` | 19 Closed Won | 19 | **19** | **0** |
+| `forecast-commitment-integrity` | 0 promoted to Best Case / Commit | 0 | 0 | **Not Scored** |
+
+**Revenue Handoff failed every record it judged, and the reasons overlap.** 1 with no Account
+relationship, 1 with no `Amount`, **19 with no governed Salesforce contact-role evidence** — a
+breakdown summing to 21 over **19 unique records**, never to be read as 21. ⚠️ The single
+Account/`Amount` failure is `NIQ-S8-B-Closed-Won-Unaffected`, **`SYNTHETIC`** — a Step 8 fixture
+built for another purpose. The other 18 are contact-role-only on organic sample data. The finding
+claims that 19 Opportunities carry no `OpportunityContactRole`; it does **not** claim no customer
+contact exists anywhere in Salesforce.
+
+**Forecast Commitment judged nothing, and said so.** The live distribution is `Closed` 19 ·
+`Pipeline` 17 · `Omitted` 1 · **`Best Case` 0 · `Commit` 0**. The control reported **Not Scored — no
+applicable records**: not a pass, not a failure, not 100. The Model v2 eligibility rule excluded it
+from the Pipeline Hygiene mean rather than crediting an absence of evidence as health. **No record
+was created or promoted to populate it** — an empty governed population is evidence about the
+boundary, and manufacturing one would have been the failure this project exists to avoid.
+
+**Assessment Model v4.** Six areas, fourteen active controls, overall health 80, 11 findings (5
+High). Pipeline Hygiene moved from two active controls to four and scored **41** on **3 of 4** —
+`stale-opportunities` 24, `closed-lost-reason` 100, `revenue-handoff-integrity` 0, Forecast
+Commitment unscored. **v3 and v4 are not comparable** and no v3 assessment was ever run, so nothing
+here is an improvement or a deterioration — the active control set changed, which is precisely what
+`PD-22` exists to record.
+
+**Evidence limitations, stated rather than closed by wording.** Revenue Handoff has a **live
+fail path** and **no live pass path** — 0 of 19 passed · Forecast Commitment has **neither** live
+path, because its population is empty · the forecast period's **exact bounds were not observable** in
+the assessment payload, only that exactly one quarter resolved · the `OpportunityContactRoles`
+subquery executed but **no evaluated Closed Won Opportunity carried a role**, so a non-null subquery
+result was not observed · evidence rows remain **capped at 10 for display** while counts stay
+complete · the pre-existing `export-model` mappings for `closed-lost-reason` and
+`seller-decision-timeliness` are **still absent and deliberately untouched** · and **Forecast
+Accuracy remains unestablished**, requiring period and submission history this org does not hold.
+
+**Step 9 status.** Both requirements are ratified, both detectors are implemented and covered by 65
+deterministic tests, both are **registered and active** in Assessment Model v4, the model is
+**implemented, locally validated and Salesforce integration runtime validated**, Revenue Handoff is
+**live fail-path validated**, and Forecast Commitment correctly reports **Not Scored — no applicable
+records** against a genuinely empty governed population. **No Salesforce object, field, record,
+permission or setting was created or changed at any point in Step 9.** **STEP 9 — FORECAST
+INTEGRITY: COMPLETE**, with every limitation above recorded rather than resolved by phrasing.
+
+**What "complete" means here, and what it does not.** NorthstarIQ can execute Forecast Commitment
+Integrity through its intended Salesforce integration path, resolve the fiscal-period dependency at
+runtime, evaluate the governed forecast-commitment population when records exist, return Not Scored
+when none do, hold deterministic predicate coverage in local tests, and distinguish forecast evidence
+*completeness* from forecast *correctness*. It does **not** mean NorthstarIQ predicts or generates
+forecasts, validates seller judgement, measures forecast accuracy or historical movement, performs
+scenario planning, validates quotas or forecast submissions, calculates recognized revenue, or treats
+Forecast as a lifecycle stage. **Forecast is a lens over open Opportunity state, never a stage.**
+
+**READY FOR GATE 3 CLOSEOUT REVIEW — GATE 3 IS NOT CLOSED.** Every segment of the governed lifecycle
+now has an active control executing against the org, including `Closed Won → Revenue Handoff`, which
+was the last segment without one. Gate 3 requires its own bounded review.
+
 ## Implementation Status
 
 > ### ⚠️ SCOPE — the table below is the Increment 1–4 foundation, not the current build
