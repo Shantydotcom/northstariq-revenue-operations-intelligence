@@ -18,6 +18,7 @@ import {
   type LeadStatusHistoryRecord,
   type OpportunityRecord,
 } from '../soql.ts';
+import type { ForecastPeriod } from './forecast-period.ts';
 import {
   canReach,
   type LifecycleGraph,
@@ -2576,6 +2577,229 @@ export function revenueHandoffIntegrity(opps: OpportunityRecord[]): CheckResult 
           count: countIn(missingContactRole),
           detail:
             'The Opportunity records no OpportunityContactRole — the governed evidence of who the customer is on the deal. It is not a statement that no such person exists',
+        },
+      ],
+    },
+  );
+}
+
+/* ------------------------------ Forecast Commitment (PD-23, unregistered) */
+/**
+ * Forecast Commitment Integrity — does a deal promoted into the forecast carry
+ * the evidence that makes the commitment usable?
+ *
+ * ⚠️ SOURCE IMPLEMENTED, DELIBERATELY NOT REGISTERED. Absent from `CHECK_IDS`
+ * and from `runAllChecks`, so it executes in no assessment, produces no score
+ * and leaves Model v3 exactly as it was validated.
+ *
+ * THE POPULATION IS A STATE, NOT AN INFERENCE. Every open stage in this org
+ * derives `ForecastCategoryName = Pipeline`, so `Best Case` and `Commit`
+ * cannot arise from the configured open-stage defaults. The control reads that
+ * the record IS promoted; it never claims who promoted it, when, or why.
+ * Actor history is not in the evidence, so it is not in the finding.
+ *
+ * WHAT IS DELIBERATELY NOT CHECKED, AND WHY.
+ *   · A difference between `ForecastCategory` and `ForecastCategoryName` is
+ *     NEVER a failure - the field is overridable by design (`PD-23`). The
+ *     derived value is carried as context so a promotion is legible, and is
+ *     judged nowhere.
+ *   · `StageName` and `Probability` set no threshold. Probability is a stored
+ *     field defaulted from the stage, and any cutoff would be invented policy.
+ *   · A Close Date in the PAST is `PD-20`'s defect, detected by
+ *     `stale-opportunities`. This control's date predicate is strictly
+ *     `after the period end`, so the two can never score the same fact twice.
+ *   · Eventual Won/Lost proves nothing about a classification made earlier,
+ *     and is not read.
+ *
+ * WHAT A FAILURE MEANS, EXACTLY. That the record lacks evidence `PD-23`
+ * requires - never that the forecast is wrong, that the judgement behind it
+ * was unreasonable, or that the `Amount` is incorrect.
+ */
+export function forecastCommitmentIntegrity(
+  opps: OpportunityRecord[],
+  /**
+   * The fiscal quarter containing the assessment date, already resolved.
+   *
+   * Passed in rather than fetched, for the reason every check in this file is
+   * a pure function: the detector stays unit-testable with no network, and
+   * resolving the org's fiscal calendar - including refusing a missing or
+   * ambiguous one - stays in `forecast-period.ts` where it can fail loudly.
+   */
+  period: ForecastPeriod,
+): CheckResult {
+  const dash = (v: string | null) => (v === null || v === '' ? '—' : v);
+
+  /** The two classifications that represent a forecast commitment. */
+  const COMMITTED = ['Best Case', 'Commit'];
+
+  /*
+   * Open AND promoted. `IsClosed` is Salesforce's own stage-derived flag and is
+   * never re-derived from the stage label; the classification is read from the
+   * seller-visible field, never from the derived one.
+   */
+  const population = opps.filter(
+    (o) => !o.IsClosed && o.ForecastCategoryName !== null && COMMITTED.includes(o.ForecastCategoryName),
+  );
+
+  /*
+   * Null only. `PD-23` requires `Amount` POPULATED, and a zero is a populated
+   * value - treating it as absent would invent a monetary threshold the
+   * ratified decision explicitly declines to set. Completeness, never
+   * correctness: nothing here judges whether the value is right.
+   */
+  const missingAmount = (o: OpportunityRecord) => o.Amount === null;
+
+  /*
+   * AFTER the period end, and only that.
+   *
+   * A commitment says the deal lands in this period; a date beyond the period
+   * end contradicts it on the record's own two fields. A date BEFORE the
+   * period, or merely before today, is deliberately not failed here - that is
+   * `PD-20`'s governed defect and re-scoring it would penalise one fact twice.
+   *
+   * A null Close Date cannot be after anything, so it does not fail: Salesforce
+   * requires the field, and inventing a failure for a state the platform
+   * prevents would add a predicate `PD-23` does not have.
+   *
+   * ISO `YYYY-MM-DD` strings compare lexicographically in date order - the same
+   * comparison `stale-opportunities` already makes.
+   */
+  const afterPeriodEnd = (o: OpportunityRecord) =>
+    o.CloseDate !== null && o.CloseDate > period.endDate;
+
+  /** The governed evidence this record does not carry, in `PD-23`'s order. */
+  const gaps = (o: OpportunityRecord): string[] => {
+    const out: string[] = [];
+    if (missingAmount(o)) out.push('Amount');
+    if (afterPeriodEnd(o)) out.push('Close Date within the forecast period');
+    return out;
+  };
+
+  /*
+   * ONE RECORD, EITHER OR BOTH ELEMENTS. A commitment missing both is one
+   * unsupported commitment, not two - so the failing set is filtered from the
+   * population once, and the per-predicate division is carried in
+   * `failureBreakdown`, where the counts may legitimately overlap.
+   */
+  const failing = population.filter((o) => gaps(o).length > 0);
+  const countIn = (p: (o: OpportunityRecord) => boolean) => population.filter(p).length;
+
+  const notEvaluated: NotEvaluatedRecord[] = opps
+    .filter((o) => !population.includes(o))
+    .map((o) => ({
+      /*
+       * Outside, never unmeasurable: both elements are directly observable on
+       * a promoted record, so no record this control applies to can lack the
+       * evidence to be judged.
+       */
+      kind: 'outside' as const,
+      row: {
+        Name: o.Name,
+        StageName: dash(o.StageName),
+        ForecastCategoryName: dash(o.ForecastCategoryName),
+        Reason: o.IsClosed
+          ? `Forecast commitment evidence — this Opportunity is closed, so it is an outcome rather than a forecast commitment; what a closed record owes is governed by a different control. It was not included in this control’s score.`
+          : `Forecast commitment evidence — this Opportunity is open at forecast category "${dash(
+              o.ForecastCategoryName,
+            )}", which represents no commitment to the period, so no commitment evidence is owed. It was not included in this control’s score.`,
+        Id: o.Id,
+      },
+    }));
+
+  return build(
+    {
+      id: 'forecast-commitment-integrity',
+      title: 'Forecast Commitments Without Supporting Evidence',
+      category: 'Pipeline Hygiene',
+      /*
+       * High: these are the records leadership is being asked to count. A
+       * commitment nobody can quantify, or one dated outside the period it
+       * claims, reaches a forecast conversation looking exactly like a sound
+       * one.
+       */
+      severity: 'High',
+      businessQuestion:
+        'Do the deals promoted into the forecast carry the evidence needed to count them?',
+      businessImpact:
+        'A forecast is assembled from the records behind it, and a promoted Opportunity is a claim that this deal belongs in the period. Without an Amount the commitment cannot be quantified; with a Close Date beyond the period end it belongs to a later one. NorthstarIQ reports whether that evidence is present — never whether the forecast, the judgement behind it or the value itself is correct.',
+      failureDetail:
+        failing.length === 0
+          ? ''
+          : (() => {
+              const parts = (
+                [
+                  [countIn(missingAmount), 'no Amount'],
+                  [countIn(afterPeriodEnd), `a Close Date after ${period.endDate}`],
+                ] as const
+              )
+                .filter(([c]) => c > 0)
+                .map(([c, label]) => `${c} with ${label}`);
+              return `${failing.length} forecast ${
+                failing.length === 1 ? 'commitment carries' : 'commitments carry'
+              } incomplete evidence for the period ending ${period.endDate} — ${parts.join(
+                ', ',
+              )}${parts.length > 1 ? ' (a record can be missing both)' : ''}`;
+            })(),
+      population: `${population.length} open Opportunities promoted to Best Case or Commit`,
+      orgPopulation: opps.length,
+      orgPopulationNoun: 'Opportunities',
+      evaluated: population.length,
+      failing: failing.length,
+      evidenceColumns: [
+        { key: 'Name', label: 'Opportunity' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'ForecastCategoryName', label: 'Forecast Category' },
+        /*
+         * Context, never judged. Shown beside the seller-visible value so a
+         * reader can see the record was promoted away from the derived
+         * default - which is the population gate, not a defect.
+         */
+        { key: 'DerivedCategory', label: 'Derived From Stage' },
+        { key: 'StageName', label: 'Stage' },
+        /* The two proving columns - the values the predicates actually read. */
+        { key: 'Amount', label: 'Amount', mono: true, proving: true },
+        { key: 'CloseDate', label: 'Close Date', mono: true, proving: true },
+        { key: 'PeriodEnd', label: 'Forecast Period Ends', mono: true },
+        { key: 'Result', label: 'Result' },
+      ],
+      notEvaluatedColumns: [
+        { key: 'Name', label: 'Opportunity' },
+        { key: 'Id', label: 'Record ID', mono: true },
+        { key: 'StageName', label: 'Stage' },
+        { key: 'ForecastCategoryName', label: 'Forecast Category' },
+        { key: 'Reason', label: "Why wasn't this record evaluated?" },
+      ],
+    },
+    failing.map((o) => ({
+      Name: o.Name,
+      ForecastCategoryName: dash(o.ForecastCategoryName),
+      DerivedCategory: dash(o.ForecastCategory),
+      StageName: dash(o.StageName),
+      Amount: o.Amount === null ? '— (not populated)' : o.Amount,
+      CloseDate: dash(o.CloseDate),
+      PeriodEnd: period.endDate,
+      /* Names every missing element, so one row explains the whole gap. */
+      Result: `Missing governed commitment evidence: ${gaps(o).join(', ')}`,
+      Id: o.Id,
+    })),
+    notEvaluated,
+    population.map(refOf),
+    {
+      /*
+       * These counts may OVERLAP - one record can appear on both lines - which
+       * is why they are a breakdown rather than a partition, and why `failing`
+       * is counted over records instead of summing them.
+       */
+      failure: [
+        {
+          label: 'No Amount',
+          count: countIn(missingAmount),
+          detail: 'The commitment carries no value, so it cannot be quantified',
+        },
+        {
+          label: 'Close Date after the forecast period',
+          count: countIn(afterPeriodEnd),
+          detail: `The commitment claims the period ending ${period.endDate}, but the record is dated after it. A date in the PAST is not judged here — that is governed by open pipeline date health`,
         },
       ],
     },

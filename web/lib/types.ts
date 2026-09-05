@@ -29,7 +29,7 @@ export type Category =
  * Membership here means the detector exists in source and carries complete
  * presentation and traceability records. It does NOT mean the control runs:
  * `CHECK_IDS` is the API allow-list and the active set, and a check absent
- * from it executes in no assessment and moves no score. Two members are
+ * from it executes in no assessment and moves no score. Three members are
  * currently in that state by design.
  *
  * Whether a REGISTERED check produces a score is a third, separate question,
@@ -57,7 +57,13 @@ export type CheckId =
    * what makes its presentation and traceability records type-complete;
    * `CHECK_IDS` is the separate thing that activates a control.
    */
-  | 'revenue-handoff-integrity';
+  | 'revenue-handoff-integrity'
+  /*
+   * SOURCE IMPLEMENTED, NOT REGISTERED — the same position as the two above.
+   * Absent from `CHECK_IDS` and from `runAllChecks`, so it executes in no
+   * assessment and Model v3 is unchanged. `PD-23` governs it.
+   */
+  | 'forecast-commitment-integrity';
 
 /** One column of finding evidence. `mono` renders values in a monospace face. */
 export interface EvidenceColumn {

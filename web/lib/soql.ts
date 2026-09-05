@@ -181,6 +181,25 @@ export interface OpportunityRecord {
    * no control re-tests membership. Blank on a lost Opportunity is the finding.
    */
   Loss_Reason__c: string | null;
+  /*
+   * The SELLER-VISIBLE forecast classification, and the one this org can only
+   * reach by promotion.
+   *
+   * Writable and overridable BY DESIGN. Every open stage in this org derives
+   * `Pipeline`, so `Best Case` and `Commit` cannot arise from the configured
+   * open-stage defaults - which is what makes their presence a deterministic
+   * population gate rather than an inference about anyone's intent.
+   */
+  ForecastCategoryName: string | null;
+  /*
+   * The DERIVED classification. Not writable at all - Salesforce computes it
+   * from the stage configuration.
+   *
+   * CONTEXT ONLY. Read so a finding can show the derived value beside the
+   * seller-visible one, which is what makes a promotion legible. A difference
+   * between the two is NEVER a defect and is never judged.
+   */
+  ForecastCategory: string | null;
   Account: { Name: string | null } | null;
   /*
    * The customer contact relationships recorded ON THE DEAL.
@@ -386,12 +405,41 @@ LIMIT 500
  */
 export const OPPORTUNITY_SOQL = `
 SELECT Id, Name, StageName, CloseDate, Amount, AccountId, IsClosed, IsWon,
-       Loss_Reason__c, Account.Name,
+       Loss_Reason__c, ForecastCategoryName, ForecastCategory, Account.Name,
        (SELECT Id FROM OpportunityContactRoles)
 FROM Opportunity
 ORDER BY CloseDate ASC
 LIMIT 500
 `.trim().replace(/\s+/g, ' ');
+
+/**
+ * The org's own fiscal quarters - the forecast period authority.
+ *
+ * `Period` IS the fiscal calendar Salesforce maintains, so NorthstarIQ reads
+ * the org's definition rather than assuming quarters are calendar quarters.
+ * `Opportunity.FiscalYear` and `FiscalQuarter` are deliberately NOT used:
+ * read-only discovery found them stale against their own `CloseDate` on the
+ * sample records, so they cannot carry a period question.
+ *
+ * NO DATE FILTER, deliberately. Every query in this file is a static literal
+ * with no interpolation, which is what keeps the injection surface at zero -
+ * so the assessment date is applied by `resolveForecastPeriod` over the rows
+ * instead of being written into the query. The row count is a handful of
+ * quarters per fiscal year the org has defined.
+ */
+export const FORECAST_PERIOD_SOQL = `
+SELECT StartDate, EndDate
+FROM Period
+WHERE Type = 'Quarter'
+ORDER BY StartDate
+LIMIT 500
+`.trim().replace(/\s+/g, ' ');
+
+/** One fiscal period, as Salesforce holds it. Dates are ISO `YYYY-MM-DD`. */
+export interface PeriodRecord {
+  StartDate: string;
+  EndDate: string;
+}
 
 /** Counted for the Integrations screen only; no field data is read. */
 export const ACCOUNT_COUNT_SOQL = 'SELECT Id FROM Account LIMIT 500';

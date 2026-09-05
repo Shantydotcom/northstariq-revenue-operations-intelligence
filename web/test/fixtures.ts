@@ -3,6 +3,7 @@ import type {
   LeadStatusHistoryRecord,
   LifecycleTransitionRecord,
   OpportunityRecord,
+  PeriodRecord,
 } from '../lib/soql.ts';
 import type { LifecycleGovernance } from '../lib/checks/index.ts';
 import { buildLifecycleGraph } from '../lib/checks/lifecycle-graph.ts';
@@ -122,9 +123,24 @@ export function opportunity(overrides: Partial<OpportunityRecord> = {}): Opportu
      * Handoff fail path reachable without every other fixture opting in.
      */
     OpportunityContactRoles: null,
+    /*
+     * `Pipeline` by default, on both fields, because that is what this org
+     * actually produces: every open stage derives Pipeline, and the derived and
+     * seller-visible values agree until a record is promoted. Defaulting this
+     * way keeps the Forecast Commitment population empty unless a fixture opts
+     * in — the same shape the live org has.
+     */
+    ForecastCategoryName: 'Pipeline',
+    ForecastCategory: 'Pipeline',
     ...overrides,
   };
 }
+
+/** The org's fiscal quarter, in the shape the Period query returns. */
+export const FISCAL_Q3_2026: PeriodRecord = {
+  StartDate: '2026-07-01',
+  EndDate: '2026-09-30',
+};
 
 /** One contact role, in the shape the Opportunity subquery returns. */
 export function contactRoles(count: number): { records: { Id: string }[] } {

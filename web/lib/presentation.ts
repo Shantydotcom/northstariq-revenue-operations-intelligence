@@ -1149,6 +1149,89 @@ export const PRESENTATION: Record<CheckId, CheckPresentation> = {
     verificationSource:
       '⚠️ SOURCE IMPLEMENTED · LOCALLY VALIDATED · NOT REGISTERED · NOT ACTIVE IN ASSESSMENT. Application unit tests against fixture records only. The detector executes in no assessment, so there is NO Salesforce integration runtime evidence, NO live pass-path evidence and NO live fail-path evidence for it — none of which may be claimed until the control is registered and actually run.',
   },
+
+  /*
+   * SOURCE IMPLEMENTED, NOT REGISTERED. Present so the detector's presentation
+   * is complete and reviewable. Nothing here reaches a screen until the control
+   * is added to CHECK_IDS.
+   */
+  'forecast-commitment-integrity': {
+    label: 'Forecast Commitments Without Supporting Evidence',
+    checkName: 'Forecast Commitment Integrity',
+    blurb: 'Opportunities promoted into the forecast without the evidence needed to count them.',
+    headlinePredicate:
+      'forecast commitments are missing the evidence needed to count them.',
+    queueDescription:
+      'Open Opportunities at Best Case or Commit with no Amount, or a Close Date beyond the forecast period.',
+    populationNoun: 'open Opportunities promoted to Best Case or Commit',
+    denominator: true,
+    unit: 'opportunities',
+    why: 'A forecast is assembled from the records behind it, and promoting an Opportunity to Best Case or Commit is a claim that this deal belongs in the period. Without an Amount the commitment cannot be quantified; with a Close Date beyond the period end it belongs to a later period. Both reach a forecast conversation looking exactly like a sound commitment.',
+    control:
+      'An open Opportunity at Best Case or Commit should carry a populated Amount and a Close Date on or before the end of the Salesforce fiscal quarter being assessed. Salesforce enforces neither — the forecast classification is freely writable — so NorthstarIQ reports the gap rather than preventing it. The evidence set is fixed at two elements: adding a third would be a new governed decision, not a wider check.',
+    recheck:
+      'The Opportunity carries an Amount and a Close Date within the forecast period — or its forecast category no longer represents a commitment, at which point it leaves this control’s population. Re-running re-reads what the record holds now.',
+    finding: (f, e) =>
+      `${f} of ${e} forecast commitments are missing the evidence needed to count them.`,
+    explain: {
+      inScope:
+        'because they are open and carry a forecast category that represents a commitment to the period',
+      notClaimed: 'are closed, or carry a forecast category that represents no commitment',
+      notEvaluated:
+        'are either closed — an outcome rather than a commitment — or open at a category such as Pipeline, which claims nothing about the period and owes no evidence',
+      proves:
+        'A pass means both evidence elements are present. It does not mean the deal will close, that the Amount is correct, that the date is realistic, or that the commitment was good judgement — none of which this control can falsify. It is never a statement about recognized revenue.',
+    },
+    sourceEvidence: {
+      intro:
+        'Where the population comes from, what is judged, and what is deliberately left alone.',
+      pairs: [
+        {
+          term: 'The population is a Salesforce state, not an inference',
+          detail:
+            'Every open stage in this org derives a forecast category of Pipeline, so Best Case and Commit cannot arise from the configured open-stage defaults — a record carrying one has been promoted away from that default. NorthstarIQ reads that the record IS promoted. It does not read, infer or report who promoted it, when, or why: actor history is not in the evidence, so it is not in the finding.',
+        },
+        {
+          term: 'An override is never the defect',
+          detail:
+            'The seller-visible forecast category is overridable by design. NorthstarIQ shows the derived value beside it so a promotion is legible, and judges the difference nowhere. A record whose two categories disagree passes this control as readily as one where they agree.',
+        },
+        {
+          term: 'Two elements, and deliberately not a third',
+          detail:
+            'A populated Amount and a Close Date inside the period. No Stage is required, no Probability threshold is set, and no minimum Amount exists — a zero Amount is a populated value. Each of those would be invented sales methodology rather than governed policy.',
+        },
+        {
+          term: 'A past Close Date is a different control’s finding',
+          detail:
+            'Open Opportunities whose Close Date has already lapsed are governed by open pipeline date health. This control fails a date only when it falls AFTER the forecast period end — so one slipped date is never counted as two separate problems.',
+        },
+        {
+          term: 'The period comes from the org’s own fiscal calendar',
+          detail:
+            'The forecast period is the Salesforce fiscal quarter containing the assessment date, read from the org’s defined periods rather than assumed to be a calendar quarter. If no quarter contains that date, or more than one does, the assessment fails explicitly rather than inventing a period end to measure against.',
+        },
+      ],
+    },
+    safeguard: {
+      kind: 'detective',
+      title: 'No automated safeguard is implemented for this condition',
+      body: 'NorthstarIQ detects it for operational review. Detective by deliberate decision, not by omission: a forecast classification is a human representation of expectation, and a validation rule would refuse a legitimate commercial judgement because supporting fields had not been filled in yet. No Flow, validation rule, custom field or Record Type was built for it, and stating that is more useful than implying a control the project did not build.',
+      tech: ['Detection only', 'Opportunity', 'Period'],
+    },
+    verification: [
+      'An open Best Case or Commit Opportunity with an Amount and a Close Date inside the period passes',
+      'A missing Amount is reported, and a Close Date after the period end is reported, each naming the element that is absent',
+      'An Opportunity missing both is reported ONCE, with both elements named',
+      'An Amount of zero passes — populated is the requirement, not a threshold',
+      'A Close Date already in the past does NOT fail this control; that condition belongs to open pipeline date health',
+      'A forecast category that disagrees with the stage-derived value is not a failure on its own',
+      'Open Pipeline and closed Opportunities are outside the population and are never scored by it',
+      'A missing or ambiguous fiscal quarter refuses to resolve rather than assuming a period',
+    ],
+    verificationSource:
+      '⚠️ SOURCE IMPLEMENTED · LOCALLY VALIDATED · NOT REGISTERED · NOT ACTIVE IN ASSESSMENT. Application unit tests against fixture records only. The detector executes in no assessment, so there is NO Salesforce integration runtime evidence, NO live pass-path evidence and NO live fail-path evidence for it. Read-only discovery on 2026-09-04 observed ZERO open Opportunities at Best Case or Commit in this org, so the governed population is currently empty and no organic record can exercise either path.',
+  },
 };
 
 /**
